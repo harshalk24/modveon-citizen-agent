@@ -1,0 +1,116 @@
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "sqlite"
+  url      = env("DATABASE_URL")
+}
+
+model Citizen {
+  id        String   @id @default(cuid())
+  firstName String?
+  country   String   @default("SV")
+  email     String?
+  gender    String?
+  language  String   @default("en")
+  onboarded Boolean  @default(false)
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  sessions   Session[]
+  context    CitizenContext?
+  deadlines  Deadline[]
+  actionPlan ActionPlan?
+  feedbacks  Feedback[]
+  logs       ResponseLog[]
+}
+
+model CitizenContext {
+  id                  String   @id @default(cuid())
+  citizenId           String   @unique
+  lifeEvent           String?
+  employment          String?
+  entitlementsJson    String   @default("[]")
+  conversationSummary String?
+  updatedAt           DateTime @updatedAt
+
+  citizen Citizen @relation(fields: [citizenId], references: [id])
+}
+
+model ActionPlan {
+  id        String   @id @default(cuid())
+  citizenId String   @unique
+  planJson  String   @default("[]")
+  lifeEvent String?
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  citizen Citizen @relation(fields: [citizenId], references: [id])
+}
+
+model Deadline {
+  id          String   @id @default(cuid())
+  citizenId   String
+  title       String
+  titleEs     String
+  dueDate     DateTime
+  serviceName String
+  serviceId   String
+  completed   Boolean  @default(false)
+  reminded30  Boolean  @default(false)
+  reminded7   Boolean  @default(false)
+  reminded1   Boolean  @default(false)
+  createdAt   DateTime @default(now())
+
+  citizen Citizen @relation(fields: [citizenId], references: [id])
+}
+
+model Session {
+  id        String   @id @default(cuid())
+  citizenId String?
+  messages  String   @default("[]")
+  turnCount Int      @default(0)
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  citizen Citizen? @relation(fields: [citizenId], references: [id])
+}
+
+model Feedback {
+  id        String   @id @default(cuid())
+  citizenId String?
+  serviceId String?
+  messageId String?
+  type      String
+  note      String?
+  resolved  Boolean  @default(false)
+  createdAt DateTime @default(now())
+
+  citizen Citizen? @relation(fields: [citizenId], references: [id])
+}
+
+model ResponseLog {
+  id          String   @id @default(cuid())
+  citizenId   String?
+  sessionId   String?
+  prompt      String
+  response    String
+  kbSourceIds String   @default("[]")
+  model       String   @default("gemini-2.5-flash-lite")
+  latencyMs   Int?
+  createdAt   DateTime @default(now())
+
+  citizen Citizen? @relation(fields: [citizenId], references: [id])
+}
+
+model KBChangeLog {
+  id         String   @id @default(cuid())
+  serviceId  String
+  field      String
+  oldValue   String?
+  newValue   String?
+  changedBy  String   @default("manual")
+  verifiedAt DateTime @default(now())
+  note       String?
+}
