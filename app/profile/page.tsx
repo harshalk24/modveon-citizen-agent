@@ -72,6 +72,7 @@ export default function ProfilePage() {
       setEmail(citizen.profile.email || "")
       setLifeEvent(citizen.profile.lifeEvent || "")
       setEmployment(citizen.profile.employment || "")
+      if (citizen.profile.gender) setGender(citizen.profile.gender)
     }
   }, [citizen])
 
@@ -112,6 +113,58 @@ export default function ProfilePage() {
           </div>
         </div>
       </div>
+
+      {/* Profile completion */}
+      {(() => {
+        const mandatoryFields = [
+          { key: "firstName",  label: "Name",        filled: !!citizen?.profile?.firstName && citizen.profile.firstName !== "there" },
+          { key: "lifeEvent",  label: "Situation",   filled: !!citizen?.profile?.lifeEvent },
+          { key: "employment", label: "Employment",  filled: citizen?.profile?.employment !== "any" && !!citizen?.profile?.employment },
+        ]
+        const optionalFields = [
+          { key: "email",       label: "Email",         filled: !!citizen?.profile?.email || !!email, optional: true },
+          { key: "gender",      label: "Gender",        filled: !!citizen?.profile?.gender || !!gender, optional: true },
+          { key: "department",  label: "Department",    filled: !!department, optional: true },
+          { key: "whatsapp",    label: "WhatsApp",      filled: !!whatsapp, optional: true },
+          { key: "salary",      label: "Salary range",  filled: !!salaryRange, optional: true },
+          { key: "family",      label: "Family status", filled: !!familyStatus, optional: true },
+        ]
+        const allFields = [...mandatoryFields, ...optionalFields]
+        const filledCount = allFields.filter(f => f.filled).length
+        const completionPct = Math.round((filledCount / allFields.length) * 100)
+        const missingMandatory = mandatoryFields.filter(f => !f.filled)
+        const missingOptional = optionalFields.filter(f => !f.filled)
+        return (
+          <div className="bg-white border-b border-gray-100 px-6 py-4">
+            <div className="flex items-center justify-between mb-2">
+              <span className="text-sm font-medium text-gray-700">
+                {lang === "es" ? "Perfil completo" : "Profile complete"}
+              </span>
+              <span className="text-sm font-semibold text-[#185FA5]">{completionPct}%</span>
+            </div>
+            <div className="h-2 bg-gray-100 rounded-full overflow-hidden">
+              <div
+                className="h-full rounded-full transition-all duration-500"
+                style={{
+                  width: `${completionPct}%`,
+                  background: completionPct === 100 ? "#10b981" : "#185FA5",
+                }}
+              />
+            </div>
+            {completionPct < 100 && (
+              <p className="text-xs text-gray-400 mt-1.5">
+                {missingMandatory.length > 0 && (
+                  <>{lang === "es" ? "Requerido:" : "Required:"} {missingMandatory.map(f => f.label).join(", ")}</>
+                )}
+                {missingMandatory.length > 0 && missingOptional.length > 0 && " · "}
+                {missingOptional.length > 0 && (
+                  <>{lang === "es" ? "Opcional:" : "Optional:"} {missingOptional.map(f => f.label).join(", ")}</>
+                )}
+              </p>
+            )}
+          </div>
+        )
+      })()}
 
       <div className="max-w-lg mx-auto px-4 py-5 space-y-3 pb-10">
 

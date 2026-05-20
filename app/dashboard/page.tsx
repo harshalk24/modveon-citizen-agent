@@ -1,24 +1,39 @@
 "use client"
 
+import { useEffect } from "react"
 import { useRouter } from "next/navigation"
 import { motion } from "framer-motion"
 import { useLang } from "@/contexts/LanguageContext"
 import { useCitizen } from "@/contexts/CitizenContext"
 import { t } from "@/lib/i18n"
-import { lookupServices, services as allServices } from "@/lib/kb"
+import { lookupServices, services as kbServices } from "@/lib/kb"
 import { Gift, ListChecks, Calendar, MessageSquare, AlertCircle, ChevronRight, Loader2 } from "lucide-react"
 
 function getDaysLeft(dueDate: string) {
   return Math.ceil((new Date(dueDate).getTime() - Date.now()) / (1000 * 60 * 60 * 24))
 }
 
+const safeDivide = (a: number, b: number) => b === 0 ? 0 : Math.round((a / b) * 100)
+
 export default function DashboardPage() {
   const router = useRouter()
   const { lang } = useLang()
-  const { citizen, isLoading } = useCitizen()
+  const { citizen, isLoading, refresh } = useCitizen()
   const tr = t(lang)
 
   const hour = new Date().getHours()
+
+  // Refresh citizen data on mount and whenever the tab regains focus.
+  // This ensures the dashboard shows the latest entitlements/plan data
+  // after the user has been chatting (which saves to DB asynchronously).
+  useEffect(() => {
+    refresh()
+    const handleVisibilityChange = () => {
+      if (document.visibilityState === "visible") refresh()
+    }
+    document.addEventListener("visibilitychange", handleVisibilityChange)
+    return () => document.removeEventListener("visibilitychange", handleVisibilityChange)
+  }, [])
 
   if (isLoading) {
     return (
@@ -28,24 +43,31 @@ export default function DashboardPage() {
     )
   }
 
-  // Empty state — no citizen or no life event
-  if (!citizen?.profile.lifeEvent) {
+  // Resolve lifeEvent — prefer DB, fall back to localStorage signal captured during chat
+  const resolvedLifeEvent = citizen?.profile.lifeEvent ||
+    (typeof window !== "undefined" ? localStorage.getItem("ca_detected_life_event") : "") || ""
+  const resolvedEmployment = citizen?.profile.employment ||
+    (typeof window !== "undefined" ? localStorage.getItem("ca_detected_employment") : "") || "any"
+  const resolvedCountry = citizen?.profile.country || "SV"
+
+  // Empty state — no life event detected yet
+  if (!resolvedLifeEvent) {
     return <EmptyDashboard tr={tr} lang={lang} router={router} firstName={citizen?.profile.firstName} hour={hour} />
   }
 
   const contextServices = lookupServices({
-    country: citizen.profile.country,
-    lifeEvent: citizen.profile.lifeEvent,
-    employment: citizen.profile.employment || "any",
+    country: resolvedCountry,
+    lifeEvent: resolvedLifeEvent,
+    employment: resolvedEmployment,
   })
 
-  const entitlements = citizen.entitlements || []
+  const entitlements = citizen?.entitlements || []
   const claimedCount = entitlements.filter(e => e.status === "received").length
-  const planSteps = citizen.planSteps || []
+  const planSteps = citizen?.planSteps || []
   const doneSteps = planSteps.filter(s => s.status === "done")
   const nextStep = planSteps.find(s => s.status !== "done")
 
-  const deadlines = citizen.deadlines || []
+  const deadlines = citizen?.deadlines || []
   const activeDeadlines = deadlines
     .filter(d => !d.completed)
     .map(d => ({ ...d, daysLeft: getDaysLeft(d.dueDate) }))
@@ -55,10 +77,14 @@ export default function DashboardPage() {
   const urgentCount = activeDeadlines.filter(d => d.daysLeft <= 30).length
 
   // Total value estimate
-  const totalValueMonthly = contextServices.reduce((sum, s) => {
-    if (!s.amount) return sum
-    const match = s.amount.match(/\$(\d+)/)
-    return sum + (match ? parseInt(match[1]) : 0)
+  const totalValueMonthly = entitlements.reduce((sum, e) => {
+    const kb = kbServices.find(s => s.id === e.serviceId)
+    if (!kb?.amount) return sum
+    const match = kb.amount.match(/\$?([\d,]+)/)
+    if (!match) return sum
+    const num = parseInt(match[1].replace(",", ""))
+    if (kb.amount.includes("/mes") || kb.amount.includes("/mo")) return sum + num
+    return sum
   }, 0)
 
   const deadlineColor = (days: number) => {
@@ -80,7 +106,7 @@ export default function DashboardPage() {
         <div className="flex items-start justify-between">
           <div>
             <h1 className="text-xl font-semibold text-gray-900">
-              {tr.dashboard.greeting(citizen.profile.firstName, hour)}
+              {tr.dashboard.greeting(citizen?.profile.firstName || (lang === "es" ? "ahí" : "there"), hour)}
             </h1>
             <p className="text-sm text-gray-500 mt-0.5">{tr.dashboard.subtitle}</p>
           </div>
@@ -95,8 +121,8 @@ export default function DashboardPage() {
         {/* Context pills */}
         <div className="flex flex-wrap gap-2 mt-3">
           {[
-            { emoji: "🛒", label: tr.contextPills[citizen.profile.lifeEvent as keyof typeof tr.contextPills] },
-            citizen.profile.employment !== "any" && { emoji: "💼", label: tr.contextPills[citizen.profile.employment as keyof typeof tr.contextPills] },
+            { emoji: "🛒", label: tr.contextPills[resolvedLifeEvent as keyof typeof tr.contextPills] || resolvedLifeEvent },
+            resolvedEmployment !== "any" && { emoji: "💼", label: tr.contextPills[resolvedEmployment as keyof typeof tr.contextPills] || resolvedEmployment },
             { emoji: "📍", label: "El Salvador" },
           ].filter(Boolean).map((pill: any, i) => (
             <span key={i} className="inline-flex items-center gap-1.5 text-xs font-medium px-3 py-1 rounded-full bg-gray-100 text-gray-600">
@@ -126,9 +152,9 @@ export default function DashboardPage() {
           <ProgressRow
             icon={<ListChecks size={14} className="text-emerald-600" />}
             label={tr.dashboard.progress.planSteps}
-            sub={nextStep ? tr.dashboard.progress.nextStep(nextStep.serviceName || nextStep.serviceId) : ""}
+            sub={planSteps.length === 0 ? (lang === "es" ? "Aún no hay plan" : "No plan yet") : nextStep ? tr.dashboard.progress.nextStep(nextStep.serviceName || nextStep.serviceId) : ""}
             value={doneSteps.length}
-            total={planSteps.length || 8}
+            total={planSteps.length || 1}
             color="bg-emerald-500"
           />
 
@@ -138,16 +164,22 @@ export default function DashboardPage() {
             label={tr.dashboard.progress.deadlinesMet}
             sub={tr.dashboard.progress.deadlinesComingUp(activeDeadlines.length)}
             value={metDeadlines.length}
-            total={deadlines.length || 3}
+            total={deadlines.length || 1}
             color="bg-amber-500"
           />
 
           {/* Total value */}
-          {totalValueMonthly > 0 && (
+          {totalValueMonthly > 0 ? (
             <div className="pt-2 border-t border-gray-50">
               <p className="text-xs text-gray-500">{tr.dashboard.progress.totalValue}</p>
-              <p className="text-2xl font-bold text-gray-900 mt-0.5">${totalValueMonthly}<span className="text-sm font-normal text-gray-400">/mo</span></p>
+              <p className="text-2xl font-bold text-gray-900 mt-0.5">${totalValueMonthly.toLocaleString()}<span className="text-sm font-normal text-gray-400">/mo</span></p>
               <p className="text-xs text-gray-400">{tr.dashboard.progress.totalValueSub}</p>
+            </div>
+          ) : entitlements.length === 0 && (
+            <div className="pt-2 border-t border-gray-50">
+              <p className="text-xs text-gray-400 text-center py-2">
+                {lang === "es" ? "Iniciá una conversación para ver tus beneficios" : "Start a conversation to see your available benefits"}
+              </p>
             </div>
           )}
         </div>
@@ -237,7 +269,7 @@ function ProgressRow({ icon, label, sub, value, total, color }: {
   total: number
   color: string
 }) {
-  const pct = total > 0 ? Math.round((value / total) * 100) : 0
+  const pct = safeDivide(value, total)
   return (
     <div className="space-y-1.5">
       <div className="flex items-center justify-between">

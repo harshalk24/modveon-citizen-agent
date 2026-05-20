@@ -225,7 +225,11 @@ export function lookupServices(params: {
     .filter(s =>
       s.country === params.country &&
       s.lifeEvents.includes(params.lifeEvent) &&
-      (s.employment.includes(params.employment) || s.employment.includes("any"))
+      (
+        params.employment === "any" ||
+        s.employment.includes(params.employment) ||
+        s.employment.includes("any")
+      )
     )
     .sort((a, b) => a.priority - b.priority)
   console.log("KB lookup:", params, "→", results.length, "services")

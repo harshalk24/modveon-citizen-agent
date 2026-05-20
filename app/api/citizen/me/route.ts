@@ -8,7 +8,12 @@ export async function GET(req: Request) {
 
   const citizen = await prisma.citizen.findUnique({
     where: { id: citizenId },
-    include: { context: true, actionPlan: true, deadlines: true }
+    include: {
+      context: true,
+      actionPlan: true,
+      // Fetch ALL deadlines — completed ones are needed for the "deadlines met" progress bar
+      deadlines: true,
+    },
   })
 
   if (!citizen) return NextResponse.json({ error: "Not found" }, { status: 404 })
@@ -23,11 +28,26 @@ export async function GET(req: Request) {
       country: citizen.country,
       employment: ctx?.employment || "any",
       lifeEvent: ctx?.lifeEvent || "",
-      language: (citizen.language as "en" | "es") || "en",
+      language: (citizen.language as "en" | "es") || "es",
       email: citizen.email || undefined,
+      gender: citizen.gender || undefined,
     },
     entitlements: ctx?.entitlementsJson ? JSON.parse(ctx.entitlementsJson) : [],
-    planSteps: plan?.planJson ? JSON.parse(plan.planJson) : [],
+    // planJson may be stored as flat array (old format) or { weeks: [...] } (new format).
+    // Always return a flat array with a `week` property on each step so the plan page
+    // can group them with groupStepsByWeek().
+    planSteps: (() => {
+      if (!plan?.planJson) return []
+      const parsed = JSON.parse(plan.planJson)
+      if (Array.isArray(parsed)) return parsed   // old flat format
+      if (parsed?.weeks) {
+        // New { weeks: [...] } format — flatten, adding week number to each step
+        return parsed.weeks.flatMap((w: any) =>
+          (w.steps || []).map((s: any) => ({ ...s, week: w.week, status: s.status || "not-started" }))
+        )
+      }
+      return []
+    })(),
     deadlines: citizen.deadlines.map(d => ({
       serviceId: d.serviceId,
       title: d.title,

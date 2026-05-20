@@ -136,18 +136,35 @@ function ChatContent() {
 
         console.log("Open plan → lifeEvent:", lifeEvent, "employment:", employment, "citizenId:", citizenId)
 
-        if (lifeEvent && !ctx?.planSteps?.length) {
+        // Regenerate plan if: no steps yet, OR plan is stale (life event changed)
+        const planIsStale = !!(ctx?.planLifeEvent && ctx.planLifeEvent !== lifeEvent)
+        const needsPlan = lifeEvent && citizenId && (!ctx?.planSteps?.length || planIsStale)
+
+        if (needsPlan) {
           const svcs = lookupServices({ country, lifeEvent, employment })
           console.log("Services found:", svcs.length)
           if (svcs.length > 0) {
-            const profile = ctx?.profile || {
-              firstName: "there", country, lifeEvent, employment, language: lang as "en" | "es"
+            // Always inject the resolved lifeEvent/employment so the plan is
+            // saved with the correct life event even if DB hasn't been updated yet
+            const profile = {
+              firstName: ctx?.profile?.firstName || "there",
+              country,
+              lifeEvent,       // resolved value, not raw DB value (which may be "")
+              employment,
+              language: (ctx?.profile?.language || lang) as "en" | "es",
             }
-            await fetch("/api/plan", {
+            const res = await fetch("/api/plan", {
               method: "POST",
               headers: { "Content-Type": "application/json" },
               body: JSON.stringify({ citizenId, services: svcs, profile, language: lang }),
             })
+            if (!res.ok) {
+              console.error("Plan generation failed:", res.status, await res.text())
+            } else {
+              // Refresh citizen AFTER plan is saved so the plan page sees planSteps
+              // and uses the cached plan instead of re-generating
+              await refresh()
+            }
           }
         }
       } catch (e) {
@@ -255,6 +272,8 @@ function ChatContent() {
   }
 
   const conversationState = detectConversationState(messages)
+  // Area 5C: verify state transitions are firing correctly
+  if (typeof window !== "undefined") console.log("[chat] conversationState:", conversationState)
 
   const greeting = (() => {
     const name = citizen?.profile.firstName

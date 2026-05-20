@@ -10,7 +10,8 @@ import { classifyQuery } from "@/lib/classify-query"
 import { prisma } from "@/lib/prisma"
 
 export async function POST(req: Request) {
-  const { messages, citizenId, contextData, sessionId, language = "en" } = await req.json()
+  // Default language to "es" — El Salvador is Spanish-first
+  const { messages, citizenId, contextData, sessionId, language = "es" } = await req.json()
 
   if (!sessionId) {
     return NextResponse.json({ error: "Session ID required" }, { status: 400 })
@@ -24,17 +25,47 @@ export async function POST(req: Request) {
   await incrementTurn(sessionId)
   const turnCount = (await getSession(sessionId))?.turnCount ?? 1
 
-  // Build mutable context from what the client sent
-  const ctx = contextData
-    ? { ...contextData, profile: { ...contextData.profile } }
-    : {
-        citizenId: citizenId || "anonymous",
-        profile: { firstName: "there", country: "SV", employment: "any", lifeEvent: "", language },
-        entitlements: [],
-        planSteps: [],
-        deadlines: [],
-        lastUpdated: new Date().toISOString(),
+  // ── Build context — prefer DB record over client-sent contextData ────
+  // Reading from DB ensures we have the latest lifeEvent/employment even if
+  // the client's React state is stale (e.g. first message after onboarding).
+  let ctx: any = null
+  if (citizenId && citizenId !== "anonymous") {
+    try {
+      const dbCtx = await prisma.citizenContext.findUnique({
+        where: { citizenId },
+        include: { citizen: true },
+      })
+      if (dbCtx) {
+        ctx = {
+          citizenId,
+          profile: {
+            firstName:  contextData?.profile?.firstName || dbCtx.citizen?.firstName || "there",
+            country:    dbCtx.citizen?.country || contextData?.profile?.country || "SV",
+            employment: dbCtx.employment       || contextData?.profile?.employment || "any",
+            lifeEvent:  dbCtx.lifeEvent        || contextData?.profile?.lifeEvent  || "",
+            language:   dbCtx.citizen?.language || contextData?.profile?.language  || language,
+          },
+          entitlements:        JSON.parse((dbCtx.entitlementsJson as string) || "[]"),
+          planSteps:           [],
+          deadlines:           [],
+          conversationSummary: dbCtx.conversationSummary || undefined,
+          lastUpdated:         dbCtx.updatedAt.toISOString(),
+        }
       }
+    } catch (e) {
+      console.error("DB context read failed:", e)
+    }
+  }
+  if (!ctx) {
+    ctx = contextData
+      ? { ...contextData, profile: { ...contextData.profile } }
+      : {
+          citizenId: citizenId || "anonymous",
+          profile: { firstName: "there", country: "SV", employment: "any", lifeEvent: "", language },
+          entitlements: [], planSteps: [], deadlines: [],
+          lastUpdated: new Date().toISOString(),
+        }
+  }
 
   // ── Intent extraction from the latest user message ─────────────────
   const userMessage: string = messages.findLast((m: any) => m.role === "user")?.content ?? ""
@@ -42,8 +73,7 @@ export async function POST(req: Request) {
   const detectedEvent      = extractLifeEvent(userMessage)
   const detectedEmployment = extractEmployment(userMessage)
 
-  // When a NEW life event is detected that differs from current, reset context,
-  // delete stale plan + deadlines, and clear conversation summary.
+  // When a NEW life event is detected that differs from current, reset context.
   if (detectedEvent && detectedEvent !== ctx.profile.lifeEvent) {
     ctx.profile.lifeEvent = detectedEvent
     ctx.entitlements = []
@@ -53,16 +83,12 @@ export async function POST(req: Request) {
       await prisma.citizenContext.upsert({
         where: { citizenId },
         create: { citizenId, lifeEvent: detectedEvent, entitlementsJson: "[]", updatedAt: new Date() },
-        update: {
-          lifeEvent: detectedEvent,
-          entitlementsJson: "[]",
-          conversationSummary: null,   // reset summary — it belongs to old situation
-        },
+        update: { lifeEvent: detectedEvent, entitlementsJson: "[]", conversationSummary: null },
       })
     }
   }
 
-  // Apply employment signal when previously unknown (non-blocking persist)
+  // Apply employment signal when previously unknown (non-blocking)
   if (detectedEmployment && ctx.profile.employment === "any") {
     ctx.profile.employment = detectedEmployment
     if (citizenId && citizenId !== "anonymous") {
@@ -74,7 +100,7 @@ export async function POST(req: Request) {
     }
   }
 
-  // Always re-run KB lookup after any intent extraction
+  // ── KB lookup ──────────────────────────────────────────────────────
   const services = ctx.profile.lifeEvent
     ? lookupServices({
         country:    ctx.profile.country    || "SV",
@@ -83,16 +109,15 @@ export async function POST(req: Request) {
       })
     : []
 
-  // ── Persist entitlements so the Dashboard can read them ─────────────
-  // Fire-and-forget — don't block the stream.
+  // ── Persist entitlements (awaited — ensures Dashboard reads fresh data) ─
   if (services.length > 0 && citizenId && citizenId !== "anonymous") {
     const entitlements = services.map(s => ({
       serviceId: s.id,
-      status: "new",
-      savedAt: new Date().toISOString(),
+      status:    "new",
+      savedAt:   new Date().toISOString(),
     }))
     ctx.entitlements = entitlements
-    prisma.citizenContext.upsert({
+    await prisma.citizenContext.upsert({
       where: { citizenId },
       create: {
         citizenId,
@@ -101,11 +126,15 @@ export async function POST(req: Request) {
         entitlementsJson: JSON.stringify(entitlements),
         updatedAt:        new Date(),
       },
-      update: { entitlementsJson: JSON.stringify(entitlements) },
-    }).catch(console.error)
+      update: {
+        entitlementsJson: JSON.stringify(entitlements),
+        lifeEvent:        ctx.profile.lifeEvent,
+        employment:       ctx.profile.employment,
+      },
+    })
   }
 
-  // ── Classify query type using Gemini (intent, not keywords) ─────────
+  // ── Classify query type with Gemini ────────────────────────────────
   const hasEntitlements = (ctx.entitlements?.length || 0) > 0
   const recentTurns = messages
     .slice(-4)
@@ -119,11 +148,11 @@ export async function POST(req: Request) {
   })
   console.log("Query classified as:", queryType, "| lifeEvent:", ctx.profile.lifeEvent)
 
-  // ── System prompt + recent messages ────────────────────────────────
+  // ── System prompt ──────────────────────────────────────────────────
   const recentMsgs   = getRecentMessages(messages, 4)
   const systemPrompt = buildSystemPrompt(ctx, services, JSON.stringify(recentMsgs), language, queryType)
 
-  // Format for Gemini — strip leading model turns (Gemini requires user-first history)
+  // Format for Gemini — strip leading model turns
   const formattedMessages = messages
     .map((m: any) => ({ role: m.role === "assistant" ? "model" : m.role, parts: m.content }))
 
@@ -145,7 +174,7 @@ export async function POST(req: Request) {
     const stream = await streamChat({
       systemPrompt,
       messages: formattedMessages,
-      maxTokens: 500,
+      maxTokens: 600,
     })
 
     const encoder = new TextEncoder()
@@ -175,7 +204,7 @@ export async function POST(req: Request) {
 
     return new Response(readable, {
       headers: {
-        "Content-Type":     "text/plain; charset=utf-8",
+        "Content-Type":      "text/plain; charset=utf-8",
         "Transfer-Encoding": "chunked",
       },
     })

@@ -35,6 +35,7 @@ export interface CitizenContextData {
     language: "es" | "en"
     email?: string
     whatsappNumber?: string
+    gender?: string
   }
   entitlements: EntitlementStatus[]
   planSteps: PlanStep[]

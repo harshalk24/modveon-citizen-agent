@@ -42,53 +42,46 @@ export async function generatePlan(params: {
     model: MODEL,
     generationConfig: {
       responseMimeType: "application/json",
-      maxOutputTokens: 1200,
+      maxOutputTokens: 2000,
       temperature: 0.1,
     }
   })
 
   const isEs = params.language === "es"
-  const prompt = `
-Generate a detailed week-by-week action plan for this citizen.
+  const prompt = `Generate a week-by-week action plan for this citizen.
 Profile: ${JSON.stringify(params.profile)}
-Services they qualify for: ${JSON.stringify(params.services)}
+Services: ${JSON.stringify(params.services)}
 
-Return ONLY valid JSON:
-{
-  "weeks": [{
-    "week": 1,
-    "label": "string",
-    "steps": [{
-      "serviceId": "string",
-      "title": "string (plain language, under 10 words)",
-      "agency": "string",
-      "agencyAddress": "string (nearest office or online — be specific, not generic)",
-      "deadline": "string or null",
-      "estimatedTime": "string (e.g. '30 minutes in person', '10 minutes online')",
-      "cost": "string (e.g. 'Free' or '$10.31')",
-      "documents": ["string"],
-      "whatToSayWhenYouArrive": "string (one sentence script — what to say at the counter)",
-      "whatToDoIfProblems": "string (one sentence fallback — who to call or escalate to)",
-      "canDoOnline": false,
-      "onlineUrl": "string or null",
-      "why": "string (why this step must happen in this order, one sentence)"
-    }]
-  }]
-}
+Return ONLY this JSON structure:
+{"weeks":[{"week":1,"label":"string","steps":[{"serviceId":"string","title":"string","agency":"string","agencyAddress":"string","deadline":"string or null","estimatedTime":"string","cost":"string","documents":["string"],"whatToSayWhenYouArrive":"string","whatToDoIfProblems":"string","canDoOnline":false,"onlineUrl":"string or null","why":"string"}]}]}
+
 Rules:
-- Respect dependsOn[] — dependency must appear in an earlier week
-- Max 3 steps per week
-- Plain ${isEs ? "Salvadoran Spanish (use 'vos')" : "English"} throughout
-- estimatedTime must be realistic (not generic like "varies")
-- whatToSayWhenYouArrive must be a specific, actionable sentence a citizen can say at the counter
-- whatToDoIfProblems must name a specific agency contact or escalation path
-- canDoOnline: true only if the service genuinely processes online, not just an informational website
-- cost: use "Free" if there is no fee, otherwise give the exact amount
-- Output ONLY the JSON, no markdown, no preamble
-`
-  const result = await model.generateContent(prompt)
-  const text = result.response.text()
-  return JSON.parse(text.replace(/```json|```/g, "").trim())
+- Max 3 steps per week. Spread steps across multiple weeks if needed.
+- serviceId must match one of the provided service IDs exactly.
+- dependsOn: put dependencies in earlier weeks.
+- Language: ${isEs ? "Salvadoran Spanish, use 'vos'" : "English"}.
+- cost: "Free" or exact amount. estimatedTime: realistic (e.g. "30 minutos en persona").
+- whatToSayWhenYouArrive: one specific sentence to say at the counter.
+- whatToDoIfProblems: one sentence naming a specific escalation contact.
+- Output ONLY JSON, no markdown, no explanation.`
+
+  let text = ""
+  try {
+    const result = await model.generateContent(prompt)
+    text = result.response.text()
+  } catch (geminiErr: any) {
+    console.error("Gemini generatePlan error:", geminiErr?.message ?? geminiErr)
+    throw new Error(`Gemini API error: ${geminiErr?.message ?? "unknown"}`)
+  }
+
+  // Strip any accidental markdown fences before parsing
+  const cleaned = text.replace(/```json\s*/gi, "").replace(/```\s*/g, "").trim()
+  try {
+    return JSON.parse(cleaned)
+  } catch (parseErr: any) {
+    console.error("generatePlan JSON.parse failed. Raw response (first 500 chars):", cleaned.slice(0, 500))
+    throw new Error(`Gemini returned non-JSON: ${parseErr.message}`)
+  }
 }
 
 export async function summariseConversation(messages: any[], language: "en" | "es" = "en"): Promise<string> {

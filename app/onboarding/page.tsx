@@ -84,7 +84,12 @@ export default function OnboardingPage() {
         body: JSON.stringify({ firstName: name, country: "SV", email, gender, language: "en" }),
       })
       const data = await res.json()
-      localStorage.setItem("ca_citizen_id", data.citizenId)
+      if (data.citizenId) {
+        localStorage.setItem("ca_citizen_id", data.citizenId)
+        // Also persist in a long-lived cookie so the ID survives
+        // localStorage clears (private browsing, browser wipes, etc.)
+        document.cookie = `ca_citizen_id=${data.citizenId}; max-age=31536000; path=/; SameSite=Lax`
+      }
 
       await fetch("/api/context/save", {
         method: "POST",
@@ -360,13 +365,13 @@ export default function OnboardingPage() {
                     <Sparkles size={26} className="text-emerald-500" />
                   </div>
                   <h1 className="text-xl font-bold text-gray-900">
-                    {name}, I found {benefits.length > 0 ? benefits.length : "several"} benefits!
+                    {name}, {benefits.length > 0 ? `I found ${benefits.length} benefits for you!` : "let's find your benefits."}
                   </h1>
-                  <p className="text-gray-400 text-xs">Here's what your government owes you:</p>
+                  <p className="text-gray-400 text-xs">Here are the benefits you qualify for:</p>
                 </div>
 
                 <div className="space-y-2">
-                  {(benefits.length > 0 ? benefits : []).slice(0, 3).map((b, i) => (
+                  {benefits.length > 0 && benefits.slice(0, 3).map((b, i) => (
                     <div key={b.id} className="bg-white rounded-2xl border border-gray-100 shadow-sm px-4 py-3 flex items-start gap-3">
                       <div className="w-6 h-6 rounded-full bg-blue-50 flex items-center justify-center flex-shrink-0 mt-0.5">
                         <span className="text-[11px] font-bold text-[#185FA5]">{i + 1}</span>

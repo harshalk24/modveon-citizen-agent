@@ -1,6 +1,6 @@
 "use client"
 
-import { useState, useEffect } from "react"
+import { useState, useEffect, useRef } from "react"
 import { useRouter } from "next/navigation"
 import { motion, AnimatePresence } from "framer-motion"
 import { useLang } from "@/contexts/LanguageContext"
@@ -9,7 +9,7 @@ import { t } from "@/lib/i18n"
 import { lookupServices } from "@/lib/kb"
 import {
   CheckCircle2, AlertCircle, ChevronDown, ChevronUp,
-  Loader2, HelpCircle, ExternalLink, MessageSquare, DollarSign, Clock,
+  Loader2, HelpCircle, ExternalLink, MessageSquare,
   MoreHorizontal, Info, Trash2,
 } from "lucide-react"
 
@@ -51,11 +51,14 @@ export default function PlanPage() {
 
   const [plan, setPlan] = useState<PlanWeek[]>([])
   const [loading, setLoading] = useState(true)
+  const [planError, setPlanError] = useState<string | null>(null)
   const [expandedWeeks, setExpandedWeeks] = useState<Set<number>>(new Set([1]))
   const [completingStep, setCompletingStep] = useState<string | null>(null)
   const [expandedTips, setExpandedTips] = useState<Set<string>>(new Set())
   const [confirmDeleteStep, setConfirmDeleteStep] = useState<string | null>(null)
   const [deletingStep, setDeletingStep] = useState<string | null>(null)
+  // Track whether we've done the initial mount refresh to avoid loops
+  const didMountRefresh = useRef(false)
 
   const allSteps = plan.flatMap(w => w.steps)
   const doneSteps = allSteps.filter(s => s.status === "done")
@@ -65,56 +68,101 @@ export default function PlanPage() {
   useEffect(() => {
     // Don't run until CitizenContext finishes its initial fetch
     if (citizenLoading) return
-    generateOrLoadPlan()
-  }, [citizen?.profile.lifeEvent, lang, citizenLoading])
 
-  const generateOrLoadPlan = async () => {
+    if (!didMountRefresh.current) {
+      // First time: always pull latest from DB before deciding to generate.
+      // The chat page may have just saved a brand-new plan and we need
+      // the updated planSteps + planLifeEvent to avoid a redundant re-generation.
+      didMountRefresh.current = true
+      refresh()
+        .then(fresh => generateOrLoadPlan(fresh ?? citizen))
+        .catch(() => generateOrLoadPlan(citizen))
+    } else {
+      // Subsequent dep changes (lang switch, etc.): use current citizen state
+      generateOrLoadPlan(citizen)
+    }
+  }, [citizen?.profile?.lifeEvent, lang, citizenLoading])
+
+  // Accept the citizen data directly so we never read a stale closure value
+  const generateOrLoadPlan = async (currentCitizen: typeof citizen) => {
     // Resolve lifeEvent: prefer DB citizen, fall back to localStorage signals
     // set by the chat page when the user typed their situation
-    const lifeEvent  = citizen?.profile.lifeEvent  || (typeof window !== "undefined" ? localStorage.getItem("ca_detected_life_event")  : "") || ""
-    const employment = citizen?.profile.employment  || (typeof window !== "undefined" ? localStorage.getItem("ca_detected_employment")  : "") || "any"
-    const country    = citizen?.profile.country     || "SV"
+    const lifeEvent  = currentCitizen?.profile?.lifeEvent  || (typeof window !== "undefined" ? localStorage.getItem("ca_detected_life_event")  : "") || ""
+    const employment = currentCitizen?.profile?.employment  || (typeof window !== "undefined" ? localStorage.getItem("ca_detected_employment")  : "") || "any"
+    const country    = currentCitizen?.profile?.country     || "SV"
+    const citizenId  = currentCitizen?.citizenId
+
+    setPlanError(null)
 
     if (!lifeEvent) { setLoading(false); return }
 
-    // Use stored plan steps IF the plan belongs to the CURRENT life event.
-    // If the plan lifeEvent doesn't match, treat it as stale and regenerate.
-    const planIsFresh = citizen?.planLifeEvent === lifeEvent
-    if (citizen?.planSteps?.length > 0 && planIsFresh) {
-      const grouped = groupStepsByWeek(citizen.planSteps as any)
+    // Use stored plan if it exists AND belongs to this life event.
+    // Also accept plans where planLifeEvent is null/undefined — these are legacy plans
+    // that were saved before we tracked the life event on ActionPlan, so we trust them.
+    const hasStoredPlan = (currentCitizen?.planSteps?.length ?? 0) > 0
+    const planIsFresh = hasStoredPlan && (
+      currentCitizen?.planLifeEvent === lifeEvent ||
+      !currentCitizen?.planLifeEvent               // legacy plan — no lifeEvent stored
+    )
+
+    console.log("Plan check:", {
+      planStepsLength: currentCitizen?.planSteps?.length,
+      planLifeEvent:   currentCitizen?.planLifeEvent,
+      contextLifeEvent: lifeEvent,
+      planIsFresh,
+    })
+
+    if (planIsFresh) {
+      const grouped = groupStepsByWeek(currentCitizen!.planSteps as any)
       setPlan(grouped)
       setLoading(false)
       return
     }
 
-    if (citizen?.planSteps?.length > 0 && !planIsFresh) {
-      console.log("Plan is stale (was for", citizen.planLifeEvent, ", now need", lifeEvent, ") — regenerating")
-      // Fall through to re-generate
+    if (hasStoredPlan && !planIsFresh) {
+      console.log("Plan is stale (was for", currentCitizen?.planLifeEvent, ", now need", lifeEvent, ") — regenerating")
     }
 
-    // No stored plan — generate a fresh one via Gemini
+    // Anonymous users can't generate plans — no place to save them
+    if (!citizenId) {
+      console.warn("No citizenId — cannot generate plan for anonymous user")
+      setLoading(false)
+      setPlanError("no-citizen")
+      return
+    }
+
+    // No fresh stored plan — generate via Gemini
     setLoading(true)
     try {
       const services = lookupServices({ country, lifeEvent, employment })
       console.log("Plan page generating plan:", lifeEvent, "→", services.length, "services")
 
-      const profile = citizen?.profile || {
-        firstName: "there", country, lifeEvent, employment, language: lang as "en" | "es"
+      if (services.length === 0) {
+        console.warn("No services found for", lifeEvent, employment)
+        setLoading(false)
+        setPlanError("no-services")
+        return
+      }
+
+      // Always inject the resolved lifeEvent so savePlanToDB stores the right value
+      const profile = {
+        firstName: currentCitizen?.profile?.firstName || "there",
+        country,
+        lifeEvent,     // resolved (not raw DB value which may be "")
+        employment,
+        language: (currentCitizen?.profile?.language || lang) as "en" | "es",
       }
 
       const res = await fetch("/api/plan", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({
-          citizenId: citizen?.citizenId,
-          services,
-          profile,
-          language: lang,
-        }),
+        body: JSON.stringify({ citizenId, services, profile, language: lang }),
       })
 
       if (!res.ok) {
-        console.error("Plan API error:", res.status)
+        const errText = await res.text()
+        console.error("Plan API error:", res.status, errText)
+        setPlanError("api-error")
         setLoading(false)
         return
       }
@@ -122,6 +170,7 @@ export default function PlanPage() {
       const data = await res.json()
       if (!data.weeks || !Array.isArray(data.weeks)) {
         console.error("Plan API returned invalid structure:", data)
+        setPlanError("api-error")
         setLoading(false)
         return
       }
@@ -134,10 +183,11 @@ export default function PlanPage() {
         }))
       setPlan(weeks)
 
-      // Refresh context so planSteps is populated from DB on next visit
-      if (citizen?.citizenId) refresh().catch(() => {})
+      // Refresh context so planSteps / planLifeEvent are up-to-date on next visit
+      refresh().catch(() => {})
     } catch (err) {
       console.error("Plan generation error:", err)
+      setPlanError("api-error")
     } finally {
       setLoading(false)
     }
@@ -148,7 +198,7 @@ export default function PlanPage() {
     steps.forEach(s => {
       const wk = s.week || 1
       if (!weekMap.has(wk)) {
-        weekMap.set(wk, { week: wk, label: `Week ${wk}`, steps: [] })
+        weekMap.set(wk, { week: wk, label: `Phase ${wk}`, steps: [] })
       }
       weekMap.get(wk)!.steps.push(s)
     })
@@ -173,20 +223,24 @@ export default function PlanPage() {
     })
   }
 
-  const toggleStep = async (step: PlanStep) => {
+  const toggleStep = async (step: PlanStep, weekNum: number) => {
     const newStatus = step.status === "done" ? "not-started" : "done"
     setCompletingStep(step.serviceId)
 
+    // Match by both serviceId AND week to avoid toggling duplicate serviceIds across phases
     setPlan(prev => prev.map(w => ({
       ...w,
-      steps: w.steps.map(s => s.serviceId === step.serviceId ? { ...s, status: newStatus } : s)
+      steps: w.steps.map(s =>
+        s.serviceId === step.serviceId && w.week === weekNum
+          ? { ...s, status: newStatus } : s
+      )
     })))
 
     if (citizen?.citizenId) {
       await fetch("/api/plan/step", {
         method: "PATCH",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ citizenId: citizen.citizenId, serviceId: step.serviceId, completed: newStatus === "done" }),
+        body: JSON.stringify({ citizenId: citizen?.citizenId, serviceId: step.serviceId, week: weekNum, completed: newStatus === "done" }),
       }).catch(() => {})
     }
     setCompletingStep(null)
@@ -206,7 +260,7 @@ export default function PlanPage() {
       await fetch("/api/plan/step", {
         method: "DELETE",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ citizenId: citizen.citizenId, serviceId: step.serviceId }),
+        body: JSON.stringify({ citizenId: citizen?.citizenId, serviceId: step.serviceId }),
       }).catch(() => {})
     }
     setDeletingStep(null)
@@ -231,7 +285,7 @@ export default function PlanPage() {
     )
   }
 
-  const resolvedLifeEvent = citizen?.profile.lifeEvent ||
+  const resolvedLifeEvent = citizen?.profile?.lifeEvent ||
     (typeof window !== "undefined" ? localStorage.getItem("ca_detected_life_event") : "") || ""
 
   if (!resolvedLifeEvent) {
@@ -261,6 +315,30 @@ export default function PlanPage() {
         <p className="text-sm text-gray-500">
           {lang === "es" ? "Generando tu plan..." : "Generating your plan..."}
         </p>
+      </div>
+    )
+  }
+
+  if (planError) {
+    return (
+      <div className="flex flex-col items-center justify-center h-full px-4 py-16 text-center">
+        <HelpCircle size={40} className="text-gray-300 mb-4" />
+        <h2 className="text-lg font-semibold text-gray-700 mb-2">
+          {planError === "no-citizen"
+            ? (lang === "es" ? "Necesitás una cuenta" : "Account required")
+            : (lang === "es" ? "No se pudo generar el plan" : "Couldn't generate plan")}
+        </h2>
+        <p className="text-sm text-gray-400 mb-6 max-w-xs">
+          {planError === "no-citizen"
+            ? (lang === "es" ? "Completá el registro para guardar tu plan personalizado." : "Complete registration to save your personalised plan.")
+            : (lang === "es" ? "Hubo un error al generar tu plan. Intentá de nuevo desde el chat." : "There was an error generating your plan. Try again from the chat.")}
+        </p>
+        <button
+          onClick={() => router.push("/chat")}
+          className="bg-[#185FA5] hover:bg-[#145290] text-white px-5 py-2.5 rounded-xl text-sm font-medium transition-colors"
+        >
+          {lang === "es" ? "Volver al chat" : "Back to chat"}
+        </button>
       </div>
     )
   }
@@ -334,7 +412,9 @@ export default function PlanPage() {
               >
                 <div className="flex items-center gap-3">
                   <span className="text-xs font-semibold text-gray-500 uppercase tracking-wide">
-                    {week.week === 1 ? tr.plan.weekLabel(week.week) : tr.plan.weekLabelN(week.week)}
+                    {week.week === 1
+                      ? (lang === "es" ? "FASE 1 — HACÉ ESTO PRIMERO" : "PHASE 1 — DO THESE FIRST")
+                      : (lang === "es" ? `FASE ${week.week}` : `PHASE ${week.week}`)}
                   </span>
                   {weekDone > 0 && (
                     <span className="text-xs text-emerald-600 font-medium">
@@ -365,178 +445,176 @@ export default function PlanPage() {
                         const showDeleteConfirm = confirmDeleteStep === step.serviceId
 
                         return (
-                          <div key={step.serviceId} className={`p-4 transition-opacity ${isDone ? "opacity-60" : ""} ${isDeleting ? "opacity-40" : ""}`}>
-                            <div className="flex items-start gap-3">
-                              {/* Status indicator */}
-                              <button
-                                onClick={() => toggleStep(step)}
-                                className="mt-0.5 flex-shrink-0 transition-colors"
-                                disabled={isCompleting || isDeleting}
-                              >
+                          <div
+                            key={step.serviceId}
+                            className={`border-l-4 p-4 transition-all ${isDeleting ? "opacity-40" : ""}
+                              ${isDone ? "border-emerald-400 opacity-60" : isActive ? "border-[#185FA5]" : "border-gray-200"}`}
+                          >
+                            {/* Title row */}
+                            <div className="flex items-start justify-between gap-2">
+                              <div className="flex items-start gap-2.5 flex-1 min-w-0">
                                 {isCompleting ? (
-                                  <Loader2 size={20} className="animate-spin text-[#185FA5]" />
+                                  <Loader2 size={18} className="animate-spin text-[#185FA5] mt-0.5 flex-shrink-0" />
                                 ) : isDone ? (
-                                  <CheckCircle2 size={20} className="text-emerald-500" />
+                                  <CheckCircle2 size={18} className="text-emerald-500 mt-0.5 flex-shrink-0" />
                                 ) : isActive ? (
-                                  <div className="w-5 h-5 rounded-full bg-[#185FA5] flex items-center justify-center text-white text-xs font-bold">
+                                  <div className="w-5 h-5 rounded-full bg-[#185FA5] flex items-center justify-center text-white text-[11px] font-bold flex-shrink-0 mt-0.5">
                                     {idx + 1}
                                   </div>
                                 ) : (
-                                  <div className="w-5 h-5 rounded-full border-2 border-gray-200 flex items-center justify-center text-gray-400 text-xs">
-                                    {idx + 1}
-                                  </div>
+                                  <div className="w-5 h-5 rounded-full border-2 border-gray-200 flex-shrink-0 mt-0.5" />
                                 )}
-                              </button>
-
-                              <div className="flex-1 min-w-0">
-                                {/* Title row + ⋯ delete button */}
-                                <div className="flex items-start justify-between gap-2">
-                                  <p className={`text-sm font-medium ${isDone ? "line-through text-gray-400" : "text-gray-800"}`}>
+                                <div className="flex-1 min-w-0">
+                                  <p className={`text-sm font-semibold leading-snug ${isDone ? "line-through text-gray-400" : "text-gray-800"}`}>
                                     {step.title}
                                   </p>
-                                  <button
-                                    onClick={() => setConfirmDeleteStep(showDeleteConfirm ? null : step.serviceId)}
-                                    className="flex-shrink-0 p-0.5 text-gray-300 hover:text-gray-500 transition-colors rounded"
-                                    title={lang === "es" ? "Eliminar paso" : "Remove step"}
-                                    disabled={isDeleting}
-                                  >
-                                    <MoreHorizontal size={14} />
-                                  </button>
-                                </div>
-
-                                {/* Inline delete confirm */}
-                                {showDeleteConfirm && (
-                                  <div className="flex items-center gap-2 mt-1 text-xs py-1 border-b border-gray-100">
-                                    <Trash2 size={11} className="text-red-400 flex-shrink-0" />
-                                    <span className="text-gray-500">{lang === "es" ? "¿Eliminar este paso?" : "Remove this step?"}</span>
-                                    <button
-                                      onClick={() => handleDeleteStep(step)}
-                                      className="text-red-500 hover:text-red-600 font-semibold"
-                                    >
-                                      {lang === "es" ? "Eliminar" : "Remove"}
-                                    </button>
-                                    <button
-                                      onClick={() => setConfirmDeleteStep(null)}
-                                      className="text-gray-400 hover:text-gray-600"
-                                    >
-                                      {lang === "es" ? "Cancelar" : "Cancel"}
-                                    </button>
-                                  </div>
-                                )}
-
-                                {/* Agency + meta row */}
-                                <div className="flex flex-wrap items-center gap-x-2 gap-y-1 mt-1 text-xs text-gray-400">
-                                  <span>{step.agency}</span>
-                                  {step.estimatedTime && (
-                                    <>
-                                      <span>·</span>
-                                      <span className="flex items-center gap-0.5">
-                                        <Clock size={10} />
-                                        {step.estimatedTime}
-                                      </span>
-                                    </>
-                                  )}
+                                  <p className="text-xs text-gray-400 mt-0.5">{step.agency}</p>
                                   {step.deadline && (
-                                    <>
-                                      <span>·</span>
-                                      <span className="text-amber-600 font-medium">{tr.plan.deadline} {step.deadline}</span>
-                                    </>
+                                    <p className="text-xs text-amber-600 font-medium mt-0.5">{tr.plan.deadline} {step.deadline}</p>
                                   )}
-                                </div>
-
-                                {/* Cost + online badges */}
-                                <div className="flex flex-wrap gap-1.5 mt-1.5">
-                                  {step.cost && step.cost !== "Free" && step.cost !== "Gratis" && (
-                                    <span className="inline-flex items-center gap-0.5 text-xs px-2 py-0.5 rounded-full bg-amber-50 text-amber-700">
-                                      <DollarSign size={9} />
-                                      {step.cost}
-                                    </span>
-                                  )}
-                                  {step.canDoOnline && (
+                                  {/* Online badge */}
+                                  {step.canDoOnline && step.onlineUrl && (
                                     <a
-                                      href={step.onlineUrl || "#"}
+                                      href={step.onlineUrl}
                                       target="_blank"
                                       rel="noopener noreferrer"
-                                      className="inline-flex items-center gap-0.5 text-xs px-2 py-0.5 rounded-full bg-emerald-50 text-emerald-700 hover:bg-emerald-100 transition-colors"
+                                      className="inline-flex items-center gap-0.5 text-xs px-2 py-0.5 rounded-full bg-emerald-50 text-emerald-700 hover:bg-emerald-100 transition-colors mt-1"
                                     >
                                       <ExternalLink size={9} />
                                       {lang === "es" ? "Hacer en línea" : "Do online"}
                                     </a>
                                   )}
                                 </div>
+                              </div>
+                              {/* Delete button */}
+                              <button
+                                onClick={() => setConfirmDeleteStep(showDeleteConfirm ? null : step.serviceId)}
+                                className="flex-shrink-0 p-0.5 text-gray-300 hover:text-gray-500 transition-colors rounded"
+                                title={lang === "es" ? "Eliminar paso" : "Remove step"}
+                                disabled={isDeleting}
+                              >
+                                <MoreHorizontal size={14} />
+                              </button>
+                            </div>
 
-                                {/* Documents with ⓘ icons */}
-                                {step.documents?.length > 0 && (
-                                  <div className="mt-1.5">
-                                    <p className="text-xs text-gray-400 mb-1">{tr.plan.bringDocuments}</p>
-                                    <div className="flex flex-wrap gap-1">
-                                      {step.documents.map((doc, di) => (
-                                        <button
-                                          key={di}
-                                          onClick={() => handleDocInfo(doc)}
-                                          className="inline-flex items-center gap-1 text-xs text-gray-500 hover:text-[#185FA5] transition-colors bg-gray-50 hover:bg-blue-50 px-2 py-0.5 rounded-full border border-gray-200 hover:border-[#B5D4F4]"
-                                        >
-                                          <Info size={9} />
-                                          {doc}
-                                        </button>
-                                      ))}
-                                    </div>
+                            {/* Inline delete confirm */}
+                            {showDeleteConfirm && (
+                              <div className="flex items-center gap-2 mt-2 text-xs py-1 border-b border-gray-100">
+                                <Trash2 size={11} className="text-red-400 flex-shrink-0" />
+                                <span className="text-gray-500">{lang === "es" ? "¿Eliminar este paso?" : "Remove this step?"}</span>
+                                <button onClick={() => handleDeleteStep(step)} className="text-red-500 hover:text-red-600 font-semibold">
+                                  {lang === "es" ? "Eliminar" : "Remove"}
+                                </button>
+                                <button onClick={() => setConfirmDeleteStep(null)} className="text-gray-400 hover:text-gray-600">
+                                  {lang === "es" ? "Cancelar" : "Cancel"}
+                                </button>
+                              </div>
+                            )}
+
+                            {/* Documents */}
+                            {step.documents?.length > 0 && (
+                              <div className="mt-3">
+                                <p className="text-xs text-gray-400 mb-1.5">{tr.plan.bringDocuments}</p>
+                                <div className="flex flex-wrap gap-1">
+                                  {step.documents.map((doc, di) => (
+                                    <button
+                                      key={di}
+                                      onClick={() => handleDocInfo(doc)}
+                                      className="inline-flex items-center gap-1 text-xs text-gray-500 hover:text-[#185FA5] transition-colors bg-gray-50 hover:bg-blue-50 px-2 py-0.5 rounded-full border border-gray-200 hover:border-[#B5D4F4]"
+                                    >
+                                      <Info size={9} />
+                                      {doc}
+                                    </button>
+                                  ))}
+                                </div>
+                              </div>
+                            )}
+
+                            {/* What to say — blue block, always open for active, collapsible for others */}
+                            {!isDone && step.whatToSayWhenYouArrive && (
+                              <>
+                                {isActive ? (
+                                  <div className="mt-3 bg-blue-50 rounded-xl p-3">
+                                    <p className="text-xs font-medium text-blue-700 mb-1 flex items-center gap-1.5">
+                                      <MessageSquare size={11} />
+                                      {lang === "es" ? "Qué decir al llegar" : "What to say"}
+                                    </p>
+                                    <p className="text-xs text-blue-800 leading-relaxed">"{step.whatToSayWhenYouArrive}"</p>
                                   </div>
-                                )}
-
-                                {/* Collapsible: What to say */}
-                                {!isDone && step.whatToSayWhenYouArrive && (
+                                ) : (
                                   <div className="mt-2">
                                     <button
                                       onClick={() => toggleTip(sayKey)}
                                       className="flex items-center gap-1 text-xs text-[#185FA5] hover:text-[#145290] transition-colors"
                                     >
                                       <MessageSquare size={11} />
-                                      {lang === "es" ? "¿Qué decir al llegar?" : "What to say when you arrive"}
+                                      {lang === "es" ? "Qué decir al llegar" : "What to say"}
                                       {expandedTips.has(sayKey) ? <ChevronUp size={10} /> : <ChevronDown size={10} />}
                                     </button>
                                     {expandedTips.has(sayKey) && (
-                                      <p className="mt-1 text-xs text-gray-600 bg-blue-50 rounded-lg px-3 py-2 italic">
-                                        "{step.whatToSayWhenYouArrive}"
-                                      </p>
+                                      <div className="mt-1.5 bg-blue-50 rounded-xl p-3">
+                                        <p className="text-xs text-blue-800 leading-relaxed">"{step.whatToSayWhenYouArrive}"</p>
+                                      </div>
                                     )}
                                   </div>
                                 )}
+                              </>
+                            )}
 
-                                {/* Collapsible: If problems */}
-                                {!isDone && step.whatToDoIfProblems && (
+                            {/* If problems — amber block, always open for active, collapsible for others */}
+                            {!isDone && step.whatToDoIfProblems && (
+                              <>
+                                {isActive ? (
+                                  <div className="mt-2 bg-amber-50 rounded-xl p-3">
+                                    <p className="text-xs font-medium text-amber-700 mb-1 flex items-center gap-1.5">
+                                      <AlertCircle size={11} />
+                                      {lang === "es" ? "Si algo sale mal" : "If something goes wrong"}
+                                    </p>
+                                    <p className="text-xs text-amber-800 leading-relaxed">{step.whatToDoIfProblems}</p>
+                                  </div>
+                                ) : (
                                   <div className="mt-1.5">
                                     <button
                                       onClick={() => toggleTip(probKey)}
                                       className="flex items-center gap-1 text-xs text-gray-400 hover:text-gray-600 transition-colors"
                                     >
-                                      <HelpCircle size={11} />
-                                      {lang === "es" ? "¿Problemas?" : "If something goes wrong"}
+                                      <AlertCircle size={11} />
+                                      {lang === "es" ? "Si algo sale mal" : "If something goes wrong"}
                                       {expandedTips.has(probKey) ? <ChevronUp size={10} /> : <ChevronDown size={10} />}
                                     </button>
                                     {expandedTips.has(probKey) && (
-                                      <p className="mt-1 text-xs text-gray-600 bg-amber-50 rounded-lg px-3 py-2">
-                                        {step.whatToDoIfProblems}
-                                      </p>
+                                      <div className="mt-1.5 bg-amber-50 rounded-xl p-3">
+                                        <p className="text-xs text-amber-800 leading-relaxed">{step.whatToDoIfProblems}</p>
+                                      </div>
                                     )}
                                   </div>
                                 )}
+                              </>
+                            )}
 
-                                {/* Done label */}
-                                {isDone && (
-                                  <span className="inline-block mt-1 text-xs text-emerald-600">{tr.plan.completed}</span>
-                                )}
-
-                                {/* Ask agent */}
-                                {!isDone && isActive && (
-                                  <button
-                                    onClick={() => handleAskAgent(step)}
-                                    className="mt-2 text-xs px-3 py-1.5 rounded-lg border border-gray-200 text-gray-500 hover:border-[#185FA5] hover:text-[#185FA5] transition-colors"
-                                  >
-                                    {tr.chat.dontUnderstand}
-                                  </button>
-                                )}
-                              </div>
+                            {/* Bottom row: Ask agent (left) + Mark as done / Done badge (right) */}
+                            <div className="flex items-center justify-between mt-3 pt-2 border-t border-gray-50">
+                              <button
+                                onClick={() => handleAskAgent(step)}
+                                className="text-xs text-gray-400 hover:text-[#185FA5] transition-colors"
+                              >
+                                {lang === "es" ? "Preguntar al agente" : "Ask agent"}
+                              </button>
+                              {isDone ? (
+                                <span className="inline-flex items-center gap-1 text-xs font-medium text-emerald-600 bg-emerald-50 px-2.5 py-1 rounded-lg">
+                                  <CheckCircle2 size={11} />
+                                  {lang === "es" ? "Hecho" : "Done"}
+                                </span>
+                              ) : (
+                                <button
+                                  onClick={() => toggleStep(step, week.week)}
+                                  disabled={isCompleting || isDeleting}
+                                  className="ml-auto flex items-center gap-1.5 text-xs font-medium px-3 py-1.5 rounded-lg bg-[#185FA5] text-white hover:bg-[#0C447C] transition-colors disabled:opacity-50"
+                                >
+                                  {isCompleting ? <Loader2 size={11} className="animate-spin" /> : <CheckCircle2 size={11} />}
+                                  {lang === "es" ? "Marcar como hecho" : "Mark as done"}
+                                </button>
+                              )}
                             </div>
                           </div>
                         )

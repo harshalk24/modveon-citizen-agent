@@ -2,7 +2,7 @@ import { NextResponse } from "next/server"
 import { prisma } from "@/lib/prisma"
 
 export async function PATCH(req: Request) {
-  const { citizenId, serviceId, completed } = await req.json()
+  const { citizenId, serviceId, week, completed } = await req.json()
 
   if (!citizenId || !serviceId) {
     return NextResponse.json({ error: "Missing required fields" }, { status: 400 })
@@ -12,11 +12,12 @@ export async function PATCH(req: Request) {
   if (!plan) return NextResponse.json({ error: "Plan not found" }, { status: 404 })
 
   const steps = JSON.parse(plan.planJson) as any[]
-  const updated = steps.map((s: any) =>
-    s.serviceId === serviceId
+  const updated = steps.map((s: any) => {
+    const matches = s.serviceId === serviceId && (week === undefined || s.week === week)
+    return matches
       ? { ...s, status: completed ? "done" : "not-started", completedAt: completed ? new Date().toISOString() : undefined }
       : s
-  )
+  })
 
   await prisma.actionPlan.update({
     where: { citizenId },

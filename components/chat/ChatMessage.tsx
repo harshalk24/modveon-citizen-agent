@@ -135,7 +135,7 @@ function AgentMarkdown({
     i++
   }
 
-  return <div className="space-y-0.5 text-sm">{nodes}</div>
+  return <div className="space-y-1 text-sm">{nodes}</div>
 }
 
 // ── Benefit card: wraps a content block + APPLY_NOW ───────────────────
@@ -160,7 +160,7 @@ function BenefitCard({
   const isUrgent = /\b(\d+\s*days?|días?\s*para|plazo|deadline)\b/i.test(content)
 
   return (
-    <div className={`border-l-4 ${isUrgent ? "border-red-500" : "border-[#185FA5]"} bg-white rounded-r-lg p-3 mb-3 shadow-sm`}>
+    <div className={`border-l-4 min-h-[80px] ${isUrgent ? "border-red-500" : "border-[#185FA5]"} bg-white rounded-r-lg p-3 mb-3 shadow-sm`}>
       {(benefitName || amount) && (
         <div className="flex items-center justify-between mb-1.5">
           {benefitName && (
@@ -279,16 +279,19 @@ export default function ChatMessage({ message, citizenId, onAction, onSendMessag
       className={`flex ${isAgent ? "justify-start" : "justify-end"} group animate-msg-in`}
       data-tour={dataTour}
     >
-      <div className={`max-w-[80%] ${isAgent ? "space-y-2" : ""}`}>
+      <div className={`max-w-[85%] ${isAgent ? "space-y-2" : ""}`}>
         {isAgent && (
           <div className="text-[11px] text-gray-400 px-1 mb-1">{tr.chat.agentName}</div>
         )}
 
-        <div className={`relative rounded-2xl px-4 py-3 text-sm leading-relaxed ${
-          isAgent
-            ? "bg-white border border-gray-200 text-gray-800 rounded-tl-sm shadow-sm"
-            : "bg-[#185FA5] text-white rounded-tr-sm"
-        }`}>
+        <div
+          className={`relative rounded-2xl px-4 py-3 text-sm leading-relaxed ${
+            isAgent
+              ? "bg-white border border-gray-200 text-gray-800 rounded-tl-sm shadow-sm"
+              : "bg-[#185FA5] text-white rounded-tr-sm"
+          }`}
+          style={isAgent ? { borderLeft: "3px solid #E6F1FB" } : {}}
+        >
           {isAgent
             ? renderContent(message.content, lang, handleKnowMore)
             : <p className="whitespace-pre-wrap">{message.content}</p>

@@ -21,6 +21,8 @@ export default function Sidebar() {
   const { citizen } = useCitizen()
   const tr = t(lang)
 
+  if (pathname === "/" || pathname.startsWith("/onboarding")) return null
+
   const contextPills = [
     citizen?.profile.lifeEvent ? tr.contextPills[citizen.profile.lifeEvent as keyof typeof tr.contextPills] : null,
     citizen?.profile.employment && citizen.profile.employment !== "any"

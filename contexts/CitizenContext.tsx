@@ -32,8 +32,23 @@ export function CitizenProvider({ children }: { children: ReactNode }) {
   const [sessionId, setSessionId] = useState("")
   const [isLoading, setIsLoading] = useState(true)
 
+  /** Read citizenId from localStorage, falling back to the cookie set at onboarding. */
+  const getCitizenId = (): string | null => {
+    if (typeof window === "undefined") return null
+    const fromLS = localStorage.getItem("ca_citizen_id")
+    if (fromLS) return fromLS
+    // Cookie fallback — handles private-browsing / localStorage wipe scenarios
+    const match = document.cookie.match(/(?:^|;\s*)ca_citizen_id=([^;]+)/)
+    const fromCookie = match ? match[1] : null
+    if (fromCookie) {
+      // Restore to localStorage so future reads are instant
+      localStorage.setItem("ca_citizen_id", fromCookie)
+    }
+    return fromCookie
+  }
+
   const refresh = async (): Promise<CitizenContextData | null> => {
-    const citizenId = localStorage.getItem("ca_citizen_id")
+    const citizenId = getCitizenId()
     if (!citizenId) { setIsLoading(false); return null }
     try {
       const res = await fetch("/api/citizen/me", {
