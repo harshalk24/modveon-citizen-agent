@@ -27,11 +27,11 @@ export default function ContextPills({ citizen }: { citizen: CitizenContextData 
   if (pills.length === 0) return null
 
   return (
-    <div className="flex flex-wrap gap-2 px-4 py-3 border-b border-gray-100 bg-white">
+    <div className="flex flex-wrap gap-2 px-4 py-3 border-b border-gray-100 bg-white overflow-x-auto">
       {pills.map((pill, i) => (
         <span
           key={i}
-          className="inline-flex items-center gap-1.5 text-xs font-medium px-3 py-1.5 rounded-full bg-gray-100 text-gray-600"
+          className="flex-shrink-0 inline-flex items-center gap-1.5 text-xs font-medium px-3 py-1.5 rounded-full bg-gray-100 text-gray-600 whitespace-nowrap"
         >
           <span>{pill.emoji}</span>
           {pill.label}

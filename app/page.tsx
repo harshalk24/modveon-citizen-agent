@@ -49,13 +49,13 @@ function HeroMockup() {
   return (
     <div className="relative w-full max-w-[300px] mx-auto select-none">
       {/* Glow */}
-      <div className="absolute inset-0 bg-[#185FA5]/20 blur-[60px] rounded-full scale-75 translate-y-10 pointer-events-none" />
+      <div className="absolute inset-0 bg-[#1B3A8C]/20 blur-[60px] rounded-full scale-75 translate-y-10 pointer-events-none" />
 
       <div className="relative bg-[#111827] rounded-2xl p-5 shadow-2xl shadow-black/60 border border-white/8">
 
         {/* Header bar */}
         <div className="flex items-center gap-2 mb-4 pb-3 border-b border-white/8">
-          <div className="w-5 h-5 rounded-md bg-[#185FA5] flex items-center justify-center">
+          <div className="w-5 h-5 rounded-md bg-[#1B3A8C] flex items-center justify-center">
             <MessageSquare size={9} className="text-white" />
           </div>
           <span className="text-xs font-semibold text-white/60">Citizen Assist</span>
@@ -74,7 +74,7 @@ function HeroMockup() {
           transition={{ duration: 0.35, delay: 0.2 }}
           className="flex justify-end mb-3"
         >
-          <div className="bg-[#185FA5] rounded-2xl rounded-tr-sm px-3.5 py-2 max-w-[80%]">
+          <div className="bg-[#1B3A8C] rounded-2xl rounded-tr-sm px-3.5 py-2 max-w-[80%]">
             <p className="text-xs text-white leading-snug">I just had a baby 👶</p>
           </div>
         </motion.div>
@@ -92,7 +92,7 @@ function HeroMockup() {
                 {[0, 1, 2].map(i => (
                   <span
                     key={i}
-                    className="w-1.5 h-1.5 bg-[#185FA5]/70 rounded-full animate-bounce"
+                    className="w-1.5 h-1.5 bg-[#1B3A8C]/70 rounded-full animate-bounce"
                     style={{ animationDelay: `${i * 130}ms` }}
                   />
                 ))}
@@ -160,7 +160,7 @@ function HeroMockup() {
 /* ── Feature card data (duplicated for seamless marquee) ── */
 const CARDS = [
   {
-    bg: "bg-[#185FA5]",
+    bg: "bg-[#1B3A8C]",
     label: "Benefits finder",
     headline: "Every benefit.\nSurfaced instantly.",
     body: "We match your profile against every government program in El Salvador and surface everything you qualify for.",
@@ -208,7 +208,7 @@ export default function LandingPage() {
       <nav className="sticky top-0 z-50 bg-white/80 backdrop-blur-md border-b border-gray-200/60">
         <div className="max-w-7xl mx-auto px-5 h-14 flex items-center justify-between">
           <div className="flex items-center gap-2">
-            <div className="w-7 h-7 rounded-lg bg-[#185FA5] flex items-center justify-center">
+            <div className="w-7 h-7 rounded-lg bg-[#1B3A8C] flex items-center justify-center">
               <MessageSquare size={13} className="text-white" />
             </div>
             <span className="font-bold text-gray-900 text-sm tracking-tight">Citizen Assist</span>
@@ -219,7 +219,7 @@ export default function LandingPage() {
             </Link>
             <Link
               href="/chat"
-              className="text-sm font-bold bg-[#185FA5] hover:bg-[#145290] text-white px-4 py-2 rounded-full transition-colors shadow-sm shadow-blue-200"
+              className="text-sm font-bold bg-[#FFC400] hover:bg-[#E5AF00] text-yellow-900 px-4 py-2 rounded-full transition-colors shadow-sm shadow-yellow-200"
             >
               Get started
             </Link>
@@ -232,9 +232,9 @@ export default function LandingPage() {
         <div className="relative bg-[#0A0E1A] rounded-[2rem] overflow-hidden min-h-[90vh] flex flex-col">
 
           {/* Animated blobs */}
-          <div className="absolute -top-32 -left-20 w-[500px] h-[500px] rounded-full bg-[#185FA5]/22 blur-[90px] animate-blob pointer-events-none" />
+          <div className="absolute -top-32 -left-20 w-[500px] h-[500px] rounded-full bg-[#1B3A8C]/22 blur-[90px] animate-blob pointer-events-none" />
           <div className="absolute top-10 right-0  w-[400px] h-[400px] rounded-full bg-[#0C3870]/45 blur-[75px] animate-blob-slow animation-delay-2 pointer-events-none" />
-          <div className="absolute bottom-0  left-1/3 w-[350px] h-[350px] rounded-full bg-[#185FA5]/12 blur-[100px] animate-blob animation-delay-4 pointer-events-none" />
+          <div className="absolute bottom-0  left-1/3 w-[350px] h-[350px] rounded-full bg-[#1B3A8C]/12 blur-[100px] animate-blob animation-delay-4 pointer-events-none" />
 
           {/* Subtle grid */}
           <div
@@ -266,9 +266,9 @@ export default function LandingPage() {
                 transition={{ duration: 0.7, delay: 0.2, ease: [0.22, 1, 0.36, 1] }}
                 className="text-[clamp(2.5rem,5vw,4.2rem)] font-extrabold text-white leading-[1.06] tracking-tight mb-6"
               >
-                Most Salvadorans<br />
-                never claim<br />
-                <span className="text-[#5BA8F0]">what they're owed.</span>
+                El Salvador has<br />
+                benefits for you.<br />
+                <span className="text-[#5BA8F0]">Most people never find them.</span>
               </motion.h1>
 
               <motion.p
@@ -277,7 +277,7 @@ export default function LandingPage() {
                 transition={{ duration: 0.5, delay: 0.35 }}
                 className="text-[1rem] text-white/42 max-w-md mb-10 leading-relaxed"
               >
-                We fix that. Describe your situation once — we find every benefit, subsidy and program you qualify for in El Salvador, and hand you a step-by-step plan to claim them.
+                Navigating government benefits in El Salvador is confusing and time-consuming. We fix that — describe your situation once and we surface every program you qualify for, instantly.
               </motion.p>
 
             </div>
@@ -302,7 +302,7 @@ export default function LandingPage() {
           >
             <Link
               href="/chat"
-              className="flex items-center gap-2 bg-white hover:bg-gray-50 text-gray-900 px-8 py-3.5 rounded-full font-bold text-[0.95rem] transition-all shadow-lg shadow-black/30 active:scale-[0.97]"
+              className="flex items-center gap-2 bg-[#FFC400] hover:bg-[#E5AF00] text-yellow-900 px-8 py-3.5 rounded-full font-bold text-[0.95rem] transition-all shadow-lg shadow-yellow-500/30 active:scale-[0.97]"
             >
               Find my benefits <ArrowRight size={17} />
             </Link>
@@ -318,7 +318,7 @@ export default function LandingPage() {
       </section>
 
       {/* ── STATS ───────────────────────────────────────── */}
-      <FadeUp className="py-14 px-6">
+      <FadeUp className="py-16 px-6">
         <div className="max-w-2xl mx-auto grid grid-cols-3 gap-6 text-center">
           {[
             { stat: "5 benefits", sub: "found per session on avg"  },
@@ -338,7 +338,7 @@ export default function LandingPage() {
         <div className="max-w-5xl mx-auto" id="how">
           <h2 className="text-[clamp(2.2rem,6vw,4.4rem)] font-extrabold text-[#0A0E1A] leading-[1.08] tracking-tight">
             Government benefits,<br />
-            <span className="text-[#185FA5]">finally explained.</span>
+            <span className="text-[#0EA5E9]">finally explained.</span>
           </h2>
           <p className="text-gray-500 mt-4 text-base max-w-md mx-auto leading-relaxed">
             Tell us your situation. We do the research, find the programs, and hand you a step-by-step plan.
@@ -428,7 +428,7 @@ export default function LandingPage() {
                 body: "Poder notarial, property, consulate appointments — the information exists, but no one connects it.",
               },
             ].map((card, i) => (
-              <div key={i} className="bg-white rounded-2xl p-6 border border-gray-200/70 shadow-sm hover:shadow-md transition-shadow">
+              <div key={i} className="bg-white rounded-2xl p-6 border border-gray-200/70 shadow-sm hover:shadow-md hover:border-yellow-400 transition-all">
                 <p className="text-sm font-semibold text-gray-900 mb-2 leading-snug">{card.title}</p>
                 <p className="text-sm text-gray-500 leading-relaxed">{card.body}</p>
               </div>
@@ -482,7 +482,7 @@ export default function LandingPage() {
       <section className="px-3 pb-3">
         <FadeUp>
           <div className="relative bg-[#0A0E1A] rounded-[2rem] overflow-hidden py-24 text-center">
-            <div className="absolute top-0 left-1/2 -translate-x-1/2 w-[500px] h-[300px] rounded-full bg-[#185FA5]/14 blur-[90px] animate-blob-slow pointer-events-none" />
+            <div className="absolute top-0 left-1/2 -translate-x-1/2 w-[500px] h-[300px] rounded-full bg-[#1B3A8C]/14 blur-[90px] animate-blob-slow pointer-events-none" />
             <div className="absolute bottom-0 right-1/4 w-[300px] h-[200px] rounded-full bg-[#2B82D9]/10 blur-[70px] animate-blob animation-delay-2 pointer-events-none" />
             <div className="relative z-10 px-6">
               <h2 className="text-4xl sm:text-5xl font-extrabold text-white tracking-tight mb-4">
@@ -493,7 +493,7 @@ export default function LandingPage() {
               </p>
               <Link
                 href="/chat"
-                className="inline-flex items-center gap-2 bg-white hover:bg-gray-50 text-gray-900 px-8 py-4 rounded-full font-bold text-base transition-all shadow-lg shadow-black/30 active:scale-[0.97]"
+                className="inline-flex items-center gap-2 bg-[#FFC400] hover:bg-[#E5AF00] text-yellow-900 px-8 py-4 rounded-full font-bold text-base transition-all shadow-lg shadow-yellow-500/30 active:scale-[0.97]"
               >
                 Start the conversation <ArrowRight size={18} />
               </Link>
@@ -506,7 +506,7 @@ export default function LandingPage() {
       <footer className="py-8 px-6">
         <div className="max-w-6xl mx-auto flex items-center justify-between">
           <div className="flex items-center gap-2">
-            <div className="w-6 h-6 rounded-lg bg-[#185FA5] flex items-center justify-center">
+            <div className="w-6 h-6 rounded-lg bg-[#1B3A8C] flex items-center justify-center">
               <MessageSquare size={10} className="text-white" />
             </div>
             <span className="text-sm font-semibold text-gray-600">Citizen Assist</span>

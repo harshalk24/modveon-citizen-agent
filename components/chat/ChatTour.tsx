@@ -96,7 +96,7 @@ export default function ChatTour({ onDone }: { onDone: () => void }) {
       {/* Highlight cutout */}
       {pos && (
         <div
-          className="absolute rounded-xl ring-2 ring-[#185FA5] ring-offset-2 bg-transparent pointer-events-none"
+          className="absolute rounded-xl ring-2 ring-[#1B3A8C] ring-offset-2 bg-transparent pointer-events-none"
           style={{
             top: pos.top - 4,
             left: pos.left - 4,
@@ -122,7 +122,7 @@ export default function ChatTour({ onDone }: { onDone: () => void }) {
           <div className="flex items-center justify-between mb-3">
             <div className="flex gap-1.5">
               {STEPS.map((_, i) => (
-                <div key={i} className={`h-1.5 rounded-full transition-all ${i === step ? "w-4 bg-[#185FA5]" : i < step ? "w-1.5 bg-blue-300" : "w-1.5 bg-gray-200"}`} />
+                <div key={i} className={`h-1.5 rounded-full transition-all ${i === step ? "w-4 bg-[#1B3A8C]" : i < step ? "w-1.5 bg-blue-300" : "w-1.5 bg-gray-200"}`} />
               ))}
             </div>
             <button onClick={onDone} className="text-gray-400 hover:text-gray-600 transition-colors p-0.5">
@@ -143,7 +143,7 @@ export default function ChatTour({ onDone }: { onDone: () => void }) {
             </button>
             <button
               onClick={next}
-              className="flex items-center gap-1.5 bg-[#185FA5] hover:bg-[#145290] text-white text-xs font-semibold px-3.5 py-2 rounded-xl transition-colors"
+              className="flex items-center gap-1.5 bg-[#1B3A8C] hover:bg-[#145290] text-white text-xs font-semibold px-3.5 py-2 rounded-xl transition-colors"
             >
               {step === STEPS.length - 1
                 ? (isEs ? "¡Listo!" : "Got it!")

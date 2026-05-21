@@ -1,6 +1,6 @@
 "use client"
 
-import { Suspense, useState, useRef, useEffect } from "react"
+import { Suspense, useState, useRef, useEffect, Fragment } from "react"
 import { useRouter, useSearchParams } from "next/navigation"
 import { Send, Loader2, Sparkles } from "lucide-react"
 import { useLang } from "@/contexts/LanguageContext"
@@ -53,10 +53,14 @@ function ChatContent() {
   const hasAutoSentRef = useRef(false)
   // Prevents proactive greeting from firing immediately after onboarding completes
   const justCompletedOnboardingRef = useRef(false)
+  // Set to true after the first real LLM message — prevents welcome effect from
+  // resetting messages when citizen context refreshes after streaming ends
+  const conversationStartedRef = useRef(false)
 
   // ── Conversational onboarding ─────────────────────────────────────
   const [onboardingStep, setOnboardingStep] = useState(0)
-  const [onboardingData, setOnboardingData] = useState({ situation: "", name: "", country: "", employment: "", email: "" })
+  const [onboardingData, setOnboardingData] = useState({ situation: "", name: "", country: "", employment: "", email: "", gender: "" })
+  const pendingEmailRef = useRef("")
   // Active when there is no logged-in citizen yet
   const isOnboarding = !citizenLoading && !citizen
 
@@ -85,6 +89,7 @@ function ChatContent() {
   // Build welcome message based on context
   useEffect(() => {
     if (citizenLoading) return // wait for auth check before deciding onboarding vs regular
+    if (conversationStartedRef.current) return // don't reset mid-conversation
     const preload = searchParams.get("context")
 
     if (preload) {
@@ -119,11 +124,29 @@ function ChatContent() {
       setEntitlementCount(svcs.length)
       if (svcs.length > 0) {
         const urgentSvc = svcs.find(s => s.deadlineDays && s.deadlineDays <= 30)
+
+        // Empathetic opener based on life event
+        const empathyEn: Record<string, string> = {
+          "new-baby":       "Congratulations on your new baby! 🎉 ",
+          "job-loss":       "I'm sorry to hear about your job loss — I'm here to help. 💙 ",
+          "start-business": "Exciting to hear you're starting a business! 🚀 ",
+          "diaspora":       "Happy to help you manage things from abroad. 🌎 ",
+        }
+        const empathyEs: Record<string, string> = {
+          "new-baby":       "¡Felicitaciones por tu bebé! 🎉 ",
+          "job-loss":       "Lamento mucho lo de tu trabajo — estoy acá para ayudarte. 💙 ",
+          "start-business": "¡Qué emocionante que estés arrancando tu negocio! 🚀 ",
+          "diaspora":       "Con gusto te ayudo a gestionar todo desde el exterior. 🌎 ",
+        }
+        const opener = lang === "es"
+          ? (empathyEs[citizen.profile.lifeEvent] || "")
+          : (empathyEn[citizen.profile.lifeEvent] || "")
+
         setMessages([{
           id: generateId(), role: "assistant",
           content: lang === "es"
-            ? `Hola **${citizen.profile.firstName}**. Encontré **${svcs.length} beneficios** para tu situación.${urgentSvc ? ` El más urgente: **${urgentSvc.deadlineDays} días** para registrarte en ${urgentSvc.agency}.` : ""} ¿Querés ver el plan?`
-            : `Hi **${citizen.profile.firstName}**. I found **${svcs.length} benefits** for your situation.${urgentSvc ? ` Most urgent: **${urgentSvc.deadlineDays} days** to register at ${urgentSvc.agency}.` : ""} Want to see the plan?`,
+            ? `${opener}Hola **${citizen.profile.firstName}**, encontré **${svcs.length} beneficios** para tu situación.${urgentSvc ? ` El más urgente: **${urgentSvc.deadlineDays} días** para registrarte en ${urgentSvc.agency}.` : ""} ¿Querés ver el plan?`
+            : `${opener}Hi **${citizen.profile.firstName}**, I found **${svcs.length} benefits** for your situation.${urgentSvc ? ` Most urgent: **${urgentSvc.deadlineDays} days** to register at ${urgentSvc.agency}.` : ""} Want to see the plan?`,
           actionButtons: [
             { label: tr.chat.viewBenefits(svcs.length), action: "view-benefits", variant: "outline" },
             { label: tr.chat.openPlan, action: "open-plan", variant: "green" },
@@ -293,7 +316,32 @@ function ChatContent() {
       const emailValue = value === "skip" ? "" : value
       setOnboardingData(prev => ({ ...prev, email: emailValue }))
       if (value !== "skip") addUserMsg(value)
-      await completeOnboarding(emailValue)
+      pendingEmailRef.current = emailValue
+      setOnboardingStep(5)
+      setTimeout(() => addAgentMsg(
+        lang === "es"
+          ? "Una última cosa — ¿cuál es tu género? Ayuda a encontrar beneficios específicos. Podés saltearlo."
+          : "One last thing — what's your gender? Helps find gender-specific benefits. You can skip this.",
+        [
+          { label: lang === "es" ? "👩 Femenino"         : "👩 Female",           action: "ob:gender:female", variant: "outline" },
+          { label: lang === "es" ? "👨 Masculino"        : "👨 Male",             action: "ob:gender:male",   variant: "outline" },
+          { label: lang === "es" ? "⬜ Prefiero no decir" : "⬜ Prefer not to say", action: "ob:gender:no-say", variant: "outline" },
+          { label: lang === "es" ? "Saltear"             : "Skip",                action: "ob:gender:skip",  variant: "outline" },
+        ]
+      ), 400)
+      return
+    }
+
+    if (stepType === "gender") {
+      const genderValue = value === "skip" ? "" : value
+      setOnboardingData(prev => ({ ...prev, gender: genderValue }))
+      const genderLabels: Record<string, string> = {
+        female:   lang === "es" ? "Femenino"          : "Female",
+        male:     lang === "es" ? "Masculino"         : "Male",
+        "no-say": lang === "es" ? "Prefiero no decir" : "Prefer not to say",
+      }
+      if (genderValue && genderValue !== "skip") addUserMsg(genderLabels[genderValue] || genderValue)
+      await completeOnboarding(pendingEmailRef.current, genderValue)
       return
     }
   }
@@ -301,9 +349,10 @@ function ChatContent() {
   // Finalize onboarding — create citizen, save context, show benefits
   // emailArg bypasses stale-state timing: setOnboardingData is async, so we
   // pass the email value directly from the call site instead of reading from state
-  const completeOnboarding = async (emailArg?: string) => {
+  const completeOnboarding = async (emailArg?: string, genderArg?: string) => {
     const { situation, name, country, employment } = onboardingData
-    const email = emailArg !== undefined ? emailArg : onboardingData.email
+    const email  = emailArg  !== undefined ? emailArg  : onboardingData.email
+    const gender = genderArg !== undefined ? genderArg : onboardingData.gender
     setMessages(prev => [...prev, {
       id: generateId(), role: "assistant",
       content: lang === "es" ? "Perfecto. Buscando tus beneficios..." : "Perfect. Finding your benefits...",
@@ -312,11 +361,12 @@ function ChatContent() {
       const res = await fetch("/api/citizen/onboard", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ firstName: name, country: country || "SV", email, gender: "", language: lang }),
+        body: JSON.stringify({ firstName: name, country: country || "SV", email, gender: gender || "", language: lang }),
       })
       const data = await res.json()
       if (data.citizenId) {
         localStorage.setItem("ca_citizen_id", data.citizenId)
+        localStorage.setItem("ca_show_tour", "1")  // auto-show tour for first-time users
         document.cookie = `ca_citizen_id=${data.citizenId}; max-age=31536000; path=/; SameSite=Lax`
       }
       if (situation && data.citizenId) {
@@ -463,12 +513,27 @@ function ChatContent() {
         return
       }
       if (onboardingStep === 4) {
-        // Collecting email — pass value directly to avoid stale-state read
+        // Collecting email — show gender question next instead of completing immediately
         const emailVal = text.trim()
         setOnboardingData(prev => ({ ...prev, email: emailVal }))
         setMessages(prev => [...prev, { id: generateId(), role: "user", content: emailVal }])
         setInput("")
-        await completeOnboarding(emailVal)
+        pendingEmailRef.current = emailVal
+        setOnboardingStep(5)
+        setTimeout(() => {
+          setMessages(prev => [...prev, {
+            id: generateId(), role: "assistant",
+            content: lang === "es"
+              ? "Una última cosa — ¿cuál es tu género? Ayuda a encontrar beneficios específicos."
+              : "One last thing — what's your gender? Helps find gender-specific benefits.",
+            actionButtons: [
+              { label: lang === "es" ? "👩 Femenino"          : "👩 Female",           action: "ob:gender:female", variant: "outline" },
+              { label: lang === "es" ? "👨 Masculino"         : "👨 Male",             action: "ob:gender:male",   variant: "outline" },
+              { label: lang === "es" ? "⬜ Prefiero no decir"  : "⬜ Prefer not to say", action: "ob:gender:no-say", variant: "outline" },
+              { label: lang === "es" ? "Saltear"              : "Skip",                action: "ob:gender:skip",   variant: "outline" },
+            ],
+          }])
+        }, 400)
         return
       }
       // For any other onboarding step, treat as "something else" → complete with what we have
@@ -482,6 +547,9 @@ function ChatContent() {
         return
       }
     }
+
+    // Mark conversation as started — prevents welcome effect from resetting messages
+    conversationStartedRef.current = true
 
     // Detect context signals from the user's message and persist them locally.
     // This is the only way to carry lifeEvent/employment to the plan page for
@@ -628,20 +696,37 @@ function ChatContent() {
             backgroundSize: "24px 24px",
           }}
         >
-          {messages.map((msg, idx) => (
-            <ChatMessage
-              key={msg.id}
-              message={msg}
-              citizenId={citizen?.citizenId}
-              onAction={handleAction}
-              onSendMessage={sendMessage}
-              onApplyNow={handleApplyNow}
-              onDocAction={handleDocAction}
-              onFormConfirm={handleFormConfirm}
-              onConfirmation={handleConfirmation}
-              dataTour={idx === 0 && msg.role === "assistant" ? "agent-message" : undefined}
-            />
-          ))}
+          {messages.map((msg, idx) => {
+            // Show suggestion chips directly below the last assistant message
+            const isLastAssistant =
+              msg.role === "assistant" &&
+              !messages.slice(idx + 1).some(m => m.role === "assistant")
+            return (
+              <Fragment key={msg.id}>
+                <ChatMessage
+                  message={msg}
+                  citizenId={citizen?.citizenId}
+                  onAction={handleAction}
+                  onSendMessage={sendMessage}
+                  onApplyNow={handleApplyNow}
+                  onDocAction={handleDocAction}
+                  onFormConfirm={handleFormConfirm}
+                  onConfirmation={handleConfirmation}
+                  dataTour={idx === 0 && msg.role === "assistant" ? "agent-message" : undefined}
+                />
+                {isLastAssistant && !isOnboarding && !streaming && (
+                  <div data-tour="templates">
+                    <MessageTemplates
+                      conversationState={conversationState}
+                      language={lang}
+                      onSelect={sendMessage}
+                      disabled={streaming || generatingPlan}
+                    />
+                  </div>
+                )}
+              </Fragment>
+            )
+          })}
 
           {streaming && messages[messages.length - 1]?.content === "" && (
             <div className="flex justify-start">
@@ -652,17 +737,6 @@ function ChatContent() {
                   <span className="w-1.5 h-1.5 bg-gray-300 rounded-full animate-bounce [animation-delay:300ms]" />
                 </div>
               </div>
-            </div>
-          )}
-          {/* Suggestion chips inside the chat — Planet Singapore style */}
-          {!isOnboarding && !streaming && (
-            <div data-tour="templates">
-              <MessageTemplates
-                conversationState={conversationState}
-                language={lang}
-                onSelect={sendMessage}
-                disabled={streaming || generatingPlan}
-              />
             </div>
           )}
 

@@ -1,5 +1,6 @@
 export type WaitingForInput =
   | null
+  | "start"            // intro message shown — waiting for user to tap Start
   | "initial"          // first chips: yes-apply / show-benefits
   | "benefits-confirm" // after showing benefits: yes-rnpn / not-now
   | "baby-name"        // text input for baby's name

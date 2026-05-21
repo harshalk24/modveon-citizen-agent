@@ -76,6 +76,11 @@ export default function ProfilePage() {
     }
   }, [citizen])
 
+  // Auto-fix employment when life event implies unemployed
+  useEffect(() => {
+    if (lifeEvent === "job-loss") setEmployment("unemployed")
+  }, [lifeEvent])
+
   const handleSave = async () => {
     const citizenId = localStorage.getItem("ca_citizen_id")
     if (!citizenId) return
@@ -271,7 +276,12 @@ export default function ProfilePage() {
 
         <FormCard>
           <FieldLabel>Employment status</FieldLabel>
-          <div className="space-y-1.5 mt-1">
+          {lifeEvent === "job-loss" && (
+            <p className="text-xs text-amber-700 bg-amber-50 border border-amber-200 rounded-lg px-3 py-2 mt-1">
+              Set to <strong>Unemployed</strong> based on your situation — change your situation above to update this.
+            </p>
+          )}
+          <div className={`space-y-1.5 mt-1 ${lifeEvent === "job-loss" ? "opacity-40 pointer-events-none" : ""}`}>
             {EMPLOYMENT_OPTIONS.map(e => (
               <ToggleButton
                 key={e.value}

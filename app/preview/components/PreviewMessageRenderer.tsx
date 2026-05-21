@@ -3,7 +3,7 @@
 import { useState, useEffect } from "react"
 import {
   CheckCircle2, Loader2, Circle, AlertCircle,
-  FileText, Minus, ChevronDown, ChevronUp, ShieldCheck, Phone,
+  FileText, Minus, ChevronDown, ChevronUp, ShieldCheck, Phone, ArrowRight,
 } from "lucide-react"
 import type { PreviewMessage, PreviewActivity } from "../types"
 
@@ -22,32 +22,33 @@ function Md({ text }: { text: string }) {
   )
 }
 
-/* ── Activity card — Claude-style collapsible steps ─────────── */
+/* ── Activity card — task-by-task progress with highlights ──── */
 function ActivityCard({ msg }: { msg: PreviewMessage }) {
-  const [expanded, setExpanded]       = useState(true)
-  const [openSteps, setOpenSteps]     = useState<Set<string>>(new Set())
-  const acts   = msg.activities ?? []
-  const done   = acts.filter(a => a.status === "done").length
-  const running = acts.find(a => a.status === "running")
+  const [expanded, setExpanded] = useState(true)
+  const acts        = msg.activities ?? []
+  const doneCount   = acts.filter(a => a.status === "done").length
+  const total       = acts.length
+  const running     = acts.find(a => a.status === "running")
+  const firstWaiting = acts.find(a => a.status === "waiting")
 
-  // Auto-collapse card 1.5s after all done
   useEffect(() => {
     if (msg.isComplete) {
-      const t = setTimeout(() => setExpanded(false), 1500)
+      const t = setTimeout(() => setExpanded(false), 2000)
       return () => clearTimeout(t)
     }
   }, [msg.isComplete])
 
-  const toggleStep = (id: string) =>
-    setOpenSteps(prev => {
-      const next = new Set(prev)
-      next.has(id) ? next.delete(id) : next.add(id)
-      return next
-    })
-
   return (
-    <div className="border border-gray-200 rounded-xl overflow-hidden bg-white w-full shadow-sm">
-      {/* Card header */}
+    <div className="rounded-xl overflow-hidden bg-white border border-gray-200 shadow-sm w-full">
+      {/* Progress bar */}
+      <div className="h-1 bg-gray-100">
+        <div
+          className="h-full bg-emerald-400 transition-all duration-700 ease-out"
+          style={{ width: `${total > 0 ? (doneCount / total) * 100 : 0}%` }}
+        />
+      </div>
+
+      {/* Header */}
       <button
         onClick={() => setExpanded(e => !e)}
         className="w-full flex items-center justify-between px-4 py-3 bg-gray-50 border-b border-gray-100 hover:bg-gray-100 transition-colors"
@@ -58,62 +59,82 @@ function ActivityCard({ msg }: { msg: PreviewMessage }) {
             : <Loader2 size={15} className="animate-spin text-yellow-500" />}
           <span className="text-sm font-medium text-gray-800">
             {msg.isComplete
-              ? `${done} steps completed`
-              : running ? `Working — ${running.label}` : "Working…"}
+              ? `All ${doneCount} steps completed`
+              : running ? running.label : "Working…"}
           </span>
         </div>
-        {expanded
-          ? <ChevronUp size={13} className="text-gray-400" />
-          : <ChevronDown size={13} className="text-gray-400" />}
+        <div className="flex items-center gap-2">
+          <span className="text-[10px] text-gray-400 tabular-nums">{doneCount}/{total}</span>
+          {expanded
+            ? <ChevronUp   size={13} className="text-gray-400" />
+            : <ChevronDown size={13} className="text-gray-400" />}
+        </div>
       </button>
 
       {/* Step list */}
       {expanded && (
-        <div className="divide-y divide-gray-50">
+        <div>
           {acts.map(a => {
-            const hasDetail  = !!a.detail
-            const isOpen     = openSteps.has(a.id)
+            const isNextUp = !msg.isComplete && a.status === "waiting" && a.id === firstWaiting?.id
+            const rowBg =
+              a.status === "running" ? "bg-amber-50"       :
+              a.status === "done"    ? "bg-emerald-50/40"  :
+              isNextUp               ? "bg-blue-50/30"     : ""
+
             return (
-              <div key={a.id}>
-                <button
-                  onClick={() => hasDetail && toggleStep(a.id)}
-                  className={`w-full flex items-start gap-3 px-4 py-2.5 text-left transition-colors
-                    ${hasDetail ? "cursor-pointer hover:bg-gray-50" : "cursor-default"}`}
-                >
-                  {/* Status icon */}
+              <div key={a.id} className={`px-4 py-2.5 border-b border-gray-50 last:border-0 ${rowBg}`}>
+                <div className="flex items-start gap-3">
+                  {/* Icon */}
                   <div className="flex-shrink-0 mt-0.5">
-                    {a.status === "running" && <Loader2 size={13} className="animate-spin text-yellow-500" />}
+                    {a.status === "running" && <Loader2      size={13} className="animate-spin text-amber-500" />}
                     {a.status === "done"    && <CheckCircle2 size={13} className="text-emerald-500" />}
-                    {a.status === "waiting" && <Circle size={13} className="text-gray-300" />}
-                    {a.status === "failed"  && <AlertCircle size={13} className="text-red-500" />}
+                    {a.status === "waiting" && (
+                      <Circle size={13} className={isNextUp ? "text-blue-400" : "text-gray-200"} />
+                    )}
+                    {a.status === "failed"  && <AlertCircle  size={13} className="text-red-500" />}
                   </div>
 
-                  {/* Label */}
-                  <span className={`flex-1 text-xs leading-snug ${
-                    a.status === "done"    ? "text-gray-500"           :
-                    a.status === "running" ? "text-gray-800 font-medium" :
-                    a.status === "failed"  ? "text-red-600"            :
-                    "text-gray-400"
-                  }`}>
-                    {a.label}
-                  </span>
+                  {/* Content */}
+                  <div className="flex-1 min-w-0">
+                    <div className="flex items-center gap-2 flex-wrap">
+                      <span className={`text-xs leading-snug ${
+                        a.status === "done"    ? "text-emerald-700"          :
+                        a.status === "running" ? "text-gray-900 font-semibold" :
+                        isNextUp               ? "text-blue-700 font-medium"  :
+                        "text-gray-300"
+                      }`}>
+                        {a.label}
+                      </span>
 
-                  {/* Expand chevron for steps with details */}
-                  {hasDetail && (
-                    isOpen
-                      ? <ChevronUp   size={11} className="text-gray-400 flex-shrink-0 mt-0.5" />
-                      : <ChevronDown size={11} className="text-gray-400 flex-shrink-0 mt-0.5" />
-                  )}
-                </button>
+                      {a.status === "running" && (
+                        <span className="text-[9px] bg-amber-100 text-amber-700 px-1.5 py-0.5 rounded-full font-bold uppercase tracking-wide">
+                          In progress
+                        </span>
+                      )}
+                      {a.status === "done" && (
+                        <span className="text-[9px] bg-emerald-100 text-emerald-700 px-1.5 py-0.5 rounded-full font-bold uppercase tracking-wide">
+                          Done ✓
+                        </span>
+                      )}
+                      {isNextUp && (
+                        <span className="text-[9px] bg-blue-100 text-blue-600 px-1.5 py-0.5 rounded-full font-bold uppercase tracking-wide">
+                          Next →
+                        </span>
+                      )}
+                    </div>
 
-                {/* Collapsible detail */}
-                {hasDetail && isOpen && (
-                  <div className="px-4 pb-3 pl-10">
-                    <p className="text-[11px] text-gray-600 font-mono bg-gray-50 rounded-lg px-3 py-2 leading-relaxed border border-gray-100">
-                      {a.detail}
-                    </p>
+                    {/* Detail shown inline for done + running */}
+                    {a.detail && (a.status === "done" || a.status === "running") && (
+                      <p className={`text-[10px] font-mono mt-1 rounded px-2 py-1 leading-relaxed ${
+                        a.status === "done"
+                          ? "text-emerald-600/80 bg-emerald-50/60 border border-emerald-100"
+                          : "text-gray-500 bg-white border border-gray-100"
+                      }`}>
+                        {a.detail}
+                      </p>
+                    )}
                   </div>
-                )}
+                </div>
               </div>
             )
           })}
