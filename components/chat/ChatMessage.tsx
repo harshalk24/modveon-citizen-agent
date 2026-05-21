@@ -97,41 +97,44 @@ function BenefitCard({ content, applyUrl, downloadUrl, onKnowMore, lang, onApply
   const isUrgent = /\b(\d+\s*days?|días?\s*para|plazo|deadline)\b/i.test(content)
   const isRNPN   = applyUrl?.includes("rnpn.gob.sv")
 
+  // Apply now node — reused in header
+  const applyNode = isRNPN && onApplyNow ? (
+    <button onClick={() => onApplyNow("sv-rnpn-birth-registration")}
+      className="inline-flex items-center gap-1 px-2.5 py-1 text-[11px] font-bold bg-[#FFC400] text-yellow-900 rounded-lg hover:bg-[#E5AF00] transition-colors flex-shrink-0">
+      <Sparkles size={10} />
+      {lang === "es" ? "Tramitar" : "Apply now"}
+    </button>
+  ) : applyUrl ? (
+    <a href={applyUrl} target="_blank" rel="noopener noreferrer"
+      className="inline-flex items-center gap-1 px-2.5 py-1 text-[11px] font-bold bg-[#FFC400] text-yellow-900 rounded-lg hover:bg-[#E5AF00] transition-colors flex-shrink-0">
+      <ExternalLink size={10} />
+      {lang === "es" ? "Solicitar" : "Apply now"}
+    </a>
+  ) : null
+
   return (
     <div className={`border-l-4 ${isUrgent ? "border-red-500" : "border-[#FFC400]"} bg-white rounded-r-xl p-3 mb-3 shadow-sm min-h-[80px]`}>
-      {(nm || am) && (
-        <div className="flex items-center justify-between mb-1.5">
+      {/* Header row: name + amount badge + Apply now in top-right */}
+      <div className="flex items-start justify-between gap-2 mb-1.5">
+        <div className="flex items-center gap-2 flex-wrap min-w-0">
           {nm && <span className="font-semibold text-sm text-gray-800">{nm[1]}</span>}
-          {am && <span className="text-xs font-semibold px-2 py-0.5 bg-[#FFF7CC] text-yellow-800 rounded ml-2 flex-shrink-0">{am[0]}</span>}
+          {am && <span className="text-xs font-semibold px-2 py-0.5 bg-[#FFF7CC] text-yellow-800 rounded flex-shrink-0">{am[0]}</span>}
         </div>
-      )}
+        {applyNode}
+      </div>
+
       <div className="text-sm text-gray-700">
         <AgentMarkdown text={content} onKnowMore={onKnowMore} lang={lang} />
       </div>
+
+      {/* Footer: Learn more + Download only */}
       <div className="flex flex-wrap items-center gap-2 mt-2.5">
-        {/* Learn more → asks the agent for details (no external link) */}
         <button
           onClick={() => onKnowMore(`BENEFIT:${nm ? nm[1] : "this benefit"}`)}
           className="inline-flex items-center gap-1.5 px-3 py-1.5 text-xs font-semibold text-[#1B3A8C] border border-[#1B3A8C] rounded-lg hover:bg-blue-50 transition-colors">
           <Info size={11} />
           {lang === "es" ? "Saber más" : "Learn more"}
         </button>
-
-        {/* Apply now — RNPN runs demo sequence; others open the government URL */}
-        {isRNPN && onApplyNow ? (
-          <button onClick={() => onApplyNow("sv-rnpn-birth-registration")}
-            className="inline-flex items-center gap-1.5 px-3 py-1.5 text-xs font-bold bg-[#FFC400] text-yellow-900 rounded-lg hover:bg-[#E5AF00] transition-colors">
-            <Sparkles size={11} />
-            {lang === "es" ? "Ayudame a tramitarlo" : "Apply now"}
-          </button>
-        ) : applyUrl ? (
-          <a href={applyUrl} target="_blank" rel="noopener noreferrer"
-            className="inline-flex items-center gap-1.5 px-3 py-1.5 text-xs font-bold bg-[#FFC400] text-yellow-900 rounded-lg hover:bg-[#E5AF00] transition-colors">
-            <ExternalLink size={11} />
-            {lang === "es" ? "Solicitar ahora" : "Apply now"}
-          </a>
-        ) : null}
-
         {downloadUrl && (
           <a href={downloadUrl} download target="_blank" rel="noopener noreferrer"
             className="inline-flex items-center gap-1.5 px-3 py-1.5 text-xs font-medium text-[#1B3A8C] border border-blue-200 rounded-lg bg-blue-50 hover:bg-blue-100 transition-colors">
