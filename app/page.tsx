@@ -471,7 +471,7 @@ export default function LandingPage() {
                     <p className="text-xs text-gray-400">{p.sub}</p>
                   </div>
                 </div>
-                <p className="text-sm text-gray-600 leading-relaxed italic">"{p.quote}"</p>
+                <p className="text-sm text-gray-600 leading-relaxed italic">&ldquo;{p.quote}&rdquo;</p>
               </div>
             ))}
           </div>
@@ -486,7 +486,7 @@ export default function LandingPage() {
             <div className="absolute bottom-0 right-1/4 w-[300px] h-[200px] rounded-full bg-[#2B82D9]/10 blur-[70px] animate-blob animation-delay-2 pointer-events-none" />
             <div className="relative z-10 px-6">
               <h2 className="text-4xl sm:text-5xl font-extrabold text-white tracking-tight mb-4">
-                Ready to find what you're owed?
+                Ready to find what you&apos;re owed?
               </h2>
               <p className="text-sm text-white/38 mb-10">
                 Free forever · No account required · El Salvador
