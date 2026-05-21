@@ -67,6 +67,8 @@ function AgentMarkdown({ text, onKnowMore, lang }: { text: string; onKnowMore: (
   let i = 0
   while (i < lines.length) {
     const line = lines[i]
+    // Skip horizontal rules from LLM output (--- renders as text otherwise)
+    if (/^---+$/.test(line.trim())) { i++; continue }
     if (/^[\*\-]\s+/.test(line)) {
       const items: string[] = []
       while (i < lines.length && /^[\*\-]\s+/.test(lines[i])) { items.push(lines[i].replace(/^[\*\-]\s+/, "")); i++ }
@@ -107,11 +109,29 @@ function BenefitCard({ content, applyUrl, downloadUrl, onKnowMore, lang, onApply
         <AgentMarkdown text={content} onKnowMore={onKnowMore} lang={lang} />
       </div>
       <div className="flex flex-wrap items-center gap-2 mt-2.5">
-        <a href={applyUrl} target="_blank" rel="noopener noreferrer"
+        {/* Learn more → asks the agent for details (no external link) */}
+        <button
+          onClick={() => onKnowMore(`BENEFIT:${nm ? nm[1] : "this benefit"}`)}
           className="inline-flex items-center gap-1.5 px-3 py-1.5 text-xs font-semibold text-[#1B3A8C] border border-[#1B3A8C] rounded-lg hover:bg-blue-50 transition-colors">
-          <ExternalLink size={11} />
-          {lang === "es" ? "Ver más" : "Learn more"}
-        </a>
+          <Info size={11} />
+          {lang === "es" ? "Saber más" : "Learn more"}
+        </button>
+
+        {/* Apply now — RNPN runs demo sequence; others open the government URL */}
+        {isRNPN && onApplyNow ? (
+          <button onClick={() => onApplyNow("sv-rnpn-birth-registration")}
+            className="inline-flex items-center gap-1.5 px-3 py-1.5 text-xs font-bold bg-[#FFC400] text-yellow-900 rounded-lg hover:bg-[#E5AF00] transition-colors">
+            <Sparkles size={11} />
+            {lang === "es" ? "Ayudame a tramitarlo" : "Apply now"}
+          </button>
+        ) : applyUrl ? (
+          <a href={applyUrl} target="_blank" rel="noopener noreferrer"
+            className="inline-flex items-center gap-1.5 px-3 py-1.5 text-xs font-bold bg-[#FFC400] text-yellow-900 rounded-lg hover:bg-[#E5AF00] transition-colors">
+            <ExternalLink size={11} />
+            {lang === "es" ? "Solicitar ahora" : "Apply now"}
+          </a>
+        ) : null}
+
         {downloadUrl && (
           <a href={downloadUrl} download target="_blank" rel="noopener noreferrer"
             className="inline-flex items-center gap-1.5 px-3 py-1.5 text-xs font-medium text-[#1B3A8C] border border-blue-200 rounded-lg bg-blue-50 hover:bg-blue-100 transition-colors">
@@ -120,18 +140,6 @@ function BenefitCard({ content, applyUrl, downloadUrl, onKnowMore, lang, onApply
           </a>
         )}
       </div>
-      {isRNPN && onApplyNow && (
-        <div className="mt-2">
-          <button onClick={() => onApplyNow("sv-rnpn-birth-registration")}
-            className="w-full py-2 rounded-lg bg-[#FFC400] text-yellow-900 text-xs font-bold hover:bg-[#E5AF00] transition-colors flex items-center justify-center gap-1.5">
-            <Sparkles size={13} />
-            {lang === "es" ? "Ayudame a tramitarlo" : "Help me apply"}
-          </button>
-          <p className="text-center text-[10px] text-gray-400 mt-1">
-            {lang === "es" ? "El agente completa el trámite en tu nombre" : "Agent completes the process on your behalf"}
-          </p>
-        </div>
-      )}
     </div>
   )
 }
@@ -167,8 +175,14 @@ export default function ChatMessage({ message, citizenId, onAction, onSendMessag
       body: JSON.stringify({ citizenId, messageId: message.id, type: "wrong-info" }),
     }).catch(() => {})
   }
-  const handleKnowMore = (docId: string) =>
-    onSendMessage?.(`Tell me about the document: ${formatDocName(docId)}. What is it, where do I get it if I don't have it, and how long does it take?`)
+  const handleKnowMore = (docId: string) => {
+    if (docId.startsWith("BENEFIT:")) {
+      const name = docId.slice(8)
+      onSendMessage?.(`Tell me more about **${name}**: how do I apply, what are the exact requirements, how long does it take, and what documents do I need?`)
+    } else {
+      onSendMessage?.(`Tell me about the document: ${formatDocName(docId)}. What is it, where do I get it if I don't have it, and how long does it take?`)
+    }
+  }
 
   // ── Special message types ────────────────────────────────
   if (message.type === "activity" && message.activities) {
