@@ -389,28 +389,45 @@ function ChatContent() {
         })
         setEntitlementCount(svcs.length)
         if (svcs.length > 0) {
-          const urgentSvc = svcs.find((s: { deadlineDays?: number }) => s.deadlineDays && s.deadlineDays <= 30)
           const lifeEvent = fresh.profile.lifeEvent
+          const isEs = lang === "es"
+
           const empathyEn: Record<string, string> = {
-            "new-baby":       "Congratulations on your new baby! 🎉 ",
-            "job-loss":       "I'm sorry to hear about your job loss — I'm here to help. 💙 ",
-            "start-business": "Exciting to hear you're starting a business! 🚀 ",
-            "diaspora":       "Happy to help you manage things from abroad. 🌎 ",
+            "new-baby":       "Congratulations on your new baby! 🎉",
+            "job-loss":       "I'm sorry to hear about your job loss — I'm here to help. 💙",
+            "start-business": "Exciting to hear you're starting a business! 🚀",
+            "diaspora":       "Happy to help you manage things from abroad. 🌎",
           }
           const empathyEs: Record<string, string> = {
-            "new-baby":       "¡Felicitaciones por tu bebé! 🎉 ",
-            "job-loss":       "Lamento mucho lo de tu trabajo — estoy acá para ayudarte. 💙 ",
-            "start-business": "¡Qué emocionante que estés arrancando tu negocio! 🚀 ",
-            "diaspora":       "Con gusto te ayudo a gestionar todo desde el exterior. 🌎 ",
+            "new-baby":       "¡Felicitaciones por tu bebé! 🎉",
+            "job-loss":       "Lamento mucho lo de tu trabajo — estoy acá para ayudarte. 💙",
+            "start-business": "¡Qué emocionante que estés arrancando tu negocio! 🚀",
+            "diaspora":       "Con gusto te ayudo a gestionar todo desde el exterior. 🌎",
           }
-          const opener = lang === "es" ? (empathyEs[lifeEvent] || "") : (empathyEn[lifeEvent] || "")
+          const opener = isEs ? (empathyEs[lifeEvent] || "") : (empathyEn[lifeEvent] || "")
+
+          // Build intro line
+          const introLine = isEs
+            ? `${opener} Encontré **${svcs.length} beneficios** para tu situación:\n\n`
+            : `${opener} I found **${svcs.length} benefits** for your situation:\n\n`
+
+          // Format each service as a benefit card block (parsed by renderContent → BenefitCard)
+          const cards = svcs.map(svc => {
+            const name  = isEs ? svc.nameEs  : svc.name
+            const desc  = isEs ? svc.descriptionEs : svc.description
+            const docs  = isEs ? svc.documentsEs   : svc.documents
+            const amt   = svc.amount ? ` · ${svc.amount}` : ""
+            const deadline = svc.deadlineDays && svc.deadlineDays <= 60
+              ? isEs ? ` ⚠️ ${svc.deadlineDays} días para registrarte` : ` ⚠️ ${svc.deadlineDays}-day deadline`
+              : ""
+            const docsLine = docs.length ? `\nDocuments: ${docs.join(" · ")}` : ""
+            return `**${name}** · ${svc.agency}${amt}${deadline}\n${desc}${docsLine}\nAPPLY_NOW:${svc.sourceUrl}`
+          }).join("\n\n")
+
           setMessages(prev => [...prev, {
             id: generateId(), role: "assistant",
-            content: lang === "es"
-              ? `${opener}Encontré **${svcs.length} beneficios** para tu situación.${urgentSvc ? ` El más urgente: **${urgentSvc.deadlineDays} días** para registrarte en ${urgentSvc.agency}.` : ""} ¿Querés ver el plan?`
-              : `${opener}I found **${svcs.length} benefits** for your situation.${urgentSvc ? ` Most urgent: **${urgentSvc.deadlineDays} days** to register at ${urgentSvc.agency}.` : ""} Want to see the plan?`,
+            content: introLine + cards,
             actionButtons: [
-              { label: tr.chat.viewBenefits(svcs.length), action: "view-benefits", variant: "outline" },
               { label: tr.chat.openPlan, action: "open-plan", variant: "green" },
             ],
           }])
