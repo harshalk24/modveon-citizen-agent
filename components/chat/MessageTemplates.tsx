@@ -101,7 +101,7 @@ export default function MessageTemplates({
           onClick={() => onSelect(chip)}
           disabled={disabled}
           className="text-xs px-3 py-1.5 rounded-full border border-gray-200 bg-white
-                     hover:border-[#185FA5] hover:text-[#185FA5] text-gray-600
+                     hover:border-[#FFC400] hover:bg-yellow-50 text-gray-600
                      transition-all disabled:opacity-40 whitespace-nowrap"
         >
           {chip}

@@ -24,6 +24,9 @@ const config: Config = {
         input: "hsl(var(--input))",
         ring: "hsl(var(--ring))",
         brand: { DEFAULT: "#185FA5", dark: "#145290", light: "#EBF2FA" },
+        // Sivar-inspired palette
+        "ca-yellow": { DEFAULT: "#FFC400", hover: "#E5AF00", light: "#FFF7CC", dark: "#CC9D00" },
+        "ca-blue":   { DEFAULT: "#1B3A8C", hover: "#152D70", light: "#E8EDFA", dark: "#0F2255" },
       },
       borderRadius: {
         lg: "var(--radius)",

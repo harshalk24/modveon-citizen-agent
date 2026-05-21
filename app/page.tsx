@@ -218,7 +218,7 @@ export default function LandingPage() {
               Sign in
             </Link>
             <Link
-              href="/onboarding"
+              href="/chat"
               className="text-sm font-bold bg-[#185FA5] hover:bg-[#145290] text-white px-4 py-2 rounded-full transition-colors shadow-sm shadow-blue-200"
             >
               Get started
@@ -301,7 +301,7 @@ export default function LandingPage() {
             className="relative z-10 flex flex-col items-center gap-3 pb-16"
           >
             <Link
-              href="/onboarding"
+              href="/chat"
               className="flex items-center gap-2 bg-white hover:bg-gray-50 text-gray-900 px-8 py-3.5 rounded-full font-bold text-[0.95rem] transition-all shadow-lg shadow-black/30 active:scale-[0.97]"
             >
               Find my benefits <ArrowRight size={17} />
@@ -492,7 +492,7 @@ export default function LandingPage() {
                 Free forever · No account required · El Salvador
               </p>
               <Link
-                href="/onboarding"
+                href="/chat"
                 className="inline-flex items-center gap-2 bg-white hover:bg-gray-50 text-gray-900 px-8 py-4 rounded-full font-bold text-base transition-all shadow-lg shadow-black/30 active:scale-[0.97]"
               >
                 Start the conversation <ArrowRight size={18} />

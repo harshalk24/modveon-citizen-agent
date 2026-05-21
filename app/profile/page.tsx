@@ -4,7 +4,7 @@ import { useState, useEffect } from "react"
 import { useLang } from "@/contexts/LanguageContext"
 import { useCitizen } from "@/contexts/CitizenContext"
 import { t } from "@/lib/i18n"
-import { Check, Loader2, User, ChevronDown } from "lucide-react"
+import { Check, Loader2, User, ChevronDown, Sparkles } from "lucide-react"
 
 const LIFE_EVENTS = [
   { value: "new-baby",       emoji: "👶", label: "New baby / expecting" },
@@ -103,14 +103,19 @@ export default function ProfilePage() {
     <div className="h-screen overflow-y-auto bg-gray-50">
       {/* Header */}
       <div className="bg-white border-b border-gray-100 px-6 py-5">
-        <div className="flex items-center gap-3">
-          <div className="w-10 h-10 rounded-full bg-blue-50 flex items-center justify-center">
-            <User size={18} className="text-[#185FA5]" />
+        <div className="flex items-center justify-between">
+          <div className="flex items-center gap-3">
+            <div className="w-10 h-10 rounded-full bg-blue-50 flex items-center justify-center">
+              <User size={18} className="text-[#185FA5]" />
+            </div>
+            <div>
+              <h1 className="text-xl font-semibold text-gray-900">My Profile</h1>
+              <p className="text-sm text-gray-400 mt-0.5">The more we know, the more benefits we can find for you</p>
+            </div>
           </div>
-          <div>
-            <h1 className="text-xl font-semibold text-gray-900">My Profile</h1>
-            <p className="text-sm text-gray-400 mt-0.5">The more we know, the more benefits we can find for you</p>
-          </div>
+          <a href="/preview" className="flex items-center gap-1.5 px-3 py-1.5 rounded-full text-xs font-medium bg-yellow-400 text-yellow-900 hover:bg-yellow-500 transition-colors">
+            <Sparkles size={12} />Preview
+          </a>
         </div>
       </div>
 

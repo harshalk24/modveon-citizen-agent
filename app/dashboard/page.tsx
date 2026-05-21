@@ -7,7 +7,7 @@ import { useLang } from "@/contexts/LanguageContext"
 import { useCitizen } from "@/contexts/CitizenContext"
 import { t } from "@/lib/i18n"
 import { lookupServices, services as kbServices } from "@/lib/kb"
-import { Gift, ListChecks, Calendar, MessageSquare, AlertCircle, ChevronRight, Loader2 } from "lucide-react"
+import { Gift, ListChecks, Calendar, MessageSquare, AlertCircle, ChevronRight, Loader2, Sparkles } from "lucide-react"
 
 function getDaysLeft(dueDate: string) {
   return Math.ceil((new Date(dueDate).getTime() - Date.now()) / (1000 * 60 * 60 * 24))
@@ -139,12 +139,17 @@ export default function DashboardPage() {
             </h1>
             <p className="text-sm text-gray-500 mt-0.5">{tr.dashboard.subtitle}</p>
           </div>
-          {urgentCount > 0 && (
-            <span className="text-xs font-semibold px-2.5 py-1.5 rounded-full bg-red-50 text-red-600 flex items-center gap-1.5">
-              <AlertCircle size={12} />
-              {tr.dashboard.urgentBadge(urgentCount)}
-            </span>
-          )}
+          <div className="flex items-center gap-2">
+            <a href="/preview" className="flex items-center gap-1.5 px-3 py-1.5 rounded-full text-xs font-medium bg-yellow-400 text-yellow-900 hover:bg-yellow-500 transition-colors">
+              <Sparkles size={12} />Preview
+            </a>
+            {urgentCount > 0 && (
+              <span className="text-xs font-semibold px-2.5 py-1.5 rounded-full bg-red-50 text-red-600 flex items-center gap-1.5">
+                <AlertCircle size={12} />
+                {tr.dashboard.urgentBadge(urgentCount)}
+              </span>
+            )}
+          </div>
         </div>
 
         {/* Context pills */}

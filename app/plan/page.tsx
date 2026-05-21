@@ -10,7 +10,7 @@ import { lookupServices, services as kbServices } from "@/lib/kb"
 import {
   CheckCircle2, AlertCircle, ChevronDown, ChevronUp,
   Loader2, HelpCircle, ExternalLink, MessageSquare,
-  MoreHorizontal, Info, Trash2,
+  MoreHorizontal, Info, Trash2, Sparkles,
 } from "lucide-react"
 
 interface PlanStep {
@@ -359,11 +359,16 @@ export default function PlanPage() {
               </p>
             )}
           </div>
-          {allSteps.length > 0 && (
-            <span className="text-xs font-semibold px-2.5 py-1 rounded-full bg-emerald-50 text-emerald-700">
-              {tr.plan.progress(doneSteps.length, allSteps.length)}
-            </span>
-          )}
+          <div className="flex items-center gap-2">
+            <a href="/preview" className="flex items-center gap-1.5 px-3 py-1.5 rounded-full text-xs font-medium bg-yellow-400 text-yellow-900 hover:bg-yellow-500 transition-colors">
+              <Sparkles size={12} />Preview
+            </a>
+            {allSteps.length > 0 && (
+              <span className="text-xs font-semibold px-2.5 py-1 rounded-full bg-emerald-50 text-emerald-700">
+                {tr.plan.progress(doneSteps.length, allSteps.length)}
+              </span>
+            )}
+          </div>
         </div>
 
         {allSteps.length > 0 && (

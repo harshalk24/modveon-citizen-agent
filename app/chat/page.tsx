@@ -10,8 +10,9 @@ import ChatMessage, { Message } from "@/components/chat/ChatMessage"
 import MessageTemplates, { ConversationState } from "@/components/chat/MessageTemplates"
 import ContextPills from "@/components/chat/ContextPills"
 import ChatTour from "@/components/chat/ChatTour"
-import { lookupServices } from "@/lib/kb"
+import { lookupServices, services as kbServices } from "@/lib/kb"
 import { extractLifeEvent, extractEmployment } from "@/lib/extract-intent"
+import { startRNPNDemoSequence, showFormPreview, showSubmissionFlow } from "@/lib/demo-sequence"
 
 // Detect conversation state from the last agent message
 function detectConversationState(messages: Message[]): ConversationState {
@@ -50,6 +51,14 @@ function ChatContent() {
   const bottomRef = useRef<HTMLDivElement>(null)
   const textareaRef = useRef<HTMLTextAreaElement>(null)
   const hasAutoSentRef = useRef(false)
+  // Prevents proactive greeting from firing immediately after onboarding completes
+  const justCompletedOnboardingRef = useRef(false)
+
+  // ── Conversational onboarding ─────────────────────────────────────
+  const [onboardingStep, setOnboardingStep] = useState(0)
+  const [onboardingData, setOnboardingData] = useState({ situation: "", name: "", country: "", employment: "", email: "" })
+  // Active when there is no logged-in citizen yet
+  const isOnboarding = !citizenLoading && !citizen
 
   // Auto-send a message from ?msg= query param (used by plan page "I don't understand" button)
   // Fires once after the welcome message is set and the component is ready.
@@ -75,34 +84,46 @@ function ChatContent() {
 
   // Build welcome message based on context
   useEffect(() => {
+    if (citizenLoading) return // wait for auth check before deciding onboarding vs regular
     const preload = searchParams.get("context")
 
     if (preload) {
       setMessages([{
-        id: generateId(),
-        role: "assistant",
-        content: lang === "es"
-          ? `Hola! Sobre **${preload}**: ¿en qué te puedo ayudar?`
-          : `Hi! About **${preload}**: how can I help you?`,
+        id: generateId(), role: "assistant",
+        content: lang === "es" ? `Hola! Sobre **${preload}**: ¿en qué te puedo ayudar?` : `Hi! About **${preload}**: how can I help you?`,
       }])
       return
     }
 
+    // ── Conversational onboarding — no citizenId yet ─────────────────
+    if (!citizen) {
+      setOnboardingStep(0)
+      setMessages([{
+        id: generateId(), role: "assistant",
+        content: lang === "es"
+          ? "¡Hola! Soy Citizen Assist — encuentro todos los beneficios del gobierno de El Salvador para los que calificás, y te ayudo a tramitarlos. ¿En qué te puedo ayudar hoy?"
+          : "Hi! I'm Citizen Assist — I find every government benefit you qualify for in El Salvador, and help you claim them. What can I help you with today?",
+        actionButtons: [
+          { label: lang === "es" ? "🍼 Acabo de tener un bebé"       : "🍼 I just had a baby",              action: "ob:situation:new-baby",       variant: "outline" },
+          { label: lang === "es" ? "💼 Perdí mi trabajo"              : "💼 I lost my job",                  action: "ob:situation:job-loss",        variant: "outline" },
+          { label: lang === "es" ? "🏪 Quiero registrar un negocio"   : "🏪 I want to register a business",  action: "ob:situation:start-business",  variant: "outline" },
+          { label: lang === "es" ? "🌎 Necesito ayuda desde el exterior" : "🌎 I need help from abroad",    action: "ob:situation:diaspora",        variant: "outline" },
+        ],
+      }])
+      return
+    }
+
+    // ── Returning citizen with life event ────────────────────────────
     if (citizen?.profile.lifeEvent) {
-      const svcs = lookupServices({
-        country: citizen.profile.country,
-        lifeEvent: citizen.profile.lifeEvent,
-        employment: citizen.profile.employment || "any",
-      })
+      const svcs = lookupServices({ country: citizen.profile.country, lifeEvent: citizen.profile.lifeEvent, employment: citizen.profile.employment || "any" })
       setEntitlementCount(svcs.length)
       if (svcs.length > 0) {
         const urgentSvc = svcs.find(s => s.deadlineDays && s.deadlineDays <= 30)
         setMessages([{
-          id: generateId(),
-          role: "assistant",
+          id: generateId(), role: "assistant",
           content: lang === "es"
-            ? `Hola **${citizen.profile.firstName}**. Basándome en tu situación, encontré **${svcs.length} beneficios** que te corresponden.${urgentSvc ? ` El más urgente: tenés **${urgentSvc.deadlineDays} días** para registrarte en el ${urgentSvc.agency}. ¿Querés ver el plan completo?` : " ¿Querés ver el plan completo?"}`
-            : `Hi **${citizen.profile.firstName}**. Based on your situation, I found **${svcs.length} benefits** you qualify for.${urgentSvc ? ` Most urgent: you have **${urgentSvc.deadlineDays} days** to register at ${urgentSvc.agency}. Want to see the full plan?` : " Want to see the full plan?"}`,
+            ? `Hola **${citizen.profile.firstName}**. Encontré **${svcs.length} beneficios** para tu situación.${urgentSvc ? ` El más urgente: **${urgentSvc.deadlineDays} días** para registrarte en ${urgentSvc.agency}.` : ""} ¿Querés ver el plan?`
+            : `Hi **${citizen.profile.firstName}**. I found **${svcs.length} benefits** for your situation.${urgentSvc ? ` Most urgent: **${urgentSvc.deadlineDays} days** to register at ${urgentSvc.agency}.` : ""} Want to see the plan?`,
           actionButtons: [
             { label: tr.chat.viewBenefits(svcs.length), action: "view-benefits", variant: "outline" },
             { label: tr.chat.openPlan, action: "open-plan", variant: "green" },
@@ -113,12 +134,18 @@ function ChatContent() {
     }
 
     setMessages([{ id: generateId(), role: "assistant", content: tr.chat.welcome }])
-  }, [citizen?.profile.lifeEvent, lang])
+  }, [citizen?.profile.lifeEvent, lang, citizenLoading])
 
   // Proactive greeting for returning citizens — no API call, message appears instantly
   useEffect(() => {
     if (!citizen || citizenLoading) return
     if (messages.length > 0) return // only on fresh load
+
+    // Don't fire right after onboarding — the welcome-message effect already shows benefits
+    if (justCompletedOnboardingRef.current) {
+      justCompletedOnboardingRef.current = false
+      return
+    }
 
     const { lifeEvent, firstName, language } = citizen.profile
     const deadlines = citizen.deadlines || []
@@ -148,17 +175,28 @@ function ChatContent() {
     // Count unclaimed
     const unclaimed = entitlements.filter(e => e.status === "new").length
 
+    // Only fire proactive if there is something meaningful to show.
+    // New citizens (no plan, no urgent deadlines) should not see this.
+    const hasUrgentDeadline = daysLeft !== null && daysLeft <= 7
+    const hasPlanStep = !!(nextStep?.serviceName || nextStep?.serviceId)
+    const hasUnclaimed = unclaimed > 0
+    if (!hasUrgentDeadline && !hasPlanStep && !hasUnclaimed) return
+
     let greeting: string | null = null
 
-    if (daysLeft !== null && daysLeft <= 7) {
+    if (hasUrgentDeadline) {
       greeting = isEs
         ? `Hola de nuevo, ${firstName}. ⚠️ Quedan **${daysLeft} días** para completar: ${upcoming!.titleEs}. ¿Querés que te explique exactamente qué necesitás hacer?`
         : `Welcome back, ${firstName}. ⚠️ You have **${daysLeft} days** left to complete: ${upcoming!.title}. Want me to walk you through exactly what to do?`
-    } else if (nextStep) {
+    } else if (hasPlanStep) {
+      // Look up the real name from the KB — plan may have stored serviceId as serviceName
+      const kbSvc = kbServices.find(k => k.id === nextStep!.serviceId)
+      const stepName   = kbSvc?.name   || nextStep!.serviceName   || nextStep!.serviceId
+      const stepNameEs = kbSvc?.nameEs || nextStep!.serviceNameEs || stepName
       greeting = isEs
-        ? `Hola de nuevo, ${firstName}. Tu próximo paso es **${nextStep.serviceNameEs || nextStep.serviceName}**. ¿Querés que te prepare para hacerlo?`
-        : `Welcome back, ${firstName}. Your next step is **${nextStep.serviceName}**. Want me to get you ready for it?`
-    } else if (unclaimed > 0) {
+        ? `Hola de nuevo, ${firstName}. Tu próximo paso es **${stepNameEs}**. ¿Querés que te prepare para hacerlo?`
+        : `Welcome back, ${firstName}. Your next step is **${stepName}**. Want me to get you ready for it?`
+    } else {
       greeting = isEs
         ? `Hola de nuevo, ${firstName}. Todavía tenés **${unclaimed} beneficio${unclaimed > 1 ? 's' : ''}** sin reclamar. ¿Empezamos?`
         : `Welcome back, ${firstName}. You still have **${unclaimed} unclaimed benefit${unclaimed > 1 ? 's' : ''}**. Want to get started?`
@@ -178,7 +216,169 @@ function ChatContent() {
     bottomRef.current?.scrollIntoView({ behavior: "smooth" })
   }, [messages])
 
+  // ── Onboarding chip handler ──────────────────────────────────────
+  const handleOnboardingAction = async (action: string) => {
+    const [, stepType, value] = action.split(":")  // "ob:situation:new-baby" → ["ob","situation","new-baby"]
+    const addUserMsg = (text: string) =>
+      setMessages(prev => [...prev, { id: generateId(), role: "user", content: text }])
+    const addAgentMsg = (content: string, buttons?: Message["actionButtons"]) =>
+      setMessages(prev => [...prev, { id: generateId(), role: "assistant", content, actionButtons: buttons }])
+
+    if (stepType === "situation") {
+      const labels: Record<string, string> = {
+        "new-baby":       lang === "es" ? "Acabo de tener un bebé"        : "I just had a baby",
+        "job-loss":       lang === "es" ? "Perdí mi trabajo"               : "I lost my job",
+        "start-business": lang === "es" ? "Quiero registrar un negocio"    : "I want to register a business",
+        "diaspora":       lang === "es" ? "Necesito ayuda desde el exterior": "I need help from abroad",
+      }
+      setOnboardingData(prev => ({ ...prev, situation: value }))
+      localStorage.setItem("ca_detected_life_event", value)
+      addUserMsg(labels[value] || value)
+      setOnboardingStep(1)
+      setTimeout(() => addAgentMsg(lang === "es" ? "Entendido. ¿Cómo te llamás?" : "Got it. What's your name?"), 400)
+      return
+    }
+
+    if (stepType === "country") {
+      const countryLabels: Record<string, string> = { SV: "🇸🇻 El Salvador", US: "🇺🇸 United States", UK: "🇬🇧 United Kingdom", other: lang === "es" ? "📍 Otro lugar" : "📍 Somewhere else" }
+      setOnboardingData(prev => ({ ...prev, country: value }))
+      addUserMsg(countryLabels[value] || value)
+
+      // For job-loss: skip the employment question — they're unemployed by context
+      if (onboardingData.situation === "job-loss") {
+        setOnboardingData(prev => ({ ...prev, country: value, employment: "unemployed" }))
+        localStorage.setItem("ca_detected_employment", "unemployed")
+        setOnboardingStep(4)
+        setTimeout(() => addAgentMsg(
+          lang === "es"
+            ? "Última cosa — ¿cuál es tu email? Lo uso para recordatorios de plazos. Podés saltearlo."
+            : "Last thing — what's your email? I'll use it for deadline reminders. You can skip this.",
+          [{ label: lang === "es" ? "Saltear por ahora" : "Skip for now", action: "ob:email:skip", variant: "outline" }]
+        ), 400)
+        return
+      }
+
+      setOnboardingStep(3)
+      // Show disabled DUI card + employment chips
+      setTimeout(() => {
+        addAgentMsg(
+          lang === "es"
+            ? "🔒 **Login con DUI** — Próximamente · Verificación de identidad instantánea\n\nPor ahora, contame tu situación laboral:"
+            : "🔒 **Login with DUI** — Coming soon · Instant identity verification\n\nFor now, tell me your employment situation:",
+          [
+            { label: lang === "es" ? "💼 Empleado formal"       : "💼 Formally employed",    action: "ob:employment:employed",   variant: "outline" },
+            { label: lang === "es" ? "🏠 Cuenta propia"         : "🏠 Self-employed",         action: "ob:employment:informal",   variant: "outline" },
+            { label: lang === "es" ? "🔍 Sin trabajo"           : "🔍 Currently unemployed",  action: "ob:employment:unemployed", variant: "outline" },
+            { label: lang === "es" ? "🌿 Sector informal"       : "🌿 Informal sector",       action: "ob:employment:informal",   variant: "outline" },
+          ]
+        )
+      }, 400)
+      return
+    }
+
+    if (stepType === "employment") {
+      const empLabels: Record<string, string> = { employed: lang === "es" ? "Empleado formal" : "Formally employed", unemployed: lang === "es" ? "Sin trabajo" : "Unemployed", informal: lang === "es" ? "Sector informal" : "Informal / self-employed" }
+      setOnboardingData(prev => ({ ...prev, employment: value }))
+      localStorage.setItem("ca_detected_employment", value)
+      addUserMsg(empLabels[value] || value)
+      setOnboardingStep(4)
+      setTimeout(() => addAgentMsg(
+        lang === "es" ? "Última cosa — ¿cuál es tu email? Lo uso para recordatorios de plazos. Podés saltearlo." : "Last thing — what's your email? I'll use it for deadline reminders. You can skip this.",
+        [{ label: lang === "es" ? "Saltear por ahora" : "Skip for now", action: "ob:email:skip", variant: "outline" }]
+      ), 400)
+      return
+    }
+
+    if (stepType === "email") {
+      const emailValue = value === "skip" ? "" : value
+      setOnboardingData(prev => ({ ...prev, email: emailValue }))
+      if (value !== "skip") addUserMsg(value)
+      await completeOnboarding(emailValue)
+      return
+    }
+  }
+
+  // Finalize onboarding — create citizen, save context, show benefits
+  // emailArg bypasses stale-state timing: setOnboardingData is async, so we
+  // pass the email value directly from the call site instead of reading from state
+  const completeOnboarding = async (emailArg?: string) => {
+    const { situation, name, country, employment } = onboardingData
+    const email = emailArg !== undefined ? emailArg : onboardingData.email
+    setMessages(prev => [...prev, {
+      id: generateId(), role: "assistant",
+      content: lang === "es" ? "Perfecto. Buscando tus beneficios..." : "Perfect. Finding your benefits...",
+    }])
+    try {
+      const res = await fetch("/api/citizen/onboard", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ firstName: name, country: country || "SV", email, gender: "", language: lang }),
+      })
+      const data = await res.json()
+      if (data.citizenId) {
+        localStorage.setItem("ca_citizen_id", data.citizenId)
+        document.cookie = `ca_citizen_id=${data.citizenId}; max-age=31536000; path=/; SameSite=Lax`
+      }
+      if (situation && data.citizenId) {
+        await fetch("/api/context/save", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ citizenId: data.citizenId, lifeEvent: situation, employment: employment || "any", entitlements: [] }),
+        })
+      }
+      justCompletedOnboardingRef.current = true  // block proactive on this load
+      await refresh()
+    } catch (e) {
+      console.error("Onboarding failed:", e)
+    }
+  }
+
+  // ── Agentic demo handlers ─────────────────────────────────────────
+  const handleApplyNow = (serviceId: string) => {
+    if (serviceId !== "sv-rnpn-birth-registration") return
+    startRNPNDemoSequence(
+      citizen?.profile?.firstName || "",
+      lang,
+      (msg) => setMessages(prev => [...prev, msg]),
+      (id, activities) => setMessages(prev => prev.map(m => m.id === id ? { ...m, activities } : m))
+    )
+  }
+
+  const handleDocAction = (msgId: string, action: string, value?: string) => {
+    // Mark the doc-request card as resolved
+    setMessages(prev => prev.map(m => m.id === msgId ? { ...m, resolved: true } : m))
+    if (action === "type" && value) {
+      setMessages(prev => [...prev, { id: generateId(), role: "user", content: value }])
+      setTimeout(() => {
+        showFormPreview(value, citizen?.profile?.firstName || "", lang, (msg) => setMessages(prev => [...prev, msg]))
+      }, 400)
+    }
+  }
+
+  const handleFormConfirm = (msgId: string) => {
+    setMessages(prev => prev.map(m => m.id === msgId ? { ...m, submitted: true } : m))
+    showSubmissionFlow(lang, (msg) => setMessages(prev => [...prev, msg]))
+  }
+
+  const handleConfirmation = (msgId: string, value: string) => {
+    setMessages(prev => prev.map(m => m.id === msgId ? { ...m, resolved: true } : m))
+    if (value === "yes") {
+      setMessages(prev => [...prev, { id: generateId(), role: "user", content: lang === "es" ? "Sí, empezá" : "Yes, start it" }])
+      setTimeout(() => {
+        setMessages(prev => [...prev, {
+          id: generateId(), role: "assistant",
+          content: lang === "es"
+            ? "Perfecto. Preparando el formulario de inscripción del ISSS para tu bebé. Te aviso cuando esté listo."
+            : "Perfect. Preparing the ISSS enrollment form for your baby. I'll let you know when it's ready.",
+        }])
+      }, 800)
+    }
+  }
+
   const handleAction = async (action: string) => {
+    // Route onboarding chip actions
+    if (action.startsWith("ob:")) { await handleOnboardingAction(action); return }
+
     if (action === "open-plan") {
       setGeneratingPlan(true)
       try {
@@ -239,6 +439,49 @@ function ChatContent() {
 
   const sendMessage = async (text: string) => {
     if (!text.trim() || streaming) return
+
+    // ── Handle onboarding free-text steps ───────────────────────────
+    if (isOnboarding) {
+      if (onboardingStep === 1) {
+        // Collecting name
+        setOnboardingData(prev => ({ ...prev, name: text.trim() }))
+        setMessages(prev => [...prev, { id: generateId(), role: "user", content: text.trim() }])
+        setInput("")
+        setOnboardingStep(2)
+        setTimeout(() => {
+          setMessages(prev => [...prev, {
+            id: generateId(), role: "assistant",
+            content: lang === "es" ? `Mucho gusto, ${text.trim()}. ¿Dónde estás?` : `Nice to meet you, ${text.trim()}. Where are you based?`,
+            actionButtons: [
+              { label: "🇸🇻 El Salvador",            action: "ob:country:SV",    variant: "outline" },
+              { label: "🇺🇸 United States",           action: "ob:country:US",    variant: "outline" },
+              { label: "🇬🇧 United Kingdom",          action: "ob:country:UK",    variant: "outline" },
+              { label: lang === "es" ? "📍 Otro lugar" : "📍 Somewhere else", action: "ob:country:other", variant: "outline" },
+            ],
+          }])
+        }, 400)
+        return
+      }
+      if (onboardingStep === 4) {
+        // Collecting email — pass value directly to avoid stale-state read
+        const emailVal = text.trim()
+        setOnboardingData(prev => ({ ...prev, email: emailVal }))
+        setMessages(prev => [...prev, { id: generateId(), role: "user", content: emailVal }])
+        setInput("")
+        await completeOnboarding(emailVal)
+        return
+      }
+      // For any other onboarding step, treat as "something else" → complete with what we have
+      if (onboardingStep === 0) {
+        // "Something else" free text → treat as situation description
+        setOnboardingData(prev => ({ ...prev, situation: "" }))
+        setMessages(prev => [...prev, { id: generateId(), role: "user", content: text.trim() }])
+        setInput("")
+        setOnboardingStep(1)
+        setTimeout(() => setMessages(prev => [...prev, { id: generateId(), role: "assistant", content: lang === "es" ? "Entendido. ¿Cómo te llamás?" : "Got it. What's your name?" }]), 400)
+        return
+      }
+    }
 
     // Detect context signals from the user's message and persist them locally.
     // This is the only way to carry lifeEvent/employment to the plan page for
@@ -362,6 +605,9 @@ function ChatContent() {
                 </p>
               )}
             </div>
+            <a href="/preview" className="flex items-center gap-1.5 px-3 py-1.5 rounded-full text-xs font-medium bg-yellow-400 text-yellow-900 hover:bg-yellow-500 transition-colors">
+              <Sparkles size={12} />Preview
+            </a>
           </div>
         )}
 
@@ -372,8 +618,16 @@ function ChatContent() {
           </div>
         )}
 
-        {/* Message list */}
-        <div className="flex-1 overflow-y-auto px-4 py-4 space-y-4">
+        {/* Message list — dot-grid wallpaper in Sivar yellow */}
+        <div
+          className="flex-1 overflow-y-auto px-4 py-4 space-y-4"
+          style={{
+            backgroundColor: "#F5F7FA",
+            backgroundImage:
+              "radial-gradient(circle, rgba(255,196,0,0.45) 1.5px, transparent 1.5px)",
+            backgroundSize: "24px 24px",
+          }}
+        >
           {messages.map((msg, idx) => (
             <ChatMessage
               key={msg.id}
@@ -381,6 +635,10 @@ function ChatContent() {
               citizenId={citizen?.citizenId}
               onAction={handleAction}
               onSendMessage={sendMessage}
+              onApplyNow={handleApplyNow}
+              onDocAction={handleDocAction}
+              onFormConfirm={handleFormConfirm}
+              onConfirmation={handleConfirmation}
               dataTour={idx === 0 && msg.role === "assistant" ? "agent-message" : undefined}
             />
           ))}
@@ -396,6 +654,18 @@ function ChatContent() {
               </div>
             </div>
           )}
+          {/* Suggestion chips inside the chat — Planet Singapore style */}
+          {!isOnboarding && !streaming && (
+            <div data-tour="templates">
+              <MessageTemplates
+                conversationState={conversationState}
+                language={lang}
+                onSelect={sendMessage}
+                disabled={streaming || generatingPlan}
+              />
+            </div>
+          )}
+
           <div ref={bottomRef} />
         </div>
 
@@ -403,20 +673,11 @@ function ChatContent() {
         <div className="bg-white border-t border-gray-100">
           {/* Generating plan banner */}
           {generatingPlan && (
-            <div className="flex items-center justify-center gap-2 py-2 text-xs text-[#185FA5]">
+            <div className="flex items-center justify-center gap-2 py-2 text-xs text-[#1B3A8C]">
               <Sparkles size={12} className="animate-pulse" />
               {lang === "es" ? "Generando tu plan..." : "Generating your plan..."}
             </div>
           )}
-
-          <div data-tour="templates">
-            <MessageTemplates
-              conversationState={conversationState}
-              language={lang}
-              onSelect={sendMessage}
-              disabled={streaming || generatingPlan}
-            />
-          </div>
 
           <div data-tour="input-bar" className="flex items-end gap-2 px-4 pt-3 pb-1">
             <textarea
@@ -426,7 +687,7 @@ function ChatContent() {
               onKeyDown={handleKeyDown}
               placeholder={tr.chat.placeholder}
               rows={1}
-              className="flex-1 resize-none border border-gray-200 rounded-xl px-4 py-2.5 text-sm focus:outline-none focus:border-[#185FA5] focus:ring-2 focus:ring-blue-50 transition-all max-h-32 bg-white"
+              className="flex-1 resize-none border border-gray-200 rounded-full px-5 py-2.5 text-sm focus:outline-none focus:border-[#FFC400] focus:ring-2 focus:ring-yellow-50 transition-all max-h-32 bg-white"
               onInput={e => {
                 const el = e.target as HTMLTextAreaElement
                 el.style.height = "auto"
@@ -436,7 +697,7 @@ function ChatContent() {
             <button
               onClick={() => sendMessage(input)}
               disabled={!input.trim() || streaming}
-              className="flex-shrink-0 w-10 h-10 rounded-xl bg-[#185FA5] hover:bg-[#145290] text-white flex items-center justify-center transition-colors disabled:opacity-40 disabled:cursor-not-allowed"
+              className="flex-shrink-0 w-10 h-10 rounded-full bg-[#FFC400] hover:bg-[#E5AF00] text-yellow-900 flex items-center justify-center transition-colors disabled:opacity-40 disabled:cursor-not-allowed"
             >
               {streaming
                 ? <Loader2 size={16} className="animate-spin" />
@@ -456,7 +717,7 @@ export default function ChatPage() {
   return (
     <Suspense fallback={
       <div className="flex items-center justify-center h-screen">
-        <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-[#185FA5]" />
+        <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-[#FFC400]" />
       </div>
     }>
       <ChatContent />
