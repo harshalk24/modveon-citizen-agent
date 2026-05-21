@@ -561,7 +561,7 @@ export default function PlanPage() {
                                       <MessageSquare size={11} />
                                       {lang === "es" ? "Qué decir al llegar" : "What to say"}
                                     </p>
-                                    <p className="text-xs text-blue-800 leading-relaxed">"{step.whatToSayWhenYouArrive}"</p>
+                                    <p className="text-xs text-blue-800 leading-relaxed">&ldquo;{step.whatToSayWhenYouArrive}&rdquo;</p>
                                   </div>
                                 ) : (
                                   <div className="mt-2">
@@ -575,7 +575,7 @@ export default function PlanPage() {
                                     </button>
                                     {expandedTips.has(sayKey) && (
                                       <div className="mt-1.5 bg-blue-50 rounded-xl p-3">
-                                        <p className="text-xs text-blue-800 leading-relaxed">"{step.whatToSayWhenYouArrive}"</p>
+                                        <p className="text-xs text-blue-800 leading-relaxed">&ldquo;{step.whatToSayWhenYouArrive}&rdquo;</p>
                                       </div>
                                     )}
                                   </div>

@@ -3,9 +3,9 @@
 import { useState, useEffect } from "react"
 import {
   CheckCircle2, Loader2, Circle, AlertCircle,
-  FileText, Minus, ChevronDown, ChevronUp, ShieldCheck, Phone, ArrowRight,
+  FileText, Minus, ChevronDown, ChevronUp, ShieldCheck, Phone,
 } from "lucide-react"
-import type { PreviewMessage, PreviewActivity } from "../types"
+import type { PreviewMessage } from "../types"
 
 /* ── Minimal markdown: **bold** and \n newlines ─────────────── */
 function Md({ text }: { text: string }) {
