@@ -334,7 +334,7 @@ export default function LandingPage() {
       </FadeUp>
 
       {/* ── BIG STATEMENT ───────────────────────────────── */}
-      <FadeUp className="py-6 px-6 text-center" id="how">
+      <FadeUp className="py-6 px-6 text-center">
         <div className="max-w-5xl mx-auto" id="how">
           <h2 className="text-[clamp(2.2rem,6vw,4.4rem)] font-extrabold text-[#0A0E1A] leading-[1.08] tracking-tight">
             Government benefits,<br />
