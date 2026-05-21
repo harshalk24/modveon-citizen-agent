@@ -1,6 +1,6 @@
 import { NextResponse } from "next/server"
 import { prisma } from "@/lib/prisma"
-import { sendWhatsAppReminder } from "@/lib/whatsapp"
+import { sendWhatsAppReminder, sendWhatsAppMessage } from "@/lib/whatsapp"
 
 export async function GET(req: Request) {
   const authHeader = req.headers.get("authorization")
@@ -35,6 +35,21 @@ export async function GET(req: Request) {
       await sendWhatsAppReminder({ phone: "", deadline, daysLeft }).catch(() => {})
       await prisma.deadline.update({ where: { id: deadline.id }, data: { reminded1: true } })
       sent++
+    }
+
+    // D+1 follow-up — fires the day after deadline passed, only if D-1 reminder was sent
+    if (daysLeft === -1 && deadline.reminded1 && !deadline.completed) {
+      const phone = (deadline.citizen as any)?.profile?.whatsappNumber ||
+                    (deadline.citizen as any)?.whatsappNumber
+      if (phone) {
+        const isEs = (deadline.citizen as any)?.language !== "en"
+        const name = (deadline.citizen as any)?.firstName || ""
+        const msg = isEs
+          ? `Hola ${name} 👋 ¿Pudiste completar "${deadline.titleEs}" ayer?\n\nRespondé:\n✅ *Sí, listo*\n❓ *Tuve problemas*\n📅 *No pude ir todavía*`
+          : `Hi ${name} 👋 Were you able to complete "${deadline.title}" yesterday?\n\nReply:\n✅ *Yes, done*\n❓ *Had problems*\n📅 *Couldn't make it yet*`
+        await sendWhatsAppMessage(phone, msg).catch(() => {})
+        sent++
+      }
     }
   }
 

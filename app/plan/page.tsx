@@ -6,7 +6,7 @@ import { motion, AnimatePresence } from "framer-motion"
 import { useLang } from "@/contexts/LanguageContext"
 import { useCitizen } from "@/contexts/CitizenContext"
 import { t } from "@/lib/i18n"
-import { lookupServices } from "@/lib/kb"
+import { lookupServices, services as kbServices } from "@/lib/kb"
 import {
   CheckCircle2, AlertCircle, ChevronDown, ChevronUp,
   Loader2, HelpCircle, ExternalLink, MessageSquare,
@@ -486,15 +486,32 @@ export default function PlanPage() {
                                   )}
                                 </div>
                               </div>
-                              {/* Delete button */}
-                              <button
-                                onClick={() => setConfirmDeleteStep(showDeleteConfirm ? null : step.serviceId)}
-                                className="flex-shrink-0 p-0.5 text-gray-300 hover:text-gray-500 transition-colors rounded"
-                                title={lang === "es" ? "Eliminar paso" : "Remove step"}
-                                disabled={isDeleting}
-                              >
-                                <MoreHorizontal size={14} />
-                              </button>
+                              {/* Apply now + Delete */}
+                              <div className="flex items-center gap-1.5 flex-shrink-0">
+                                {(() => {
+                                  const kbSvc = kbServices.find(k => k.id === step.serviceId)
+                                  const applyUrl = step.onlineUrl || kbSvc?.sourceUrl
+                                  return applyUrl ? (
+                                    <a
+                                      href={applyUrl}
+                                      target="_blank"
+                                      rel="noopener noreferrer"
+                                      className="inline-flex items-center gap-1 text-xs font-medium px-2 py-0.5 rounded-lg bg-[#185FA5] text-white hover:bg-[#145290] transition-colors"
+                                    >
+                                      <ExternalLink size={10} />
+                                      {lang === "es" ? "Aplicar" : "Apply now"}
+                                    </a>
+                                  ) : null
+                                })()}
+                                <button
+                                  onClick={() => setConfirmDeleteStep(showDeleteConfirm ? null : step.serviceId)}
+                                  className="p-0.5 text-gray-300 hover:text-gray-500 transition-colors rounded"
+                                  title={lang === "es" ? "Eliminar paso" : "Remove step"}
+                                  disabled={isDeleting}
+                                >
+                                  <MoreHorizontal size={14} />
+                                </button>
+                              </div>
                             </div>
 
                             {/* Inline delete confirm */}
@@ -592,7 +609,7 @@ export default function PlanPage() {
                               </>
                             )}
 
-                            {/* Bottom row: Ask agent (left) + Mark as done / Done badge (right) */}
+                            {/* Bottom row: Ask agent (left) + Mark as done / Done (right) */}
                             <div className="flex items-center justify-between mt-3 pt-2 border-t border-gray-50">
                               <button
                                 onClick={() => handleAskAgent(step)}

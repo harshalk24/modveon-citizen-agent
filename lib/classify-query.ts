@@ -3,6 +3,7 @@ import { GoogleGenerativeAI } from "@google/generative-ai"
 const gemini = new GoogleGenerativeAI(process.env.GEMINI_API_KEY!)
 
 export type QueryType =
+  | "out-of-scope"        // nothing to do with El Salvador government services
   | "service-lookup"      // citizen describing a new situation to get benefits
   | "depth-knowledge"     // explain a benefit, eligibility, document, process
   | "plan-clarification"  // explain a step in their action plan
@@ -11,6 +12,7 @@ export type QueryType =
   | "no-context-open"     // asking for benefits but no situation given yet
 
 const VALID_TYPES: QueryType[] = [
+  "out-of-scope",
   "service-lookup",
   "depth-knowledge",
   "plan-clarification",
@@ -45,6 +47,9 @@ Citizen message: "${params.message}"
 
 Classify this message into exactly ONE of these types:
 
+"out-of-scope" — the message has nothing to do with El Salvador government services, benefits, documents, or citizen navigation. This includes general knowledge questions, trivia, personal advice unrelated to government, questions about other countries' governments, weather, sports, coding, math, or any topic that a government citizen assistant would never handle.
+Examples: "what is the capital of India?", "who won the World Cup?", "how do I code in Python?", "what's the weather today?", "tell me a joke", "what's 2+2?", "who is the president of France?"
+
 "service-lookup" — citizen is describing a new life situation and wants to know what government benefits they qualify for.
 Examples: "I just had a baby", "I lost my job", "I want to register my business", "me quedé sin trabajo", "acabo de tener un bebé"
 
@@ -64,7 +69,7 @@ Examples: "what else can I apply for?", "any other benefits?", "what am I missin
 Examples: "what schemes am I eligible for?", "what benefits exist?", "what can I apply for?", "qué beneficios hay?"
 
 Return ONLY this JSON with no other text:
-{"type": "<one of the six types above>"}`
+{"type": "<one of the seven types above>"}`
 
   try {
     const result = await model.generateContent(prompt)

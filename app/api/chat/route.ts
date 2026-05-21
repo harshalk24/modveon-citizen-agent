@@ -148,6 +148,17 @@ export async function POST(req: Request) {
   })
   console.log("Query classified as:", queryType, "| lifeEvent:", ctx.profile.lifeEvent)
 
+  // ── Out-of-scope guard — return immediately, no LLM call ───────────
+  if (queryType === "out-of-scope") {
+    const isEs = (ctx.profile.language || language) === "es"
+    const msg = isEs
+      ? "Solo puedo ayudarte con trámites y beneficios del gobierno de El Salvador. ¿Hay algo relacionado con eso en lo que pueda ayudarte?"
+      : "I can only help with El Salvador government services and benefits. Is there something related I can help you with?"
+    return new Response(msg, {
+      headers: { "Content-Type": "text/plain; charset=utf-8" },
+    })
+  }
+
   // ── System prompt ──────────────────────────────────────────────────
   const recentMsgs   = getRecentMessages(messages, 4)
   const systemPrompt = buildSystemPrompt(ctx, services, JSON.stringify(recentMsgs), language, queryType)

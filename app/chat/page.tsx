@@ -38,7 +38,7 @@ function ChatContent() {
   const router = useRouter()
   const searchParams = useSearchParams()
   const { lang } = useLang()
-  const { citizen, sessionId, refresh } = useCitizen()
+  const { citizen, sessionId, refresh, isLoading: citizenLoading } = useCitizen()
   const tr = t(lang)
 
   const [messages, setMessages] = useState<Message[]>([])
@@ -114,6 +114,65 @@ function ChatContent() {
 
     setMessages([{ id: generateId(), role: "assistant", content: tr.chat.welcome }])
   }, [citizen?.profile.lifeEvent, lang])
+
+  // Proactive greeting for returning citizens — no API call, message appears instantly
+  useEffect(() => {
+    if (!citizen || citizenLoading) return
+    if (messages.length > 0) return // only on fresh load
+
+    const { lifeEvent, firstName, language } = citizen.profile
+    const deadlines = citizen.deadlines || []
+    const planSteps = citizen.planSteps || []
+    const entitlements = citizen.entitlements || []
+    const isEs = language === "es"
+
+    if (!lifeEvent) return // new user — existing generic greeting handles this
+
+    // Find most urgent upcoming deadline
+    const upcoming = deadlines
+      .filter(d => !d.completed && new Date(d.dueDate) > new Date())
+      .sort((a, b) =>
+        new Date(a.dueDate).getTime() - new Date(b.dueDate).getTime()
+      )[0]
+
+    const daysLeft = upcoming
+      ? Math.ceil(
+          (new Date(upcoming.dueDate).getTime() - Date.now()) /
+          (1000 * 60 * 60 * 24)
+        )
+      : null
+
+    // Find next incomplete step
+    const nextStep = planSteps.find(s => s.status !== "done")
+
+    // Count unclaimed
+    const unclaimed = entitlements.filter(e => e.status === "new").length
+
+    let greeting: string | null = null
+
+    if (daysLeft !== null && daysLeft <= 7) {
+      greeting = isEs
+        ? `Hola de nuevo, ${firstName}. ⚠️ Quedan **${daysLeft} días** para completar: ${upcoming!.titleEs}. ¿Querés que te explique exactamente qué necesitás hacer?`
+        : `Welcome back, ${firstName}. ⚠️ You have **${daysLeft} days** left to complete: ${upcoming!.title}. Want me to walk you through exactly what to do?`
+    } else if (nextStep) {
+      greeting = isEs
+        ? `Hola de nuevo, ${firstName}. Tu próximo paso es **${nextStep.serviceNameEs || nextStep.serviceName}**. ¿Querés que te prepare para hacerlo?`
+        : `Welcome back, ${firstName}. Your next step is **${nextStep.serviceName}**. Want me to get you ready for it?`
+    } else if (unclaimed > 0) {
+      greeting = isEs
+        ? `Hola de nuevo, ${firstName}. Todavía tenés **${unclaimed} beneficio${unclaimed > 1 ? 's' : ''}** sin reclamar. ¿Empezamos?`
+        : `Welcome back, ${firstName}. You still have **${unclaimed} unclaimed benefit${unclaimed > 1 ? 's' : ''}**. Want to get started?`
+    }
+
+    if (!greeting) return
+
+    // Inject as first message — no API call, no streaming
+    setMessages([{
+      id: `proactive_${Date.now()}`,
+      role: "assistant",
+      content: greeting,
+    }])
+  }, [citizen, citizenLoading])
 
   useEffect(() => {
     bottomRef.current?.scrollIntoView({ behavior: "smooth" })

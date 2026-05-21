@@ -74,7 +74,36 @@ export default function DashboardPage() {
     .sort((a, b) => a.daysLeft - b.daysLeft)
   const metDeadlines = deadlines.filter(d => d.completed)
 
-  const urgentCount = activeDeadlines.filter(d => d.daysLeft <= 30).length
+  // Synthesize deadlines from plan steps that have deadlineDays but no matching DB deadline yet.
+  // Use citizen.lastUpdated as the life-event baseline for computing the due date.
+  const planDerivedDeadlines = planSteps
+    .filter(s => {
+      if (s.status === "done") return false
+      const kbSvc = kbServices.find(k => k.id === s.serviceId)
+      if (!kbSvc?.deadlineDays) return false
+      return !deadlines.some(d => d.serviceId === s.serviceId)
+    })
+    .map(s => {
+      const kbSvc = kbServices.find(k => k.id === s.serviceId)!
+      const base = new Date(citizen?.lastUpdated || Date.now())
+      const dueDate = new Date(base.getTime() + kbSvc.deadlineDays! * 24 * 60 * 60 * 1000)
+      return {
+        serviceId:  s.serviceId,
+        title:      s.serviceName,
+        titleEs:    s.serviceNameEs,
+        dueDate:    dueDate.toISOString(),
+        completed:  false,
+        daysLeft:   getDaysLeft(dueDate.toISOString()),
+        fromPlan:   true as const,
+      }
+    })
+    .filter(d => d.daysLeft > 0)
+
+  // Merge DB deadlines + plan-derived deadlines, sorted by urgency
+  const allDisplayDeadlines = [...activeDeadlines, ...planDerivedDeadlines]
+    .sort((a, b) => a.daysLeft - b.daysLeft)
+
+  const urgentCount = allDisplayDeadlines.filter(d => d.daysLeft <= 30).length
 
   // Total value estimate
   const totalValueMonthly = entitlements.reduce((sum, e) => {
@@ -162,9 +191,9 @@ export default function DashboardPage() {
           <ProgressRow
             icon={<Calendar size={14} className="text-amber-500" />}
             label={tr.dashboard.progress.deadlinesMet}
-            sub={tr.dashboard.progress.deadlinesComingUp(activeDeadlines.length)}
+            sub={tr.dashboard.progress.deadlinesComingUp(allDisplayDeadlines.length)}
             value={metDeadlines.length}
-            total={deadlines.length || 1}
+            total={deadlines.length + planDerivedDeadlines.length}
             color="bg-amber-500"
           />
 
@@ -186,13 +215,18 @@ export default function DashboardPage() {
 
         {/* RIGHT — Deadlines */}
         <div className="bg-white rounded-xl border border-gray-100 shadow-sm p-5 space-y-3">
-          <h2 className="text-xs font-semibold text-gray-500 uppercase tracking-wide">{tr.dashboard.deadlines.title}</h2>
-          {activeDeadlines.length === 0 && (
+          <div className="flex items-center justify-between">
+            <h2 className="text-xs font-semibold text-gray-500 uppercase tracking-wide">{tr.dashboard.deadlines.title}</h2>
+            <span className="text-xs font-semibold text-gray-400">
+              {metDeadlines.length}/{deadlines.length + planDerivedDeadlines.length} {lang === "es" ? "completados" : "completed"}
+            </span>
+          </div>
+          {allDisplayDeadlines.length === 0 && (
             <p className="text-sm text-gray-400 py-4 text-center">
-              {lang === "es" ? "Sin plazos próximos" : "No upcoming deadlines"}
+              {lang === "es" ? "0/0 plazos próximos" : "0/0 upcoming deadlines"}
             </p>
           )}
-          {activeDeadlines.slice(0, 4).map((d, i) => (
+          {allDisplayDeadlines.slice(0, 4).map((d, i) => (
             <div key={i} className={`rounded-lg border-l-4 p-3 ${deadlineColor(d.daysLeft)}`}>
               <div className="flex items-start justify-between">
                 <div className="flex-1 min-w-0">
@@ -215,7 +249,13 @@ export default function DashboardPage() {
                   {tr.dashboard.deadlines.seeStep}
                 </button>
                 <button
-                  onClick={() => router.push(`/chat?context=${encodeURIComponent(lang === "es" ? d.titleEs : d.title)}`)}
+                  onClick={() => {
+                    const name = lang === "es" ? d.titleEs : d.title
+                    const msg = lang === "es"
+                      ? `Ayudame a completar "${name}" — ¿qué documentos necesito y qué tengo que hacer?`
+                      : `Help me complete "${name}" — what documents do I need and what are the steps?`
+                    router.push(`/chat?msg=${encodeURIComponent(msg)}`)
+                  }}
                   className="text-xs px-2.5 py-1 rounded-md bg-[#185FA5] text-white hover:bg-[#145290] transition-colors"
                 >
                   {tr.dashboard.deadlines.askAgent}
@@ -244,7 +284,13 @@ export default function DashboardPage() {
                       <StatusBadge status={ent.status} lang={lang} />
                     )}
                     <button
-                      onClick={() => router.push(`/chat?context=${encodeURIComponent(lang === "es" ? svc.nameEs : svc.name)}`)}
+                      onClick={() => {
+                        const name = lang === "es" ? svc.nameEs : svc.name
+                        const msg = lang === "es"
+                          ? `Explícame el beneficio "${name}" (${svc.agency}). ¿Califico? ¿Qué documentos necesito y cómo lo solicito?`
+                          : `Tell me about the "${name}" benefit (${svc.agency}). Do I qualify? What documents do I need and how do I apply?`
+                        router.push(`/chat?msg=${encodeURIComponent(msg)}`)
+                      }}
                       className="text-xs px-2.5 py-1 rounded-md border border-gray-200 text-gray-500 hover:border-[#185FA5] hover:text-[#185FA5] transition-colors flex items-center gap-1"
                     >
                       {tr.dashboard.benefits.askAgent}

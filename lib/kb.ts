@@ -21,6 +21,10 @@ export interface Service {
   lastVerified: string
   dependsOn?: string[]
   blocks?: string[]
+  officeHours?: string
+  capitalAddress?: string
+  universalTip?: string
+  siteNavigation?: string
 }
 
 export const services: Service[] = [
@@ -38,6 +42,10 @@ export const services: Service[] = [
     documents: ["Your DUI", "Hospital discharge certificate", "Father's DUI (if applicable)"],
     documentsEs: ["Tu DUI", "Constancia de alta del hospital", "DUI del padre (si aplica)"],
     sourceUrl: "https://www.rnpn.gob.sv", lastVerified: "2026-05-10",
+    officeHours: "Monday–Friday, 8:00am–3:30pm",
+    capitalAddress: "Centro Gubernamental, Alameda Juan Pablo II, San Salvador (for other cities, search 'RNPN [your city]')",
+    universalTip: "Bring originals AND photocopies of every document — RNPN keeps the originals.",
+    siteNavigation: "rnpn.gob.sv → Servicios → Inscripción de Nacimiento (as of May 2026)",
     blocks: ["sv-isss-dependent-enrollment", "sv-child-subsidy"]
   },
   {
@@ -53,6 +61,10 @@ export const services: Service[] = [
     documents: ["DUI", "Hospital discharge certificate", "ISSS referral form"],
     documentsEs: ["DUI", "Constancia del hospital", "Hoja de referencia del ISSS"],
     sourceUrl: "https://www.isss.gob.sv", lastVerified: "2026-05-10",
+    officeHours: "Monday–Friday, 7:30am–3:30pm",
+    capitalAddress: "Edificio ISSS Central, 1a Calle Poniente, San Salvador (for other cities, search 'ISSS [your city]')",
+    universalTip: "Tell the security guard 'vengo por prestación de maternidad' — they will direct you to the right window.",
+    siteNavigation: "isss.gob.sv → Ciudadano → Prestaciones → Maternidad (as of May 2026)",
     downloadUrl: "https://www.isss.gob.sv/formularios/solicitud-prestacion-maternidad.pdf",
     dependsOn: []
   },
@@ -69,6 +81,10 @@ export const services: Service[] = [
     documents: ["DUI", "Baby's birth certificate from RNPN"],
     documentsEs: ["Tu DUI", "Partida de nacimiento del bebé (RNPN)"],
     sourceUrl: "https://www.isss.gob.sv",
+    officeHours: "Monday–Friday, 7:30am–3:30pm",
+    capitalAddress: "Any ISSS departmental office near you",
+    universalTip: "You need the RNPN birth certificate BEFORE this step — do not come without it.",
+    siteNavigation: "isss.gob.sv → Ciudadano → Servicios → Inscripción de Dependientes (as of May 2026)",
     downloadUrl: "https://www.isss.gob.sv/formularios/inscripcion-dependientes.pdf",
     lastVerified: "2026-05-10", dependsOn: ["sv-rnpn-birth-registration"]
   },
@@ -84,6 +100,8 @@ export const services: Service[] = [
     documents: ["Baby's birth certificate"],
     documentsEs: ["Partida de nacimiento del bebé"],
     sourceUrl: "https://www.presidencia.gob.sv", lastVerified: "2026-05-10",
+    officeHours: "Monday–Friday, 8:00am–4:00pm",
+    universalTip: "This benefit is auto-processed after RNPN registration in most cases. If not received within 30 days, visit your nearest alcaldía.",
     dependsOn: ["sv-rnpn-birth-registration"]
   },
   {
@@ -97,7 +115,9 @@ export const services: Service[] = [
     priority: 5, weekToApply: 1,
     documents: ["Father's DUI", "Baby's birth certificate", "Employer certification"],
     documentsEs: ["DUI del padre", "Partida de nacimiento", "Certificación del patrono"],
-    sourceUrl: "https://www.isss.gob.sv", lastVerified: "2026-05-10"
+    sourceUrl: "https://www.isss.gob.sv", lastVerified: "2026-05-10",
+    officeHours: "Monday–Friday, 7:30am–3:30pm",
+    universalTip: "The employer (patrono) must submit this on the father's behalf — give them the baby's birth certificate within the first week.",
   },
 
   // ── EL SALVADOR — JOB LOSS ─────────────────────────────
@@ -112,7 +132,11 @@ export const services: Service[] = [
     priority: 1, weekToApply: 1,
     documents: ["DUI", "Termination letter", "Last 3 pay stubs", "Bank account statement"],
     documentsEs: ["DUI", "Carta de despido o renuncia", "Últimas 3 colillas de pago", "Estado de cuenta"],
-    sourceUrl: "https://www.isss.gob.sv", lastVerified: "2026-05-10"
+    sourceUrl: "https://www.isss.gob.sv", lastVerified: "2026-05-10",
+    officeHours: "Monday–Friday, 7:30am–3:30pm",
+    capitalAddress: "Edificio ISSS Central, 1a Calle Poniente, San Salvador (for other cities, search 'ISSS [your city]')",
+    universalTip: "You have 2 months from termination date to apply. Do not wait. Bring your termination letter (carta de despido) — without it the process cannot start.",
+    siteNavigation: "isss.gob.sv → Ciudadano → Prestaciones → Desempleo (as of May 2026)",
   },
   {
     id: "sv-insaforp-training",
@@ -124,7 +148,10 @@ export const services: Service[] = [
     descriptionEs: "Cursos gratuitos en tecnología, administración y oficios.",
     priority: 2, weekToApply: 2,
     documents: ["DUI"], documentsEs: ["DUI"],
-    sourceUrl: "https://www.insaforp.org.sv", lastVerified: "2026-05-10"
+    sourceUrl: "https://www.insaforp.org.sv", lastVerified: "2026-05-10",
+    officeHours: "Monday–Friday, 8:00am–4:00pm",
+    universalTip: "Many courses are online and free. Search the catalogue at insaforp.org.sv before going in person — you may not need to visit at all.",
+    siteNavigation: "insaforp.org.sv → Catálogo de Cursos (as of May 2026)",
   },
 
   // ── EL SALVADOR — START BUSINESS ───────────────────────
@@ -140,6 +167,10 @@ export const services: Service[] = [
     documents: ["DUI", "Brief business plan", "Bank account"],
     documentsEs: ["DUI", "Plan de negocio (breve)", "Cuenta bancaria"],
     sourceUrl: "https://www.conamype.gob.sv", lastVerified: "2026-05-10",
+    officeHours: "Monday–Friday, 8:00am–4:00pm",
+    capitalAddress: "CONAMYPE Central, Colonia Roma, San Salvador (for other cities, search 'CONAMYPE [your city]')",
+    universalTip: "Apply for this grant BEFORE registering at CNR — the grant can pay for your CNR registration fee. Bring a brief description of your business idea.",
+    siteNavigation: "conamype.gob.sv → Servicios Empresariales → Financiamiento (as of May 2026)",
     downloadUrl: "https://www.conamype.gob.sv/formularios/fondo-productivo.pdf"
   },
   {
@@ -154,6 +185,10 @@ export const services: Service[] = [
     documents: ["DUI", "Business name", "Business address", "Description of activities"],
     documentsEs: ["DUI", "Nombre del negocio", "Dirección", "Descripción de actividades"],
     sourceUrl: "https://www.cnr.gob.sv", lastVerified: "2026-05-10",
+    officeHours: "Monday–Friday, 8:00am–4:00pm",
+    capitalAddress: "CNR Central, 8a Calle Oriente #310, San Salvador",
+    universalTip: "You can start the process online at cnr.gob.sv — only the final signature step requires visiting in person.",
+    siteNavigation: "cnr.gob.sv → Registro de Comercio → Matrícula (as of May 2026)",
     blocks: ["sv-mh-nit"]
   },
   {
@@ -169,6 +204,9 @@ export const services: Service[] = [
     documents: ["DUI", "CNR registration certificate"],
     documentsEs: ["DUI", "Matrícula del CNR"],
     sourceUrl: "https://www.mh.gob.sv", lastVerified: "2026-05-10",
+    officeHours: "Monday–Friday, 8:00am–4:00pm",
+    universalTip: "The NIT can be obtained entirely online at mh.gob.sv — no office visit needed. Do this before your CNR appointment.",
+    siteNavigation: "mh.gob.sv → Servicios → NIT → Inscripción en Línea (as of May 2026)",
     dependsOn: ["sv-cnr-business-registration"]
   },
   {
@@ -183,6 +221,8 @@ export const services: Service[] = [
     documents: ["DUI", "CNR certificate", "NIT certificate", "Business address proof"],
     documentsEs: ["DUI", "Matrícula CNR", "NIT", "Comprobante de dirección"],
     sourceUrl: "https://sansalvador.eregulations.org", lastVerified: "2026-05-10",
+    officeHours: "Monday–Friday, 8:00am–4:00pm",
+    universalTip: "Since 2024, El Salvador has 44 districts not 262 municipalities. Tell me your city and I will tell you which district office to go to.",
     dependsOn: ["sv-cnr-business-registration", "sv-mh-nit"]
   },
 
@@ -210,8 +250,11 @@ export const services: Service[] = [
       "Detalles de lo que cubre el poder (dirección del inmueble, transacción específica)",
       "Nombre y DUI de la persona que recibirá el poder en El Salvador"
     ],
-    sourceUrl: "https://rree.gob.sv/servicios-consulares/",
+    sourceUrl: "https://rree.gob.sv",
     lastVerified: "2026-05-19",
+    officeHours: "Consulate hours vary by city — check rree.gob.sv for your nearest consulate",
+    universalTip: "Book your consulate appointment online at rree.gob.sv before going. Walk-in appointments are rarely available. The cost is $40 at the consulate.",
+    siteNavigation: "rree.gob.sv → Servicios Consulares → Actos Notariales → Citas (as of May 2026)",
     dependsOn: []
   },
 ]

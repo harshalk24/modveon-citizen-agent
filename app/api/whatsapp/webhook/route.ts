@@ -40,6 +40,44 @@ export async function POST(req: Request) {
     return new Response("OK", { status: 200 })
   }
 
+  const lowerBody = body.toLowerCase().trim()
+
+  // Handle D+1 follow-up replies
+  if (lowerBody === "tuve problemas" || lowerBody === "had problems") {
+    const citizen = await prisma.citizen.findFirst({ where: { id: from } })
+    const recentDeadline = await prisma.deadline.findFirst({
+      where: {
+        citizenId: citizen?.id,
+        reminded1: true,
+        completed: false,
+      },
+      orderBy: { dueDate: "desc" },
+    })
+    if (recentDeadline) {
+      const isEs = (citizen as any)?.language !== "en"
+      const msg = isEs
+        ? `Entendido. Contame qué pasó cuando intentaste "${recentDeadline.titleEs}" — te ayudo a resolverlo.`
+        : `Got it. Tell me what happened when you tried to complete "${recentDeadline.title}" — I'll help you resolve it.`
+      await sendWhatsAppMessage(from, msg)
+      return new Response("OK", { status: 200 })
+    }
+  }
+
+  if (
+    lowerBody === "no pude ir todavía" ||
+    lowerBody === "no pude ir" ||
+    lowerBody === "couldn't make it yet" ||
+    lowerBody === "couldn't make it"
+  ) {
+    const citizen = await prisma.citizen.findFirst({ where: { id: from } })
+    const isEs = (citizen as any)?.language !== "en"
+    const msg = isEs
+      ? `Sin problema. ¿Cuándo podés ir? Decime la fecha y te mando un recordatorio el día anterior.`
+      : `No problem. When can you go? Tell me the date and I'll send you a reminder the day before.`
+    await sendWhatsAppMessage(from, msg)
+    return new Response("OK", { status: 200 })
+  }
+
   const citizen = await prisma.citizen.findFirst({
     where: { id: from },
     include: { context: true }
