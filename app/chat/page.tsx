@@ -90,6 +90,7 @@ function ChatContent() {
   useEffect(() => {
     if (citizenLoading) return // wait for auth check before deciding onboarding vs regular
     if (conversationStartedRef.current) return // don't reset mid-conversation
+    if (justCompletedOnboardingRef.current) return // onboarding handles its own post-completion message
     const preload = searchParams.get("context")
 
     if (preload) {
@@ -376,8 +377,45 @@ function ChatContent() {
           body: JSON.stringify({ citizenId: data.citizenId, lifeEvent: situation, employment: employment || "any", entitlements: [] }),
         })
       }
-      justCompletedOnboardingRef.current = true  // block proactive on this load
-      await refresh()
+      justCompletedOnboardingRef.current = true  // block welcome effect from replacing conversation
+      const fresh = await refresh()
+
+      // Append benefits message directly so the onboarding conversation stays visible
+      if (fresh?.profile.lifeEvent) {
+        const svcs = lookupServices({
+          country: fresh.profile.country || "SV",
+          lifeEvent: fresh.profile.lifeEvent,
+          employment: fresh.profile.employment || "any",
+        })
+        setEntitlementCount(svcs.length)
+        if (svcs.length > 0) {
+          const urgentSvc = svcs.find((s: { deadlineDays?: number }) => s.deadlineDays && s.deadlineDays <= 30)
+          const lifeEvent = fresh.profile.lifeEvent
+          const empathyEn: Record<string, string> = {
+            "new-baby":       "Congratulations on your new baby! 🎉 ",
+            "job-loss":       "I'm sorry to hear about your job loss — I'm here to help. 💙 ",
+            "start-business": "Exciting to hear you're starting a business! 🚀 ",
+            "diaspora":       "Happy to help you manage things from abroad. 🌎 ",
+          }
+          const empathyEs: Record<string, string> = {
+            "new-baby":       "¡Felicitaciones por tu bebé! 🎉 ",
+            "job-loss":       "Lamento mucho lo de tu trabajo — estoy acá para ayudarte. 💙 ",
+            "start-business": "¡Qué emocionante que estés arrancando tu negocio! 🚀 ",
+            "diaspora":       "Con gusto te ayudo a gestionar todo desde el exterior. 🌎 ",
+          }
+          const opener = lang === "es" ? (empathyEs[lifeEvent] || "") : (empathyEn[lifeEvent] || "")
+          setMessages(prev => [...prev, {
+            id: generateId(), role: "assistant",
+            content: lang === "es"
+              ? `${opener}Encontré **${svcs.length} beneficios** para tu situación.${urgentSvc ? ` El más urgente: **${urgentSvc.deadlineDays} días** para registrarte en ${urgentSvc.agency}.` : ""} ¿Querés ver el plan?`
+              : `${opener}I found **${svcs.length} benefits** for your situation.${urgentSvc ? ` Most urgent: **${urgentSvc.deadlineDays} days** to register at ${urgentSvc.agency}.` : ""} Want to see the plan?`,
+            actionButtons: [
+              { label: tr.chat.viewBenefits(svcs.length), action: "view-benefits", variant: "outline" },
+              { label: tr.chat.openPlan, action: "open-plan", variant: "green" },
+            ],
+          }])
+        }
+      }
     } catch (e) {
       console.error("Onboarding failed:", e)
     }
@@ -493,23 +531,45 @@ function ChatContent() {
     // ── Handle onboarding free-text steps ───────────────────────────
     if (isOnboarding) {
       if (onboardingStep === 1) {
-        // Collecting name
-        setOnboardingData(prev => ({ ...prev, name: text.trim() }))
-        setMessages(prev => [...prev, { id: generateId(), role: "user", content: text.trim() }])
+        // Collecting name — always El Salvador, skip country question
+        const nameVal = text.trim()
+        const isJobLoss = onboardingData.situation === "job-loss"
+        setOnboardingData(prev => ({
+          ...prev,
+          name: nameVal,
+          country: "SV",
+          ...(isJobLoss ? { employment: "unemployed" } : {}),
+        }))
+        if (isJobLoss) localStorage.setItem("ca_detected_employment", "unemployed")
+        setMessages(prev => [...prev, { id: generateId(), role: "user", content: nameVal }])
         setInput("")
-        setOnboardingStep(2)
-        setTimeout(() => {
-          setMessages(prev => [...prev, {
+
+        if (isJobLoss) {
+          // Job loss → skip employment, go straight to email
+          setOnboardingStep(4)
+          setTimeout(() => setMessages(prev => [...prev, {
             id: generateId(), role: "assistant",
-            content: lang === "es" ? `Mucho gusto, ${text.trim()}. ¿Dónde estás?` : `Nice to meet you, ${text.trim()}. Where are you based?`,
+            content: lang === "es"
+              ? "Última cosa — ¿cuál es tu email? Lo uso para recordatorios de plazos. Podés saltearlo."
+              : "Last thing — what's your email? I'll use it for deadline reminders. You can skip this.",
+            actionButtons: [{ label: lang === "es" ? "Saltear por ahora" : "Skip for now", action: "ob:email:skip", variant: "outline" }],
+          }]), 400)
+        } else {
+          // Show employment options
+          setOnboardingStep(3)
+          setTimeout(() => setMessages(prev => [...prev, {
+            id: generateId(), role: "assistant",
+            content: lang === "es"
+              ? `Mucho gusto, ${nameVal}. ¿Cuál es tu situación laboral?`
+              : `Nice to meet you, ${nameVal}. What's your employment situation?`,
             actionButtons: [
-              { label: "🇸🇻 El Salvador",            action: "ob:country:SV",    variant: "outline" },
-              { label: "🇺🇸 United States",           action: "ob:country:US",    variant: "outline" },
-              { label: "🇬🇧 United Kingdom",          action: "ob:country:UK",    variant: "outline" },
-              { label: lang === "es" ? "📍 Otro lugar" : "📍 Somewhere else", action: "ob:country:other", variant: "outline" },
+              { label: lang === "es" ? "💼 Empleado formal"    : "💼 Formally employed",   action: "ob:employment:employed",   variant: "outline" },
+              { label: lang === "es" ? "🏠 Cuenta propia"      : "🏠 Self-employed",        action: "ob:employment:informal",   variant: "outline" },
+              { label: lang === "es" ? "🔍 Sin trabajo"        : "🔍 Currently unemployed", action: "ob:employment:unemployed", variant: "outline" },
+              { label: lang === "es" ? "🌿 Sector informal"    : "🌿 Informal sector",      action: "ob:employment:informal",   variant: "outline" },
             ],
-          }])
-        }, 400)
+          }]), 400)
+        }
         return
       }
       if (onboardingStep === 4) {
