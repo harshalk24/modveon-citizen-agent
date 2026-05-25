@@ -279,6 +279,60 @@ export function lookupServices(params: {
   return results
 }
 
+// ── LIVE KB LOOKUP (Supabase → static fallback) ───────
+// Returns the same Service shape so callers don't need to change.
+// Falls back to static KB if Supabase is unavailable or returns 0 results.
+export async function lookupServicesDB(params: {
+  country: string
+  lifeEvent: string
+  employment: string
+}): Promise<Service[]> {
+  try {
+    // Dynamic import avoids bundling supabase client in non-engine builds
+    const { searchSchemes } = await import("./engine/db")
+    const rows = await searchSchemes({
+      country: params.country,
+      lifeEvent: params.lifeEvent,
+      employment: params.employment,
+      limit: 20,
+    })
+
+    if (rows.length === 0) {
+      // Nothing approved yet — fall back to static KB
+      return lookupServices(params)
+    }
+
+    // Map Supabase row shape → Service shape
+    return rows.map((r, i) => ({
+      id: r.id as string,
+      country: r.country as string,
+      lifeEvents: (r.life_events as string[]) ?? [],
+      employment: (r.employment_types as string[]) ?? ["any"],
+      name: r.scheme_name as string,
+      nameEs: (r.scheme_name_es as string) ?? (r.scheme_name as string),
+      agency: r.agency as string,
+      agencyFull: (r.agency_full as string) ?? (r.agency as string),
+      description: (r.description as string) ?? "",
+      descriptionEs: (r.description_es as string) ?? (r.description as string) ?? "",
+      amount: (r.amount as string) ?? undefined,
+      deadlineDays: (r.deadline_days as number) ?? undefined,
+      deadline: r.deadline_days ? `${r.deadline_days} days` : undefined,
+      priority: i + 1,
+      weekToApply: Math.floor(i / 2) + 1,
+      documents: (r.documents_required as string[]) ?? [],
+      documentsEs: (r.documents_required_es as string[]) ?? [],
+      sourceUrl: (r.official_link as string) ?? "",
+      lastVerified: r.last_verified
+        ? new Date(r.last_verified as string).toISOString().split("T")[0]
+        : new Date().toISOString().split("T")[0],
+      officeHours: (r.office_hours as string) ?? undefined,
+    }))
+  } catch (err) {
+    console.warn("[KB] Supabase lookup failed, falling back to static KB:", err)
+    return lookupServices(params)
+  }
+}
+
 export function sequencePlan(svcs: Service[]): Service[][] {
   const weeks: Service[][] = [[], [], [], []]
   const completed = new Set<string>()

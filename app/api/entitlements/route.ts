@@ -1,5 +1,5 @@
 import { NextResponse } from "next/server"
-import { lookupServices } from "@/lib/kb"
+import { lookupServicesDB } from "@/lib/kb"
 
 export async function POST(req: Request) {
   const { lifeEvent, employment, country } = await req.json()
@@ -8,6 +8,7 @@ export async function POST(req: Request) {
     return NextResponse.json({ error: "Missing required fields" }, { status: 400 })
   }
 
-  const services = lookupServices({ country, lifeEvent, employment })
+  // Uses live Supabase KB when available, falls back to static data
+  const services = await lookupServicesDB({ country, lifeEvent, employment })
   return NextResponse.json({ services })
 }

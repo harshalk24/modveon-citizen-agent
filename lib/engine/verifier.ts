@@ -1,0 +1,332 @@
+// NOTE FOR FUTURE: The LLM validation calls (validateContentMatch and
+// validateChangeSignificance) are ideal candidates for replacement with a
+// local SLM (Phi-4 Mini, Gemma 4 E4B, or a fine-tuned 3B model). These
+// are classification tasks — a small model will be faster and cheaper
+// once fine-tuned on your verified KB data. Swap by replacing the
+// gemini.getGenerativeModel() calls with your SLM client; the interface
+// stays identical.
+
+import { GoogleGenerativeAI } from "@google/generative-ai"
+import type { ExtractedScheme } from "./extractor"
+
+const gemini = new GoogleGenerativeAI(process.env.GEMINI_API_KEY!)
+
+export type VerificationStatus = "pass" | "flag" | "fail"
+
+export interface VerificationResult {
+  checks: {
+    linkAlive: boolean
+    linkStatus: number
+    contentMatchesScheme: boolean | null
+    contentMatchReason?: string
+    isDuplicate: boolean
+    duplicateOf?: string
+    duplicateReason?: string
+    hasRequiredFields: boolean
+    missingFields: string[]
+    changeIsSignificant: boolean | null
+    changedFields?: string[]
+  }
+  overallStatus: VerificationStatus
+  priority: "critical" | "high" | "normal" | "low"
+  flagReasons: string[]
+  verifiedAt: string
+}
+
+const REQUIRED_FIELDS = [
+  "scheme_name",
+  "agency",
+  "country",
+  "official_link",
+  "description",
+  "life_events",
+]
+
+const CONFIDENCE_THRESHOLD = 0.6
+
+// ── CHECK 1: LINK ALIVE ──────────────────────────────
+export async function checkLink(
+  url: string
+): Promise<{ alive: boolean; status: number }> {
+  try {
+    const res = await fetch(url, {
+      method: "HEAD",
+      signal: AbortSignal.timeout(8000),
+      headers: { "User-Agent": "CitizenAssist-Verifier/1.0" },
+    })
+    if (res.status === 405) {
+      const getRes = await fetch(url, {
+        method: "GET",
+        signal: AbortSignal.timeout(8000),
+      })
+      return { alive: getRes.ok, status: getRes.status }
+    }
+    return { alive: res.ok, status: res.status }
+  } catch {
+    return { alive: false, status: 0 }
+  }
+}
+
+// ── CHECK 2: CONTENT STILL MATCHES SCHEME ────────────
+// FUTURE SLM SWAP: replace gemini call with local model
+async function validateContentMatch(
+  schemeName: string,
+  pageMarkdown: string
+): Promise<{ matches: boolean; reason: string }> {
+  const model = gemini.getGenerativeModel({
+    model: "gemini-2.0-flash",
+    generationConfig: {
+      responseMimeType: "application/json",
+      maxOutputTokens: 100,
+      temperature: 0.0,
+    },
+  })
+
+  const prompt = `Does this web page still contain information about the government service: "${schemeName}"?
+
+Page content (first 1500 chars):
+${pageMarkdown.slice(0, 1500)}
+
+Return ONLY: {"matches": true or false, "reason": "one sentence"}`
+
+  try {
+    const result = await model.generateContent(prompt)
+    return JSON.parse(result.response.text().trim()) as {
+      matches: boolean
+      reason: string
+    }
+  } catch {
+    return { matches: true, reason: "Validation failed — assuming match" }
+  }
+}
+
+// ── CHECK 3: DUPLICATE DETECTION ─────────────────────
+function detectDuplicate(
+  scheme: ExtractedScheme,
+  existingSchemes: Record<string, unknown>[]
+): { isDuplicate: boolean; duplicateOf?: string; reason?: string } {
+  for (const existing of existingSchemes) {
+    const sameAgency = existing.agency === scheme.agency
+    const sameCountry = existing.country === scheme.country
+    const existingEvents = (existing.life_events ?? existing.lifeEvents ?? []) as string[]
+    const overlappingEvents = scheme.life_events?.some((e) =>
+      existingEvents.includes(e)
+    )
+
+    if (sameAgency && sameCountry && overlappingEvents) {
+      const existingName = String(existing.scheme_name ?? existing.name ?? "").toLowerCase()
+      const newName = scheme.scheme_name?.toLowerCase() ?? ""
+      const words = newName.split(" ")
+      const hasNameOverlap = words.some(
+        (w) => w.length > 4 && existingName.includes(w)
+      )
+
+      if (hasNameOverlap) {
+        return {
+          isDuplicate: true,
+          duplicateOf: String(existing.id ?? ""),
+          reason: `Same agency (${scheme.agency}) + overlapping life events + similar name`,
+        }
+      }
+    }
+  }
+  return { isDuplicate: false }
+}
+
+// ── CHECK 5: CHANGE SIGNIFICANCE ─────────────────────
+// Only runs when content hash differs from stored version.
+// FUTURE SLM SWAP: ideal task for a fine-tuned small model
+async function validateChangeSignificance(
+  oldScheme: Record<string, unknown>,
+  newScheme: ExtractedScheme
+): Promise<{ significant: boolean; changedFields: string[] }> {
+  const MEANINGFUL_FIELDS = [
+    "amount",
+    "documents_required",
+    "eligibility",
+    "deadline_days",
+    "steps",
+    "official_link",
+    "office_hours",
+  ]
+
+  const changedFields: string[] = []
+  for (const field of MEANINGFUL_FIELDS) {
+    const oldVal = JSON.stringify(oldScheme[field] ?? "")
+    const newVal = JSON.stringify(
+      newScheme[field as keyof ExtractedScheme] ?? ""
+    )
+    if (oldVal !== newVal) changedFields.push(field)
+  }
+
+  if (changedFields.length === 0) {
+    return { significant: false, changedFields: [] }
+  }
+
+  const model = gemini.getGenerativeModel({
+    model: "gemini-2.0-flash",
+    generationConfig: {
+      responseMimeType: "application/json",
+      maxOutputTokens: 100,
+      temperature: 0.0,
+    },
+  })
+
+  const oldValues = changedFields.reduce<Record<string, unknown>>(
+    (acc, f) => ({ ...acc, [f]: oldScheme[f] }),
+    {}
+  )
+  const newValues = changedFields.reduce<Record<string, unknown>>(
+    (acc, f) => ({ ...acc, [f]: newScheme[f as keyof ExtractedScheme] }),
+    {}
+  )
+
+  const prompt = `A government scheme's data changed. Are these changes significant enough to update the knowledge base?
+
+Changed fields: ${changedFields.join(", ")}
+Old values: ${JSON.stringify(oldValues)}
+New values: ${JSON.stringify(newValues)}
+
+Return ONLY: {"significant": true or false}`
+
+  try {
+    const result = await model.generateContent(prompt)
+    const parsed = JSON.parse(result.response.text().trim()) as {
+      significant: boolean
+    }
+    return { significant: parsed.significant, changedFields }
+  } catch {
+    // Default to significant — better to over-flag than miss a real change
+    return { significant: true, changedFields }
+  }
+}
+
+// ── PRIORITY SCORING ──────────────────────────────────
+function scorePriority(
+  scheme: ExtractedScheme,
+  flagReasons: string[]
+): "critical" | "high" | "normal" | "low" {
+  const hasDeadline = !!scheme.deadline_days
+  const isHighTrafficEvent =
+    scheme.life_events?.includes("new-baby") ||
+    scheme.life_events?.includes("job-loss")
+  const isDeadLink = flagReasons.some((r) => r.includes("Dead link"))
+
+  if (isDeadLink && (hasDeadline || isHighTrafficEvent)) return "critical"
+  if (isDeadLink || hasDeadline) return "high"
+  if (flagReasons.length > 0) return "normal"
+  return "low"
+}
+
+// ── MAIN VERIFY FUNCTION ─────────────────────────────
+export async function verifyScheme(
+  scheme: ExtractedScheme,
+  existingSchemes: Record<string, unknown>[],
+  pageMarkdown?: string,
+  storedHash?: string,
+  currentHash?: string
+): Promise<VerificationResult> {
+  const flagReasons: string[] = []
+
+  // Check 1: Link alive
+  const linkCheck = await checkLink(scheme.official_link)
+  if (!linkCheck.alive) {
+    flagReasons.push(
+      `Dead link: ${scheme.official_link} → HTTP ${linkCheck.status}`
+    )
+  }
+
+  // Check 2: Content matches scheme (only if link alive + have content)
+  let contentMatch: { matches: boolean; reason: string } | null = null
+  if (linkCheck.alive && pageMarkdown) {
+    contentMatch = await validateContentMatch(
+      scheme.scheme_name,
+      pageMarkdown
+    )
+    if (!contentMatch.matches) {
+      flagReasons.push(`Content mismatch: ${contentMatch.reason}`)
+    }
+  }
+
+  // Check 3: Duplicate detection
+  const dupCheck = detectDuplicate(scheme, existingSchemes)
+  if (dupCheck.isDuplicate) {
+    flagReasons.push(
+      `Possible duplicate of ${dupCheck.duplicateOf}: ${dupCheck.reason}`
+    )
+  }
+
+  // Check 4: Required fields
+  const missingFields = REQUIRED_FIELDS.filter(
+    (f) => !scheme[f as keyof ExtractedScheme]
+  )
+  if (missingFields.length > 0) {
+    flagReasons.push(`Missing fields: ${missingFields.join(", ")}`)
+  }
+
+  // Confidence check
+  if ((scheme.confidence ?? 0) < CONFIDENCE_THRESHOLD) {
+    flagReasons.push(`Low confidence: ${scheme.confidence?.toFixed(2)}`)
+  }
+
+  // Check 5: Change significance (only if hash changed)
+  let changeResult: { significant: boolean; changedFields: string[] } | null =
+    null
+  if (storedHash && currentHash && storedHash !== currentHash) {
+    const existing = existingSchemes.find(
+      (e) =>
+        e.agency === scheme.agency &&
+        (e.scheme_name === scheme.scheme_name || e.name === scheme.scheme_name)
+    ) as Record<string, unknown> | undefined
+    if (existing) {
+      changeResult = await validateChangeSignificance(existing, scheme)
+      if (changeResult.significant) {
+        flagReasons.push(
+          `Significant change in: ${changeResult.changedFields.join(", ")}`
+        )
+      }
+    }
+  }
+
+  const hasDeadLink = flagReasons.some((r) => r.includes("Dead link"))
+  const overallStatus: VerificationStatus =
+    flagReasons.length === 0 ? "pass" : hasDeadLink ? "fail" : "flag"
+
+  return {
+    checks: {
+      linkAlive: linkCheck.alive,
+      linkStatus: linkCheck.status,
+      contentMatchesScheme: contentMatch?.matches ?? null,
+      contentMatchReason: contentMatch?.reason,
+      isDuplicate: dupCheck.isDuplicate,
+      duplicateOf: dupCheck.duplicateOf,
+      duplicateReason: dupCheck.reason,
+      hasRequiredFields: missingFields.length === 0,
+      missingFields,
+      changeIsSignificant: changeResult?.significant ?? null,
+      changedFields: changeResult?.changedFields,
+    },
+    overallStatus,
+    priority: scorePriority(scheme, flagReasons),
+    flagReasons,
+    verifiedAt: new Date().toISOString(),
+  }
+}
+
+// ── WEEKLY KB HEALTH CHECK ────────────────────────────
+export async function verifyAllKBLinks(
+  schemes: Array<{ id: string; official_link: string }>
+): Promise<{ schemeId: string; url: string; status: number }[]> {
+  const dead: { schemeId: string; url: string; status: number }[] = []
+  for (const scheme of schemes) {
+    const check = await checkLink(scheme.official_link)
+    if (!check.alive) {
+      dead.push({
+        schemeId: scheme.id,
+        url: scheme.official_link,
+        status: check.status,
+      })
+    }
+  }
+  return dead
+}
