@@ -36,7 +36,7 @@ export async function extractSchemes(
     model: "gemini-2.0-flash",
     generationConfig: {
       responseMimeType: "application/json",
-      maxOutputTokens: 2000,
+      maxOutputTokens: 8192,
       temperature: 0.1,
     },
   })
@@ -64,7 +64,11 @@ Rules:
   "employed", "self-employed", "unemployed", "informal", "any"
 - confidence: 0.0–1.0. Be conservative — only give 0.9+ if the page is clearly about this scheme
 - If supplementary/non-official source, set confidence no higher than 0.7
-- official_link: use the most specific URL available for this scheme
+- official_link: MUST be an official government URL (.gob.sv or official agency domain).
+  If this page is a supplementary/non-official source (e.g. consuladodelsalvador.com, simple.sv),
+  find the .gob.sv link mentioned in the page content — never use the supplementary site's own URL.
+  If no .gob.sv URL appears in the content, use the most relevant agency root (e.g. "https://www.isss.gob.sv").
+  Never set official_link to a login portal URL (login.gob.sv) — use the pre-login service page instead.
 
 Return ONLY valid JSON array, no markdown, no preamble:
 [
@@ -98,7 +102,30 @@ If no schemes found: []`
     const result = await model.generateContent(prompt)
     const text = result.response.text()
     const cleaned = text.replace(/```json|```/g, "").trim()
-    const parsed: unknown[] = JSON.parse(cleaned)
+
+    // Robust parse: if the JSON is truncated (model hit token limit mid-array),
+    // recover all complete objects by trimming to the last closing brace.
+    let parsed: unknown[]
+    try {
+      parsed = JSON.parse(cleaned)
+    } catch {
+      // Find the last complete JSON object and close the array
+      const lastBrace = cleaned.lastIndexOf("}")
+      if (lastBrace === -1) {
+        console.warn(`Extraction: no valid JSON objects in response for ${crawlResult.url}`)
+        return []
+      }
+      const recovered = cleaned.slice(0, lastBrace + 1)
+      const openBracket = recovered.indexOf("[")
+      const partial = openBracket !== -1 ? recovered.slice(openBracket) + "]" : "[" + recovered + "]"
+      try {
+        parsed = JSON.parse(partial)
+        console.warn(`Extraction: recovered ${(parsed as unknown[]).length} scheme(s) from truncated JSON for ${crawlResult.url}`)
+      } catch {
+        console.error(`Extraction failed for ${crawlResult.url}: could not recover JSON`)
+        return []
+      }
+    }
 
     return parsed.map((s) => ({
       ...(s as Record<string, unknown>),

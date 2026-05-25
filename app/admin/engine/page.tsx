@@ -305,11 +305,14 @@ function CrawlProgressBanner({
   }, [])
 
   const elapsedSecs = Math.floor((Date.now() - startedAt.getTime()) / 1000)
-  const progress = Math.min((elapsedSecs / 780) * 100, 99) // 13 min estimate
+  // ~36 pages × 65s free-tier delay = ~39 min worst case.
+  // Paid tier (PAGE_DELAY_MS=200, AGENCY_DELAY_MS=500) = ~2 min.
+  const estimateSecs = 39 * 60
+  const progress = Math.min((elapsedSecs / estimateSecs) * 100, 99)
 
-  // Auto-dismiss after 16 minutes
+  // Auto-dismiss after 45 minutes (free tier worst case)
   useEffect(() => {
-    if (elapsedSecs > 960) onDone()
+    if (elapsedSecs > 45 * 60) onDone()
   }, [elapsedSecs, onDone])
 
   return (
@@ -346,10 +349,10 @@ function CrawlProgressBanner({
       {/* Steps */}
       <div className="flex gap-6 mt-3">
         {[
-          { label: "Scraping pages", done: elapsedSecs > 10 },
-          { label: "Extracting schemes", done: elapsedSecs > 60 },
-          { label: "Verifying links", done: elapsedSecs > 180 },
-          { label: "Writing to queue", done: itemsFound > 0 },
+          { label: "Scraping pages",     done: elapsedSecs > 10 },
+          { label: "Extracting schemes", done: elapsedSecs > 120 },
+          { label: "Verifying links",    done: elapsedSecs > 300 },
+          { label: "Writing to queue",   done: itemsFound > 0 },
         ].map(({ label, done }) => (
           <div key={label} className="flex items-center gap-1.5 text-xs">
             {done ? (

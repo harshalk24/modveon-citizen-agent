@@ -1,4 +1,4 @@
-import { SEED_URLS, crawlEntry } from "./crawler"
+import { SEED_URLS, crawlEntry, groupSeedsByAgency } from "./crawler"
 import { extractSchemes } from "./extractor"
 import { verifyScheme, verifyAllKBLinks } from "./verifier"
 import { insertToReviewQueue, searchSchemes, supabase } from "./db"
@@ -14,7 +14,6 @@ export async function runFullCrawl(country: string = "SV"): Promise<{
   schemesQueued: number
   errors: string[]
 }> {
-  const seeds = SEED_URLS[country] ?? []
   const errors: string[] = []
   let pagesProcessed = 0
   let schemesFound = 0
@@ -23,71 +22,93 @@ export async function runFullCrawl(country: string = "SV"): Promise<{
   // Load existing schemes once for duplicate detection
   const existingSchemes = await searchSchemes({ country, limit: 500 })
 
-  // Firecrawl free tier: 1 request/min global rate limit.
-  // Each agency = 1 scrapeUrl call. Space them 65s apart.
-  // To enable subpage crawling, upgrade Firecrawl and set crawl: true in SEED_URLS.
   const sleep = (ms: number) => new Promise((r) => setTimeout(r, ms))
 
-  for (let i = 0; i < seeds.length; i++) {
-    const seed = seeds[i]
-    // Wait between agencies to stay within free-tier rate limits
-    if (i > 0) {
-      console.log(`[Engine] Waiting 65s before next agency (rate limit)...`)
-      await sleep(65_000)
+  // ── Rate-limit strategy ───────────────────────────────────────────
+  // Firecrawl free tier: 1 req/min globally.
+  // Paid Starter tier: 200 req/min — set PAGE_DELAY_MS=200 and AGENCY_DELAY_MS=500.
+  //
+  // We group pages by agency so that:
+  //   - Pages of the SAME agency are scraped back-to-back with a short delay (3s).
+  //     This avoids wasting the 65s window on URLs we know are related.
+  //   - A longer delay (65s on free tier) only fires between DIFFERENT agencies.
+  //
+  // With 12 agencies × ~3 pages each = ~36 total scrapes.
+  // Free tier:  36 pages × 65s = ~39 min (unavoidable on free tier).
+  // Paid tier:  36 pages × 0.5s = ~18s total.
+  const PAGE_DELAY_MS   = parseInt(process.env.FIRECRAWL_PAGE_DELAY_MS   ?? "3000")   // between pages of same agency
+  const AGENCY_DELAY_MS = parseInt(process.env.FIRECRAWL_AGENCY_DELAY_MS ?? "65000")  // between agencies
+
+  const agencyGroups = groupSeedsByAgency(country)
+  const agencies     = Array.from(agencyGroups.keys())
+
+  console.log(`[Engine] Starting crawl for ${country}: ${agencies.length} agencies, ${SEED_URLS[country]?.length ?? 0} total pages`)
+  console.log(`[Engine] Delays: ${PAGE_DELAY_MS}ms between pages, ${AGENCY_DELAY_MS}ms between agencies`)
+
+  for (let agencyIdx = 0; agencyIdx < agencies.length; agencyIdx++) {
+    const agencyName = agencies[agencyIdx]
+    const agencySeeds = agencyGroups.get(agencyName)!
+
+    // Sleep between agencies (not before the first one)
+    if (agencyIdx > 0) {
+      console.log(`[Engine] Waiting ${AGENCY_DELAY_MS / 1000}s before ${agencyName}...`)
+      await sleep(AGENCY_DELAY_MS)
     }
-    try {
-      console.log(`[Engine] Crawling ${seed.agency} (${i + 1}/${seeds.length})...`)
-      const pages = await crawlEntry(seed)
-      pagesProcessed += pages.length
 
-      for (const page of pages) {
-        try {
-          const schemes = await extractSchemes(page)
-          schemesFound += schemes.length
+    console.log(`[Engine] Agency ${agencyIdx + 1}/${agencies.length}: ${agencyName} (${agencySeeds.length} page${agencySeeds.length > 1 ? "s" : ""})`)
 
-          for (const scheme of schemes) {
-            try {
-              // Look up stored hash for this scheme
-              const { data: stored } = await supabase
-                .from("schemes")
-                .select("content_hash")
-                .eq("agency", scheme.agency)
-                .eq("scheme_name", scheme.scheme_name)
-                .eq("country", scheme.country)
-                .single()
+    for (let pageIdx = 0; pageIdx < agencySeeds.length; pageIdx++) {
+      const seed = agencySeeds[pageIdx]
 
-              const storedHash = stored?.content_hash ?? undefined
-
-              const verification = await verifyScheme(
-                scheme,
-                existingSchemes,
-                page.markdown,
-                storedHash,
-                page.contentHash
-              )
-
-              await insertToReviewQueue(
-                scheme,
-                verification,
-                "crawl",
-                page.contentHash
-              )
-              schemesQueued++
-            } catch (schemeErr) {
-              errors.push(
-                `Scheme error [${scheme.scheme_name}]: ${String(schemeErr)}`
-              )
-            }
-          }
-        } catch (extractErr) {
-          errors.push(`Extract error [${page.url}]: ${String(extractErr)}`)
-        }
+      // Short delay between pages of the same agency
+      if (pageIdx > 0) {
+        await sleep(PAGE_DELAY_MS)
       }
-    } catch (crawlErr) {
-      errors.push(`Crawl error [${seed.url}]: ${String(crawlErr)}`)
+
+      try {
+        console.log(`[Engine]   Scraping: ${seed.url}`)
+        const pages = await crawlEntry(seed)
+        pagesProcessed += pages.length
+
+        for (const page of pages) {
+          try {
+            const schemes = await extractSchemes(page)
+            schemesFound += schemes.length
+            console.log(`[Engine]   → Extracted ${schemes.length} scheme(s) from ${page.url}`)
+
+            for (const scheme of schemes) {
+              try {
+                const { data: stored } = await supabase
+                  .from("schemes")
+                  .select("content_hash")
+                  .eq("agency", scheme.agency)
+                  .eq("scheme_name", scheme.scheme_name)
+                  .eq("country", scheme.country)
+                  .single()
+
+                const storedHash = stored?.content_hash ?? undefined
+
+                const verification = await verifyScheme(
+                  scheme, existingSchemes, page.markdown, storedHash, page.contentHash
+                )
+
+                await insertToReviewQueue(scheme, verification, "crawl", page.contentHash)
+                schemesQueued++
+              } catch (schemeErr) {
+                errors.push(`Scheme error [${scheme.scheme_name}]: ${String(schemeErr)}`)
+              }
+            }
+          } catch (extractErr) {
+            errors.push(`Extract error [${page.url}]: ${String(extractErr)}`)
+          }
+        }
+      } catch (crawlErr) {
+        errors.push(`Crawl error [${seed.url}]: ${String(crawlErr)}`)
+      }
     }
   }
 
+  console.log(`[Engine] Crawl complete: ${pagesProcessed} pages, ${schemesFound} schemes found, ${schemesQueued} queued, ${errors.length} errors`)
   return { pagesProcessed, schemesFound, schemesQueued, errors }
 }
 

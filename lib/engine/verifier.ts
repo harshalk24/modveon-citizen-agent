@@ -44,26 +44,51 @@ const REQUIRED_FIELDS = [
 
 const CONFIDENCE_THRESHOLD = 0.6
 
-// ── CHECK 1: LINK ALIVE ──────────────────────────────
+// ── AGENCY FALLBACK URLS ──────────────────────────────
+// When a specific service URL is dead, fall back to the agency root.
+// Used by the admin UI to suggest a replacement and by auto-repair logic.
+export const AGENCY_ROOT_URLS: Record<string, string> = {
+  ISSS:         "https://www.isss.gob.sv",
+  RNPN:         "https://www.rnpn.gob.sv",
+  INSAFORP:     "https://www.insaforp.org.sv",
+  CONAMYPE:     "https://www.conamype.gob.sv",
+  CNR:          "https://www.cnr.gob.sv",
+  Hacienda:     "https://www.mh.gob.sv",
+  MTPS:         "https://www.mtps.gob.sv",
+  RREES:        "https://rree.gob.sv",
+  Presidencia:  "https://www.presidencia.gob.sv",
+  "Ciudad Mujer": "https://ciudadmujer.presidencia.gob.sv",
+  FOSALUD:      "https://www.fosalud.gob.sv",
+  BANDESAL:     "https://www.bandesal.gob.sv",
+  ANDA:         "https://www.anda.gob.sv",
+  Alcaldía:     "https://sansalvador.eregulations.org",
+}
+
+// ── CHECK 1: LINK ALIVE + LOGIN WALL DETECTION ────────
+// El Salvador gov sites often redirect service pages to login.gob.sv
+// when unauthenticated. fetch() follows redirects by default, so a
+// login-wall page returns HTTP 200 — indistinguishable from a real page.
+// We detect this by inspecting the final URL after redirect.
 export async function checkLink(
   url: string
-): Promise<{ alive: boolean; status: number }> {
+): Promise<{ alive: boolean; status: number; requiresLogin: boolean; finalUrl: string }> {
   try {
+    // Use GET (not HEAD) so we can inspect the final URL after redirects
     const res = await fetch(url, {
-      method: "HEAD",
+      method: "GET",
       signal: AbortSignal.timeout(8000),
       headers: { "User-Agent": "CitizenAssist-Verifier/1.0" },
+      redirect: "follow",
     })
-    if (res.status === 405) {
-      const getRes = await fetch(url, {
-        method: "GET",
-        signal: AbortSignal.timeout(8000),
-      })
-      return { alive: getRes.ok, status: getRes.status }
-    }
-    return { alive: res.ok, status: res.status }
+
+    const finalUrl = res.url ?? url
+    // Detect silent redirect to the government SSO login portal
+    const requiresLogin = finalUrl.includes("login.gob.sv") ||
+                          finalUrl.includes("/login") && finalUrl.includes(".gob.sv")
+
+    return { alive: res.ok, status: res.status, requiresLogin, finalUrl }
   } catch {
-    return { alive: false, status: 0 }
+    return { alive: false, status: 0, requiresLogin: false, finalUrl: url }
   }
 }
 
@@ -228,17 +253,30 @@ export async function verifyScheme(
 ): Promise<VerificationResult> {
   const flagReasons: string[] = []
 
-  // Check 1: Link alive
+  // Check 1: Link alive + login-wall detection
   const linkCheck = await checkLink(scheme.official_link)
+  const suggestedFallback = AGENCY_ROOT_URLS[scheme.agency]
+
   if (!linkCheck.alive) {
+    const fallbackNote = suggestedFallback
+      ? ` Suggested fallback: ${suggestedFallback}`
+      : ""
     flagReasons.push(
-      `Dead link: ${scheme.official_link} → HTTP ${linkCheck.status}`
+      `Dead link: ${scheme.official_link} → HTTP ${linkCheck.status}.${fallbackNote}`
+    )
+  } else if (linkCheck.requiresLogin) {
+    // Alive but gated — we can still serve the scheme, but the apply button
+    // should point to the agency root, not the login portal.
+    flagReasons.push(
+      `Login wall detected: ${scheme.official_link} redirects to ${linkCheck.finalUrl}. ` +
+      `official_link should be updated to the informational page or agency root.` +
+      (suggestedFallback ? ` Suggested: ${suggestedFallback}` : "")
     )
   }
 
-  // Check 2: Content matches scheme (only if link alive + have content)
+  // Check 2: Content matches scheme (only if link alive + not behind login wall + have content)
   let contentMatch: { matches: boolean; reason: string } | null = null
-  if (linkCheck.alive && pageMarkdown) {
+  if (linkCheck.alive && !linkCheck.requiresLogin && pageMarkdown) {
     contentMatch = await validateContentMatch(
       scheme.scheme_name,
       pageMarkdown
@@ -288,23 +326,29 @@ export async function verifyScheme(
     }
   }
 
-  const hasDeadLink = flagReasons.some((r) => r.includes("Dead link"))
+  const hasDeadLink   = flagReasons.some((r) => r.includes("Dead link"))
+  const hasLoginWall  = flagReasons.some((r) => r.includes("Login wall"))
   const overallStatus: VerificationStatus =
-    flagReasons.length === 0 ? "pass" : hasDeadLink ? "fail" : "flag"
+    flagReasons.length === 0 ? "pass"
+    : hasDeadLink             ? "fail"
+    :                           "flag"   // login wall + other issues = flag (not fail)
 
   return {
     checks: {
-      linkAlive: linkCheck.alive,
-      linkStatus: linkCheck.status,
-      contentMatchesScheme: contentMatch?.matches ?? null,
-      contentMatchReason: contentMatch?.reason,
-      isDuplicate: dupCheck.isDuplicate,
-      duplicateOf: dupCheck.duplicateOf,
-      duplicateReason: dupCheck.reason,
-      hasRequiredFields: missingFields.length === 0,
+      linkAlive:             linkCheck.alive,
+      linkStatus:            linkCheck.status,
+      requiresLogin:         linkCheck.requiresLogin,
+      finalUrl:              linkCheck.finalUrl,
+      suggestedFallbackUrl:  hasDeadLink || hasLoginWall ? suggestedFallback : undefined,
+      contentMatchesScheme:  contentMatch?.matches ?? null,
+      contentMatchReason:    contentMatch?.reason,
+      isDuplicate:           dupCheck.isDuplicate,
+      duplicateOf:           dupCheck.duplicateOf,
+      duplicateReason:       dupCheck.reason,
+      hasRequiredFields:     missingFields.length === 0,
       missingFields,
-      changeIsSignificant: changeResult?.significant ?? null,
-      changedFields: changeResult?.changedFields,
+      changeIsSignificant:   changeResult?.significant ?? null,
+      changedFields:         changeResult?.changedFields,
     },
     overallStatus,
     priority: scorePriority(scheme, flagReasons),
