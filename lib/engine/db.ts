@@ -1,11 +1,36 @@
-import { createClient } from "@supabase/supabase-js"
+import { createClient, SupabaseClient } from "@supabase/supabase-js"
 import type { ExtractedScheme } from "./extractor"
 import type { VerificationResult } from "./verifier"
 
-export const supabase = createClient(
-  process.env.SUPABASE_URL!,
-  process.env.SUPABASE_SERVICE_KEY!
-)
+// ── LAZY CLIENT ───────────────────────────────────────────────────────────────
+// createClient() is intentionally deferred until first property access.
+// During Next.js build, the route module is evaluated to collect metadata but
+// env vars (SUPABASE_URL, SUPABASE_SERVICE_KEY) are only available at runtime.
+// Calling createClient() at module load time causes "supabaseUrl is required"
+// during the Vercel build.  The Proxy forwards every property lookup to the
+// singleton, creating it on first use (at request time, never at build time).
+let _instance: SupabaseClient | null = null
+
+function getInstance(): SupabaseClient {
+  if (!_instance) {
+    const url = process.env.SUPABASE_URL
+    const key = process.env.SUPABASE_SERVICE_KEY
+    if (!url || !key) {
+      throw new Error(
+        "Missing SUPABASE_URL or SUPABASE_SERVICE_KEY environment variables"
+      )
+    }
+    _instance = createClient(url, key)
+  }
+  return _instance
+}
+
+// Export as `supabase` so all existing imports continue to work unchanged.
+export const supabase: SupabaseClient = new Proxy({} as SupabaseClient, {
+  get(_target, prop: string | symbol) {
+    return (getInstance() as unknown as Record<string | symbol, unknown>)[prop]
+  },
+})
 
 // ── REVIEW QUEUE ──────────────────────────────────────
 
