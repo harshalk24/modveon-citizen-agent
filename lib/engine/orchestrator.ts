@@ -78,15 +78,37 @@ export async function runFullCrawl(country: string = "SV"): Promise<{
 
             for (const scheme of schemes) {
               try {
-                const { data: stored } = await supabase
+                // ── SKIP LOGIC ──────────────────────────────────────
+                // 1. Already live in KB with same content hash → unchanged, skip
+                // 2. Already pending in queue (not yet reviewed) → skip
+                // 3. New scheme OR content changed → queue for review
+                const { data: liveScheme } = await supabase
                   .from("schemes")
-                  .select("content_hash")
+                  .select("id, content_hash")
                   .eq("agency", scheme.agency)
                   .eq("scheme_name", scheme.scheme_name)
                   .eq("country", scheme.country)
                   .single()
 
-                const storedHash = stored?.content_hash ?? undefined
+                if (liveScheme && liveScheme.content_hash === page.contentHash) {
+                  console.log(`[Engine]   ⏭ Skipped (unchanged): ${scheme.scheme_name}`)
+                  continue
+                }
+
+                // Check if already pending in queue (avoid duplicate review items)
+                const { data: alreadyPending } = await supabase
+                  .from("review_queue")
+                  .select("id")
+                  .eq("status", "pending")
+                  .eq("content_hash", page.contentHash)
+                  .limit(1)
+
+                if (alreadyPending && alreadyPending.length > 0) {
+                  console.log(`[Engine]   ⏭ Skipped (already in queue): ${scheme.scheme_name}`)
+                  continue
+                }
+
+                const storedHash = liveScheme?.content_hash ?? undefined
 
                 const verification = await verifyScheme(
                   scheme, existingSchemes, page.markdown, storedHash, page.contentHash
@@ -94,6 +116,7 @@ export async function runFullCrawl(country: string = "SV"): Promise<{
 
                 await insertToReviewQueue(scheme, verification, "crawl", page.contentHash)
                 schemesQueued++
+                console.log(`[Engine]   ✅ Queued: ${scheme.scheme_name} [${verification.overallStatus}]`)
               } catch (schemeErr) {
                 errors.push(`Scheme error [${scheme.scheme_name}]: ${String(schemeErr)}`)
               }

@@ -42,25 +42,32 @@ export async function approveScheme(reviewId: string) {
 
   const schemeData = review.scheme_data as ExtractedScheme
 
+  // Strip fields that exist on ExtractedScheme but NOT in the schemes table.
+  // extracted_at is internal-only; raw_source_url IS in the table.
+  // eslint-disable-next-line @typescript-eslint/no-unused-vars
+  const { extracted_at, ...schemeRow } = schemeData as ExtractedScheme & { extracted_at?: string }
+
   // Check if scheme already exists (upsert)
   const { data: existing } = await supabase
     .from("schemes")
     .select("id")
-    .eq("agency", schemeData.agency)
-    .eq("scheme_name", schemeData.scheme_name)
-    .eq("country", schemeData.country)
+    .eq("agency", schemeRow.agency)
+    .eq("scheme_name", schemeRow.scheme_name)
+    .eq("country", schemeRow.country)
     .single()
 
   if (existing) {
-    await supabase
+    const { error: updateErr } = await supabase
       .from("schemes")
       .update({
-        ...schemeData,
+        ...schemeRow,
         content_hash: review.content_hash,
         updated_at: new Date().toISOString(),
         last_verified: new Date().toISOString(),
       })
       .eq("id", existing.id)
+
+    if (updateErr) console.error("approveScheme update error:", updateErr)
 
     await supabase.from("change_log").insert({
       scheme_id: existing.id,
@@ -70,13 +77,15 @@ export async function approveScheme(reviewId: string) {
       changed_at: new Date().toISOString(),
     })
   } else {
-    await supabase.from("schemes").insert({
-      ...schemeData,
+    const { error: insertErr } = await supabase.from("schemes").insert({
+      ...schemeRow,
       content_hash: review.content_hash,
       is_active: true,
       created_at: new Date().toISOString(),
       last_verified: new Date().toISOString(),
     })
+
+    if (insertErr) console.error("approveScheme insert error:", insertErr)
   }
 
   await supabase

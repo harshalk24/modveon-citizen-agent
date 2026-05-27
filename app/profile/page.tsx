@@ -7,11 +7,19 @@ import { t } from "@/lib/i18n"
 import { Check, Loader2, User, ChevronDown, Sparkles } from "lucide-react"
 
 const LIFE_EVENTS = [
-  { value: "new-baby",       emoji: "👶", label: "New baby / expecting" },
-  { value: "job-loss",       emoji: "💼", label: "Recently lost a job" },
-  { value: "start-business", emoji: "🏪", label: "Starting a business" },
-  { value: "health",         emoji: "🏥", label: "Looking for health coverage" },
-  { value: "general",        emoji: "📋", label: "Just exploring benefits" },
+  { value: "new-baby",        emoji: "🍼", label: "New baby / expecting" },
+  { value: "job-loss",        emoji: "💼", label: "Recently lost a job" },
+  { value: "start-business",  emoji: "🏪", label: "Starting a business" },
+  { value: "diaspora",        emoji: "🌎", label: "Managing from abroad" },
+  { value: "marriage",        emoji: "💍", label: "Getting married" },
+  { value: "death",           emoji: "⚫", label: "Family member passed away" },
+  { value: "retirement",      emoji: "🏖️", label: "Retiring" },
+  { value: "driving-license", emoji: "🚗", label: "Driver's license" },
+  { value: "property",        emoji: "🏠", label: "Buying / selling property" },
+  { value: "education",       emoji: "📚", label: "Education / training" },
+  { value: "separation",      emoji: "💔", label: "Separation or divorce" },
+  { value: "social-benefits", emoji: "🤝", label: "Social assistance / programs" },
+  { value: "healthcare",      emoji: "🏥", label: "Looking for health coverage" },
 ]
 
 const EMPLOYMENT_OPTIONS = [

@@ -128,20 +128,27 @@ export const SEED_URLS: Record<string, SeedEntry[]> = {
     // Step-by-step official guides for starting a business
     { url: "https://sansalvador.eregulations.org",               agency: "eRegulations", crawl: false, maxPages: 1 },
 
-    // ── SUPPLEMENTARY AGGREGATORS ─────────────────────
-    // simple.sv is a civic service directory for El Salvador — its entire
-    // value is in the subpages, not the homepage. Crawling to 40 pages
-    // gives us a near-complete map of all Salvadoran government services.
-    // On Firecrawl free tier: set crawl:false + manually add specific pages below.
-    // On paid tier: set crawl:true to discover the full catalogue automatically.
-    { url: "https://simple.sv",                                  agency: "Simple SV",    crawl: false, maxPages: 40, supplementary: true },
-    { url: "https://simple.sv/tramites/",                        agency: "Simple SV",    crawl: false, maxPages: 1,  supplementary: true },
-    { url: "https://simple.sv/beneficios/",                      agency: "Simple SV",    crawl: false, maxPages: 1,  supplementary: true },
-    { url: "https://simple.sv/emprendimiento/",                  agency: "Simple SV",    crawl: false, maxPages: 1,  supplementary: true },
+    // ── SIMPLE.SV — CONFIRMED PUBLIC PROCEDURE PAGES ─────
+    // These specific tramite pages are publicly readable (no login needed to
+    // view cost, documents, steps). Login only required to INITIATE the tramite.
+    // Each page has real structured data: cost, time, documents, steps.
+    { url: "https://simple.sv/tramite/certificacion-de-partidas/ciudadano",                                                                    agency: "Simple SV", crawl: false, maxPages: 1, supplementary: true },
+    { url: "https://simple.sv/tramite/constancia-de-antecedentes-policiales/nacionales",                                                       agency: "Simple SV", crawl: false, maxPages: 1, supplementary: true },
+    { url: "https://simple.sv/tramite/solicitud-de-fijacion-cuota-alimenticia/solicitud-de-fijacion-cuota-alimenticia",                        agency: "Simple SV", crawl: false, maxPages: 1, supplementary: true },
+    { url: "https://simple.sv/tramite/consulta-y-pago-de-prestamos-fsv/persona-natural",                                                       agency: "Simple SV", crawl: false, maxPages: 1, supplementary: true },
+    { url: "https://simple.sv/tramite/otorgamiento-de-cita-medica/persona-natural",                                                            agency: "Simple SV", crawl: false, maxPages: 1, supplementary: true },
+    { url: "https://simple.sv/tramite/apostillado-de-certificacion-de-licencia-de-conducir/persona-natural",                                   agency: "Simple SV", crawl: false, maxPages: 1, supplementary: true },
+    { url: "https://simple.sv/tramite/tramite-de-reembolsos-por-gastos-medicos-hospitalarios/persona-natural",                                 agency: "Simple SV", crawl: false, maxPages: 1, supplementary: true },
+    { url: "https://simple.sv/tramite/autentica-de-documentos-academicos/ciudadano",                                                           agency: "Simple SV", crawl: false, maxPages: 1, supplementary: true },
+    { url: "https://simple.sv/tramite/constancias-de-pensionados/constancia-de-pensionados",                                                   agency: "Simple SV", crawl: false, maxPages: 1, supplementary: true },
+    { url: "https://simple.sv/tramite/constancia-de-afiliacion-y-beneficio/persona-natural",                                                   agency: "Simple SV", crawl: false, maxPages: 1, supplementary: true },
+    { url: "https://simple.sv/tramite/solicitud-de-solvencia-de-pension-alimenticia-de-la-pgr/persona-natural",                                agency: "Simple SV", crawl: false, maxPages: 1, supplementary: true },
+    { url: "https://simple.sv/tramite/modalidades/2/emision-de-certificacion-de-antecedentes-penales",                                        agency: "Simple SV", crawl: false, maxPages: 1, supplementary: true },
+    { url: "https://simple.sv/tramite/boleta-de-resultados-paes-avanzo/ciudadano",                                                             agency: "Simple SV", crawl: false, maxPages: 1, supplementary: true },
+    { url: "https://simple.sv/tramite/solicitud-de-constancias-de-estudios/solicitud-de-constancias-de-estudios",                              agency: "Simple SV", crawl: false, maxPages: 1, supplementary: true },
+    { url: "https://simple.sv/tramite/certificacion-de-registro-de-titulo-de-educacion-media/modalidad-unica",                                 agency: "Simple SV", crawl: false, maxPages: 1, supplementary: true },
 
-    // consuladodelsalvador.com aggregates diaspora procedures —
-    // poder notarial chains, consulate appointments, residency.
-    // Same approach: subpages contain the real content.
+    // ── CONSULADO — DIASPORA PROCEDURES ───────────────────
     { url: "https://consuladodelsalvador.com",                   agency: "Diaspora Info", crawl: false, maxPages: 15, supplementary: true },
     { url: "https://consuladodelsalvador.com/tramites/",         agency: "Diaspora Info", crawl: false, maxPages: 1,  supplementary: true },
     { url: "https://consuladodelsalvador.com/poder-notarial/",   agency: "Diaspora Info", crawl: false, maxPages: 1,  supplementary: true },

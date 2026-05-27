@@ -17,6 +17,9 @@ export interface VerificationResult {
   checks: {
     linkAlive: boolean
     linkStatus: number
+    requiresLogin: boolean
+    finalUrl: string
+    suggestedFallbackUrl?: string
     contentMatchesScheme: boolean | null
     contentMatchReason?: string
     isDuplicate: boolean

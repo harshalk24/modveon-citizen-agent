@@ -3,6 +3,96 @@ import type { CrawlResult } from "./crawler"
 
 const gemini = new GoogleGenerativeAI(process.env.GEMINI_API_KEY!)
 
+// ── SUPPLEMENTARY DOMAIN BLOCKLIST ────────────────────
+// These sites are used ONLY as knowledge sources for scraping.
+// Users must NEVER be linked to them — they are not government services.
+const SUPPLEMENTARY_DOMAINS = [
+  "consuladodelsalvador.com",
+  "simple.sv",
+  "diasporasv.com",
+]
+
+// Agency root fallbacks — used when Gemini can't find a .gob.sv URL in content
+const AGENCY_ROOTS: Record<string, string> = {
+  ISSS:          "https://www.isss.gob.sv",
+  RNPN:          "https://www.rnpn.gob.sv",
+  INSAFORP:      "https://www.insaforp.org.sv",
+  CONAMYPE:      "https://www.conamype.gob.sv",
+  CNR:           "https://www.cnr.gob.sv",
+  Hacienda:      "https://www.mh.gob.sv",
+  MTPS:          "https://www.mtps.gob.sv",
+  RREES:         "https://rree.gob.sv",
+  "Ciudad Mujer":"https://ciudadmujer.presidencia.gob.sv",
+  FOSALUD:       "https://www.fosalud.gob.sv",
+  BANDESAL:      "https://www.bandesal.gob.sv",
+  ANDA:          "https://www.anda.gob.sv",
+  "Diaspora Info":"https://rree.gob.sv",   // Consulado info maps to RREES for users
+  "Simple SV":   "https://www.gob.sv",
+}
+
+/**
+ * Guarantees official_link never points to a supplementary site or a login portal.
+ * This is a hard code-level guard — it runs after LLM extraction and cannot be
+ * bypassed by prompt drift.
+ */
+function sanitizeOfficialLink(
+  extractedLink: string | undefined,
+  agency: string | undefined,
+  isSupplementary: boolean,
+  sourceUrl: string
+): string {
+  const link = extractedLink?.trim() ?? ""
+
+  // 1. If Gemini left it blank, use agency root
+  if (!link) {
+    return (agency && AGENCY_ROOTS[agency]) ?? "https://www.gob.sv"
+  }
+
+  // 2. If link points to a supplementary site — only block if the SOURCE
+  //    is NOT that same supplementary site. If consulado is both the source
+  //    AND the only link available (no .gob.sv found), allow it — it's the
+  //    only reference the user has for that procedure.
+  const isBlockedDomain = SUPPLEMENTARY_DOMAINS.some((d) => link.includes(d))
+  if (isBlockedDomain) {
+    const sourceIsAlsoSupplementary = SUPPLEMENTARY_DOMAINS.some((d) => sourceUrl.includes(d))
+    if (sourceIsAlsoSupplementary) {
+      // Consulado page → consulado link: allow as last resort (no .gob.sv exists)
+      console.warn(`[Extractor] Supplementary link allowed (no .gob.sv alternative): ${link}`)
+      return link
+    }
+    // Non-supplementary source linking to consulado: always block
+    const fallback = (agency && AGENCY_ROOTS[agency]) ?? "https://www.gob.sv"
+    console.warn(
+      `[Extractor] Blocked supplementary domain in official_link: ${link} → replaced with ${fallback}`
+    )
+    return fallback
+  }
+
+  // 3. If link points to login.gob.sv SSO portal — use agency root instead
+  if (link.includes("login.gob.sv")) {
+    const fallback = (agency && AGENCY_ROOTS[agency]) ?? "https://www.gob.sv"
+    console.warn(
+      `[Extractor] Blocked login portal in official_link: ${link} → replaced with ${fallback}`
+    )
+    return fallback
+  }
+
+  // 4. If this is a supplementary source page and the link is relative or
+  //    somehow still on the supplementary domain (double check)
+  if (isSupplementary) {
+    const sourceDomain = SUPPLEMENTARY_DOMAINS.find((d) => sourceUrl.includes(d))
+    if (sourceDomain && link.includes(sourceDomain)) {
+      const fallback = (agency && AGENCY_ROOTS[agency]) ?? "https://www.gob.sv"
+      console.warn(
+        `[Extractor] Supplementary source URL leaked into official_link: ${link} → ${fallback}`
+      )
+      return fallback
+    }
+  }
+
+  return link
+}
+
 export interface ExtractedScheme {
   scheme_name: string
   scheme_name_es: string
@@ -59,7 +149,9 @@ Extract ALL government services, benefits, or schemes mentioned. For each return
 Rules:
 - If a field is not found, use null (not empty string)
 - life_events: only use values from this exact list:
-  "new-baby", "job-loss", "start-business", "diaspora", "housing", "healthcare", "any"
+  "new-baby", "job-loss", "start-business", "diaspora", "housing", "healthcare",
+  "marriage", "death", "retirement", "driving-license", "property", "education",
+  "separation", "social-benefits", "any"
 - employment_types: only use values from this list:
   "employed", "self-employed", "unemployed", "informal", "any"
 - confidence: 0.0–1.0. Be conservative — only give 0.9+ if the page is clearly about this scheme
@@ -127,12 +219,24 @@ If no schemes found: []`
       }
     }
 
-    return parsed.map((s) => ({
-      ...(s as Record<string, unknown>),
-      is_supplementary: crawlResult.isSupplementary,
-      raw_source_url: crawlResult.url,
-      extracted_at: new Date().toISOString(),
-    })) as ExtractedScheme[]
+    return parsed.map((s) => {
+      const scheme = s as Record<string, unknown>
+      return {
+        ...scheme,
+        // Hard sanitize official_link — LLMs sometimes ignore the prompt instruction.
+        // Supplementary sites (consuladodelsalvador.com, simple.sv, etc.) are ONLY
+        // used as knowledge sources. Users must never be sent to them.
+        official_link: sanitizeOfficialLink(
+          scheme.official_link as string | undefined,
+          scheme.agency as string | undefined,
+          crawlResult.isSupplementary,
+          crawlResult.url
+        ),
+        is_supplementary: crawlResult.isSupplementary,
+        raw_source_url: crawlResult.url,   // internal only — never shown to users
+        extracted_at: new Date().toISOString(),
+      }
+    }) as ExtractedScheme[]
   } catch (err) {
     console.error(`Extraction failed for ${crawlResult.url}:`, err)
     return []

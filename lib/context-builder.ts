@@ -240,7 +240,10 @@ export function buildSystemPrompt(
     amount:    s.amount,
     deadline:  s.deadline,
     docs:      language === "es" ? s.documentsEs : s.documents,
-    applyUrl:  s.sourceUrl,   // renamed from url → applyUrl so Rule 9 reference is unambiguous
+    // applyUrl is null for informational-only schemes (no steps = can't apply online).
+    // The agent omits APPLY_NOW tag when applyUrl is missing (Rule 9).
+    applyUrl:  (s.steps && s.steps.length > 0) ? s.sourceUrl : null,
+    infoUrl:   s.sourceUrl,  // always available for "Learn more" links
     hours:     s.officeHours,
     address:   s.capitalAddress,
     tip:       s.universalTip,

@@ -110,10 +110,17 @@ function ChatContent() {
           ? "¡Hola! Soy Citizen Assist — encuentro todos los beneficios del gobierno de El Salvador para los que calificás, y te ayudo a tramitarlos. ¿En qué te puedo ayudar hoy?"
           : "Hi! I'm Citizen Assist — I find every government benefit you qualify for in El Salvador, and help you claim them. What can I help you with today?",
         actionButtons: [
-          { label: lang === "es" ? "🍼 Acabo de tener un bebé"       : "🍼 I just had a baby",              action: "ob:situation:new-baby",       variant: "outline" },
-          { label: lang === "es" ? "💼 Perdí mi trabajo"              : "💼 I lost my job",                  action: "ob:situation:job-loss",        variant: "outline" },
-          { label: lang === "es" ? "🏪 Quiero registrar un negocio"   : "🏪 I want to register a business",  action: "ob:situation:start-business",  variant: "outline" },
-          { label: lang === "es" ? "🌎 Necesito ayuda desde el exterior" : "🌎 I need help from abroad",    action: "ob:situation:diaspora",        variant: "outline" },
+          { label: lang === "es" ? "🍼 Acabo de tener un bebé"          : "🍼 I just had a baby",             action: "ob:situation:new-baby",        variant: "outline" },
+          { label: lang === "es" ? "💼 Perdí mi trabajo"                 : "💼 I lost my job",                 action: "ob:situation:job-loss",        variant: "outline" },
+          { label: lang === "es" ? "🏪 Quiero registrar un negocio"      : "🏪 I want to register a business", action: "ob:situation:start-business",  variant: "outline" },
+          { label: lang === "es" ? "🌎 Necesito ayuda desde el exterior" : "🌎 I need help from abroad",       action: "ob:situation:diaspora",        variant: "outline" },
+          { label: lang === "es" ? "💍 Me voy a casar"                   : "💍 I'm getting married",           action: "ob:situation:marriage",        variant: "outline" },
+          { label: lang === "es" ? "⚫ Falleció un familiar"             : "⚫ A family member passed away",   action: "ob:situation:death",           variant: "outline" },
+          { label: lang === "es" ? "🏖️ Me voy a jubilar"                : "🏖️ I'm retiring",                  action: "ob:situation:retirement",      variant: "outline" },
+          { label: lang === "es" ? "🚗 Licencia de conducir"             : "🚗 Driver's license",              action: "ob:situation:driving-license", variant: "outline" },
+          { label: lang === "es" ? "🏠 Comprar o vender propiedad"       : "🏠 Buying / selling property",     action: "ob:situation:property",        variant: "outline" },
+          { label: lang === "es" ? "📚 Estudios o capacitación"          : "📚 Education / training",          action: "ob:situation:education",       variant: "outline" },
+          { label: lang === "es" ? "💔 Separación o divorcio"           : "💔 Separation or divorce",          action: "ob:situation:separation",      variant: "outline" },
         ],
       }])
       return
@@ -128,16 +135,36 @@ function ChatContent() {
 
         // Empathetic opener based on life event
         const empathyEn: Record<string, string> = {
-          "new-baby":       "Congratulations on your new baby! 🎉 ",
-          "job-loss":       "I'm sorry to hear about your job loss — I'm here to help. 💙 ",
-          "start-business": "Exciting to hear you're starting a business! 🚀 ",
-          "diaspora":       "Happy to help you manage things from abroad. 🌎 ",
+          "new-baby":        "Congratulations on your new baby! 🎉 ",
+          "job-loss":        "I'm sorry to hear about your job loss — I'm here to help. 💙 ",
+          "start-business":  "Exciting to hear you're starting a business! 🚀 ",
+          "diaspora":        "Happy to help you manage things from abroad. 🌎 ",
+          "marriage":        "Congratulations on your upcoming marriage! 💍 ",
+          "death":           "I'm deeply sorry for your loss. I'll help make the paperwork as easy as possible. 🕊️ ",
+          "retirement":      "Congratulations on your retirement — you've earned it! 🏖️ ",
+          "driving-license": "Let's get your driver's license sorted. 🚗 ",
+          "property":        "Happy to help you navigate the property process. 🏠 ",
+          "education":       "Great that you're investing in education and training! 📚 ",
+          "housing":         "Let's find the housing support you qualify for. 🏘️ ",
+          "healthcare":      "Let's find the healthcare services available to you. 🏥 ",
+          "separation":      "I'm sorry you're going through this. I'll help make the legal process as clear as possible. 💙 ",
+          "social-benefits": "Let me find the social programs and assistance you qualify for. 🤝 ",
         }
         const empathyEs: Record<string, string> = {
-          "new-baby":       "¡Felicitaciones por tu bebé! 🎉 ",
-          "job-loss":       "Lamento mucho lo de tu trabajo — estoy acá para ayudarte. 💙 ",
-          "start-business": "¡Qué emocionante que estés arrancando tu negocio! 🚀 ",
-          "diaspora":       "Con gusto te ayudo a gestionar todo desde el exterior. 🌎 ",
+          "new-baby":        "¡Felicitaciones por tu bebé! 🎉 ",
+          "job-loss":        "Lamento mucho lo de tu trabajo — estoy acá para ayudarte. 💙 ",
+          "start-business":  "¡Qué emocionante que estés arrancando tu negocio! 🚀 ",
+          "diaspora":        "Con gusto te ayudo a gestionar todo desde el exterior. 🌎 ",
+          "marriage":        "¡Felicitaciones por tu próximo matrimonio! 💍 ",
+          "death":           "Te acompaño en este momento difícil. Voy a ayudarte con los trámites. 🕊️ ",
+          "retirement":      "¡Felicitaciones por tu jubilación — bien merecida! 🏖️ ",
+          "driving-license": "Te ayudo a tramitar tu licencia de conducir. 🚗 ",
+          "property":        "Te ayudo a navegar el proceso de la propiedad. 🏠 ",
+          "education":       "¡Qué bueno que estés invirtiendo en tu educación! 📚 ",
+          "housing":         "Vamos a encontrar el apoyo de vivienda al que calificás. 🏘️ ",
+          "healthcare":      "Vamos a encontrar los servicios de salud disponibles para vos. 🏥 ",
+          "separation":      "Lamento que estés pasando por esto. Voy a ayudarte a entender el proceso legal. 💙 ",
+          "social-benefits": "Vamos a encontrar los programas de asistencia social a los que calificás. 🤝 ",
         }
         const opener = lang === "es"
           ? (empathyEs[citizen.profile.lifeEvent] || "")
@@ -393,16 +420,36 @@ function ChatContent() {
           const isEs = lang === "es"
 
           const empathyEn: Record<string, string> = {
-            "new-baby":       "Congratulations on your new baby! 🎉",
-            "job-loss":       "I'm sorry to hear about your job loss — I'm here to help. 💙",
-            "start-business": "Exciting to hear you're starting a business! 🚀",
-            "diaspora":       "Happy to help you manage things from abroad. 🌎",
+            "new-baby":        "Congratulations on your new baby! 🎉",
+            "job-loss":        "I'm sorry to hear about your job loss — I'm here to help. 💙",
+            "start-business":  "Exciting to hear you're starting a business! 🚀",
+            "diaspora":        "Happy to help you manage things from abroad. 🌎",
+            "marriage":        "Congratulations on your upcoming marriage! 💍",
+            "death":           "I'm deeply sorry for your loss. Let me help with the paperwork. 🕊️",
+            "retirement":      "Congratulations on your retirement! 🏖️",
+            "driving-license": "Let's get your driver's license sorted. 🚗",
+            "property":        "Happy to help you navigate the property process. 🏠",
+            "education":       "Great that you're investing in education! 📚",
+            "housing":         "Let's find the housing support you qualify for. 🏘️",
+            "healthcare":      "Let's find the healthcare services available to you. 🏥",
+            "separation":      "I'm sorry you're going through this. Let me help with the legal steps. 💙",
+            "social-benefits": "Let me find the social programs you qualify for. 🤝",
           }
           const empathyEs: Record<string, string> = {
-            "new-baby":       "¡Felicitaciones por tu bebé! 🎉",
-            "job-loss":       "Lamento mucho lo de tu trabajo — estoy acá para ayudarte. 💙",
-            "start-business": "¡Qué emocionante que estés arrancando tu negocio! 🚀",
-            "diaspora":       "Con gusto te ayudo a gestionar todo desde el exterior. 🌎",
+            "new-baby":        "¡Felicitaciones por tu bebé! 🎉",
+            "job-loss":        "Lamento mucho lo de tu trabajo — estoy acá para ayudarte. 💙",
+            "start-business":  "¡Qué emocionante que estés arrancando tu negocio! 🚀",
+            "diaspora":        "Con gusto te ayudo a gestionar todo desde el exterior. 🌎",
+            "marriage":        "¡Felicitaciones por tu próximo matrimonio! 💍",
+            "death":           "Te acompaño en este momento difícil. Voy a ayudarte con los trámites. 🕊️",
+            "retirement":      "¡Felicitaciones por tu jubilación! 🏖️",
+            "driving-license": "Te ayudo a tramitar tu licencia de conducir. 🚗",
+            "property":        "Te ayudo a navegar el proceso de la propiedad. 🏠",
+            "education":       "¡Qué bueno que estés invirtiendo en tu educación! 📚",
+            "housing":         "Vamos a encontrar el apoyo de vivienda al que calificás. 🏘️",
+            "healthcare":      "Vamos a encontrar los servicios de salud disponibles para vos. 🏥",
+            "separation":      "Lamento que estés pasando por esto. Te ayudo con los pasos legales. 💙",
+            "social-benefits": "Vamos a encontrar los programas de asistencia a los que calificás. 🤝",
           }
           const opener = isEs ? (empathyEs[lifeEvent] || "") : (empathyEn[lifeEvent] || "")
 
