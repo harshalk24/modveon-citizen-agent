@@ -11,6 +11,7 @@ const nextConfig = {
       "@mendable/firecrawl-js",
       "undici",
       "node-fetch",
+      "@supabase/supabase-js",  // supabase client uses WebSocket (undici) at module init — must stay external
     ],
   },
 };
