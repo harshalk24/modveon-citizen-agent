@@ -1,9 +1,15 @@
 import { FirecrawlAppV1 } from "@mendable/firecrawl-js"
 import crypto from "crypto"
 
-const firecrawl = new FirecrawlAppV1({
-  apiKey: process.env.FIRECRAWL_API_KEY!,
-})
+// Lazy singleton — constructor is deferred until first crawl call so that
+// Next.js can build the route modules without FIRECRAWL_API_KEY present.
+let _firecrawl: FirecrawlAppV1 | null = null
+function getFirecrawl(): FirecrawlAppV1 {
+  if (!_firecrawl) {
+    _firecrawl = new FirecrawlAppV1({ apiKey: process.env.FIRECRAWL_API_KEY! })
+  }
+  return _firecrawl
+}
 
 // ── TYPES ─────────────────────────────────────────────
 export interface SeedEntry {
@@ -163,7 +169,7 @@ export function hashContent(content: string): string {
 // ── SCRAPE A SINGLE PAGE (1 Firecrawl credit) ─────────
 export async function scrapePage(entry: SeedEntry): Promise<CrawlResult | null> {
   try {
-    const result = await firecrawl.scrapeUrl(entry.url, {
+    const result = await getFirecrawl().scrapeUrl(entry.url, {
       formats: ["markdown"],
       onlyMainContent: true,
     })
@@ -193,7 +199,7 @@ export async function scrapePage(entry: SeedEntry): Promise<CrawlResult | null> 
 // Requires Firecrawl paid plan (Starter+). Free tier will error.
 export async function crawlSite(entry: SeedEntry): Promise<CrawlResult[]> {
   try {
-    const result = await firecrawl.crawlUrl(entry.url, {
+    const result = await getFirecrawl().crawlUrl(entry.url, {
       limit: entry.maxPages,
       scrapeOptions: { formats: ["markdown"], onlyMainContent: true },
     })

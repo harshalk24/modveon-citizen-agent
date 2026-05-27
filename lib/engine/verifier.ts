@@ -9,7 +9,12 @@
 import { GoogleGenerativeAI } from "@google/generative-ai"
 import type { ExtractedScheme } from "./extractor"
 
-const gemini = new GoogleGenerativeAI(process.env.GEMINI_API_KEY!)
+// Lazy singleton — deferred so Next.js can build without GEMINI_API_KEY set.
+let _gemini: GoogleGenerativeAI | null = null
+function getGemini(): GoogleGenerativeAI {
+  if (!_gemini) _gemini = new GoogleGenerativeAI(process.env.GEMINI_API_KEY!)
+  return _gemini
+}
 
 export type VerificationStatus = "pass" | "flag" | "fail"
 
@@ -101,7 +106,7 @@ async function validateContentMatch(
   schemeName: string,
   pageMarkdown: string
 ): Promise<{ matches: boolean; reason: string }> {
-  const model = gemini.getGenerativeModel({
+  const model = getGemini().getGenerativeModel({
     model: "gemini-2.0-flash",
     generationConfig: {
       responseMimeType: "application/json",
@@ -191,7 +196,7 @@ async function validateChangeSignificance(
     return { significant: false, changedFields: [] }
   }
 
-  const model = gemini.getGenerativeModel({
+  const model = getGemini().getGenerativeModel({
     model: "gemini-2.0-flash",
     generationConfig: {
       responseMimeType: "application/json",

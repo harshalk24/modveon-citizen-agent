@@ -1,7 +1,12 @@
 import { GoogleGenerativeAI } from "@google/generative-ai"
 import type { CrawlResult } from "./crawler"
 
-const gemini = new GoogleGenerativeAI(process.env.GEMINI_API_KEY!)
+// Lazy singleton — deferred so Next.js can build without GEMINI_API_KEY set.
+let _gemini: GoogleGenerativeAI | null = null
+function getGemini(): GoogleGenerativeAI {
+  if (!_gemini) _gemini = new GoogleGenerativeAI(process.env.GEMINI_API_KEY!)
+  return _gemini
+}
 
 // ── SUPPLEMENTARY DOMAIN BLOCKLIST ────────────────────
 // These sites are used ONLY as knowledge sources for scraping.
@@ -122,7 +127,7 @@ export interface ExtractedScheme {
 export async function extractSchemes(
   crawlResult: CrawlResult
 ): Promise<ExtractedScheme[]> {
-  const model = gemini.getGenerativeModel({
+  const model = getGemini().getGenerativeModel({
     model: "gemini-2.0-flash",
     generationConfig: {
       responseMimeType: "application/json",
