@@ -3,19 +3,21 @@
 import { useState, useEffect } from "react"
 import {
   CheckCircle2, Loader2, Circle, AlertCircle,
-  FileText, Minus, ChevronDown, ChevronUp, ShieldCheck, Phone,
+  FileText, Minus, ChevronDown, ChevronUp, ShieldCheck, Phone, ExternalLink,
 } from "lucide-react"
 import type { PreviewMessage } from "../types"
 
 /* ── Minimal markdown: **bold** and \n newlines ─────────────── */
 function Md({ text }: { text: string }) {
-  const parts = text.split(/(\*\*[^*]+\*\*|\n)/g)
+  const parts = text.split(/(\*\*[^*]+\*\*|\n|\$[\d,]+(?:\/mo(?:nth)?)?)/g)
   return (
     <>
       {parts.map((p, i) => {
         if (p.startsWith("**") && p.endsWith("**"))
           return <strong key={i} className="font-semibold text-gray-900">{p.slice(2, -2)}</strong>
         if (p === "\n") return <br key={i} />
+        if (/^\$[\d,]/.test(p))
+          return <span key={i} className="font-semibold text-emerald-700 bg-emerald-50 px-0.5 rounded">{p}</span>
         return <span key={i}>{p}</span>
       })}
     </>
@@ -154,12 +156,62 @@ interface Props {
 export default function PreviewMessageRenderer({ message, onAction }: Props) {
   const { type } = message
 
+  /* benefit card — matches /chat BenefitCard style ─────────── */
+  if ((type as string) === "benefit") {
+    const urgent = (message as any).urgent
+    const mode   = (message as any).docMode
+    const value  = (message as any).benefitValue
+    const url    = (message as any).docApplyUrl
+    return (
+      <div className="flex justify-start">
+        <div className="max-w-[90%] w-full">
+          {/* No agent label — benefit cards flow as a list without repeating headers */}
+          <div className={`border-l-4 ${urgent ? "border-amber-400" : "border-[#FFC400]"} bg-white rounded-r-xl p-3 shadow-sm`}>
+            {/* Header: name + value + Apply now */}
+            <div className="flex items-start justify-between gap-2 mb-1.5">
+              <div className="flex items-center gap-2 flex-wrap min-w-0">
+                <span className="font-semibold text-sm text-gray-800">{message.docName}</span>
+                {urgent && <span className="text-[10px] font-bold bg-amber-100 text-amber-700 px-1.5 py-0.5 rounded">⚠️ Time-sensitive</span>}
+              </div>
+              <div className="flex items-center gap-2 flex-shrink-0">
+                {value && <span className="text-xs font-semibold bg-emerald-50 text-emerald-700 px-2 py-0.5 rounded-full">{value}</span>}
+                {url && (
+                  <a href={url} target="_blank" rel="noopener noreferrer"
+                    className="inline-flex items-center gap-1 px-2.5 py-1 text-[11px] font-bold bg-[#FFC400] text-yellow-900 rounded-lg hover:bg-[#E5AF00] transition-colors">
+                    <ExternalLink size={10} />
+                    Apply now
+                  </a>
+                )}
+              </div>
+            </div>
+            {/* Description */}
+            {message.content && (
+              <p className="text-sm text-gray-700 leading-relaxed">{message.content}</p>
+            )}
+            {/* Mode badge */}
+            {mode && (
+              <div className="mt-2">
+                <span className={`text-[10px] font-semibold px-2 py-0.5 rounded-full border ${
+                  mode === "online"
+                    ? "bg-blue-50 text-blue-700 border-blue-200"
+                    : "bg-amber-50 text-amber-700 border-amber-200"
+                }`}>
+                  {mode === "online" ? "🌐 Online" : "📍 In-person"}
+                </span>
+              </div>
+            )}
+          </div>
+        </div>
+      </div>
+    )
+  }
+
   /* assistant / status ─────────────────────────────────────── */
   if (type === "assistant" || type === "status") {
     return (
       <div className="flex justify-start">
         <div className="max-w-[85%]">
-          <p className="text-[11px] text-gray-400 px-1 mb-1">Citizen Assist</p>
+          <p className="text-[11px] text-gray-400 px-1 mb-1">Citizen Agent</p>
           <div className="bg-white border border-gray-200 rounded-2xl rounded-tl-sm px-4 py-3 shadow-sm text-sm text-gray-800 leading-relaxed">
             {message.content && <Md text={message.content} />}
           </div>
@@ -184,7 +236,7 @@ export default function PreviewMessageRenderer({ message, onAction }: Props) {
     return (
       <div className="flex justify-start">
         <div className="w-full max-w-[90%]">
-          <p className="text-[11px] text-gray-400 px-1 mb-1">Citizen Assist</p>
+          <p className="text-[11px] text-gray-400 px-1 mb-1">Citizen Agent</p>
           <ActivityCard msg={message} />
         </div>
       </div>
@@ -196,7 +248,7 @@ export default function PreviewMessageRenderer({ message, onAction }: Props) {
     return (
       <div className="flex justify-start">
         <div className="max-w-[85%] w-full">
-          <p className="text-[11px] text-gray-400 px-1 mb-1">Citizen Assist</p>
+          <p className="text-[11px] text-gray-400 px-1 mb-1">Citizen Agent</p>
           <div className="border-l-4 border-emerald-400 bg-emerald-50 rounded-r-xl p-3">
             <div className="flex items-center justify-between mb-2">
               <div className="flex items-center gap-1.5">
@@ -217,6 +269,23 @@ export default function PreviewMessageRenderer({ message, onAction }: Props) {
                 </div>
               ))}
             </div>
+            {(message as any).docApplyUrl && (
+              <div className="mt-2 pt-2 border-t border-emerald-200 flex items-center gap-2">
+                <a href={(message as any).docApplyUrl} target="_blank" rel="noopener noreferrer"
+                  className="inline-flex items-center gap-1.5 px-3 py-1.5 text-xs font-bold bg-[#FFC400] text-yellow-900 rounded-lg hover:bg-[#E5AF00] transition-colors">
+                  Apply now →
+                </a>
+                {(message as any).docMode && (
+                  <span className={`text-[10px] font-semibold px-2 py-0.5 rounded-full border ${
+                    (message as any).docMode === "online"
+                      ? "bg-blue-50 text-blue-700 border-blue-200"
+                      : "bg-amber-50 text-amber-700 border-amber-200"
+                  }`}>
+                    {(message as any).docMode === "online" ? "🌐 Online" : "📍 In-person"}
+                  </span>
+                )}
+              </div>
+            )}
           </div>
         </div>
       </div>
@@ -228,7 +297,7 @@ export default function PreviewMessageRenderer({ message, onAction }: Props) {
     return (
       <div className="flex justify-start">
         <div className="max-w-[85%]">
-          <p className="text-[11px] text-gray-400 px-1 mb-1">Citizen Assist</p>
+          <p className="text-[11px] text-gray-400 px-1 mb-1">Citizen Agent</p>
           <div className="border-l-4 border-blue-400 bg-blue-50 rounded-r-xl p-3">
             <div className="flex items-center gap-1.5 mb-1">
               <FileText size={13} className="text-blue-700" />
@@ -254,21 +323,28 @@ export default function PreviewMessageRenderer({ message, onAction }: Props) {
     return (
       <div className="flex justify-start">
         <div className="w-full max-w-[90%]">
-          <p className="text-[11px] text-gray-400 px-1 mb-1">Citizen Assist</p>
+          <p className="text-[11px] text-gray-400 px-1 mb-1">Citizen Agent</p>
           {message.content && (
             <div className="bg-white border border-gray-200 rounded-2xl rounded-tl-sm px-4 py-3 shadow-sm text-sm text-gray-800 leading-relaxed mb-2">
               <Md text={message.content} />
             </div>
           )}
           <div className="bg-white border border-gray-200 rounded-xl overflow-hidden shadow-sm">
-            {/* Header */}
-            <div className="bg-yellow-50 px-4 py-3 flex items-center gap-3 border-b border-yellow-100">
-              <div className="w-8 h-8 rounded-lg bg-yellow-400 flex items-center justify-center text-xs font-bold text-yellow-900">RN</div>
-              <div>
-                <p className="text-sm font-semibold text-gray-800">Birth Registration — RNPN</p>
-                <p className="text-xs text-gray-500">Preview — review before submitting</p>
-              </div>
-            </div>
+            {/* Header — title/agency read from message, fallback to RNPN for the chat demo */}
+            {(() => {
+              const title  = (message as any).formTitle  || "Birth Registration — RNPN"
+              const agency = (message as any).formAgency || "RNPN"
+              const abbrev = agency.slice(0, 3).toUpperCase()
+              return (
+                <div className="bg-yellow-50 px-4 py-3 flex items-center gap-3 border-b border-yellow-100">
+                  <div className="w-8 h-8 rounded-lg bg-yellow-400 flex items-center justify-center text-xs font-bold text-yellow-900">{abbrev}</div>
+                  <div>
+                    <p className="text-sm font-semibold text-gray-800">{title}</p>
+                    <p className="text-xs text-gray-500">Preview — review before submitting</p>
+                  </div>
+                </div>
+              )
+            })()}
             {/* Fields */}
             <div className="divide-y divide-gray-50">
               {fields.map((f, i) => (
@@ -314,7 +390,7 @@ export default function PreviewMessageRenderer({ message, onAction }: Props) {
     return (
       <div className="flex justify-start">
         <div className="max-w-[85%]">
-          <p className="text-[11px] text-gray-400 px-1 mb-1">Citizen Assist</p>
+          <p className="text-[11px] text-gray-400 px-1 mb-1">Citizen Agent</p>
           <div className="border-l-4 border-yellow-400 bg-yellow-50 rounded-r-xl p-3">
             {message.content && (
               <p className="text-sm text-gray-800 mb-3 leading-relaxed">
@@ -347,7 +423,7 @@ export default function PreviewMessageRenderer({ message, onAction }: Props) {
     return (
       <div className="flex justify-start">
         <div className="max-w-[85%]">
-          <p className="text-[11px] text-gray-400 px-1 mb-1">Citizen Assist</p>
+          <p className="text-[11px] text-gray-400 px-1 mb-1">Citizen Agent</p>
           <div className="bg-white border border-gray-200 rounded-xl overflow-hidden shadow-sm">
             <div className="bg-green-600 px-3 py-2 flex items-center gap-2">
               <Phone size={12} className="text-white" />

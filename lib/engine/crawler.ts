@@ -62,10 +62,9 @@ export const SEED_URLS: Record<string, SeedEntry[]> = {
 
     // ── ISSS ─────────────────────────────────────────
     // Covers maternity, paternity, unemployment, dependent enrollment
-    { url: "https://www.isss.gob.sv",                                                    agency: "ISSS", crawl: false, maxPages: 1 },
-    { url: "https://www.isss.gob.sv/portal/index.php/servicios/prestaciones-economicas", agency: "ISSS", crawl: false, maxPages: 1 },
-    { url: "https://www.isss.gob.sv/portal/index.php/servicios/prestaciones-medicas",    agency: "ISSS", crawl: false, maxPages: 1 },
-    { url: "https://www.isss.gob.sv/portal/index.php/servicios/inscripcion",             agency: "ISSS", crawl: false, maxPages: 1 },
+    { url: "https://www.isss.gob.sv",                                       agency: "ISSS", crawl: false, maxPages: 1 },
+    { url: "https://www.isss.gob.sv/portal/index.php/servicios",           agency: "ISSS", crawl: false, maxPages: 1 },
+    { url: "https://www.isss.gob.sv/portal/index.php/afiliados",           agency: "ISSS", crawl: false, maxPages: 1 },
 
     // ── RNPN ─────────────────────────────────────────
     // Birth registration, DUI issuance, ID services

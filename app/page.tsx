@@ -58,7 +58,7 @@ function HeroMockup() {
           <div className="w-5 h-5 rounded-md bg-[#1B3A8C] flex items-center justify-center">
             <MessageSquare size={9} className="text-white" />
           </div>
-          <span className="text-xs font-semibold text-white/60">Citizen Assist</span>
+          <span className="text-xs font-semibold text-white/60">Citizen Agent</span>
           <div className="ml-auto flex gap-1">
             <div className="w-2 h-2 rounded-full bg-white/10" />
             <div className="w-2 h-2 rounded-full bg-white/10" />
@@ -163,7 +163,7 @@ const CARDS = [
     bg: "bg-[#1B3A8C]",
     label: "Benefits finder",
     headline: "Every benefit.\nSurfaced instantly.",
-    body: "We match your profile against every government program in El Salvador and surface everything you qualify for.",
+    body: "We match your profile against every government program and surface everything you qualify for.",
     pill: "6 benefits found",
     pillSub: "New baby · ISSS · RNPN",
     light: false,
@@ -211,7 +211,7 @@ export default function LandingPage() {
             <div className="w-7 h-7 rounded-lg bg-[#1B3A8C] flex items-center justify-center">
               <MessageSquare size={13} className="text-white" />
             </div>
-            <span className="font-bold text-gray-900 text-sm tracking-tight">Citizen Assist</span>
+            <span className="font-bold text-gray-900 text-sm tracking-tight">Citizen Agent</span>
           </div>
           <div className="flex items-center gap-3">
             <Link href="/chat" className="text-sm text-gray-500 hover:text-gray-800 transition-colors">
@@ -257,7 +257,7 @@ export default function LandingPage() {
                 transition={{ duration: 0.5, delay: 0.1 }}
                 className="inline-flex items-center gap-2 text-xs font-medium px-3 py-1.5 rounded-full border border-white/10 bg-white/5 text-white/50 mb-8"
               >
-                🇸🇻 El Salvador · Powered by AI
+                Powered by AI
               </motion.div>
 
               <motion.h1
@@ -266,7 +266,7 @@ export default function LandingPage() {
                 transition={{ duration: 0.7, delay: 0.2, ease: [0.22, 1, 0.36, 1] }}
                 className="text-[clamp(2.5rem,5vw,4.2rem)] font-extrabold text-white leading-[1.06] tracking-tight mb-6"
               >
-                El Salvador has<br />
+                Governments have<br />
                 benefits for you.<br />
                 <span className="text-[#5BA8F0]">Most people never find them.</span>
               </motion.h1>
@@ -277,7 +277,7 @@ export default function LandingPage() {
                 transition={{ duration: 0.5, delay: 0.35 }}
                 className="text-[1rem] text-white/42 max-w-md mb-10 leading-relaxed"
               >
-                Navigating government benefits in El Salvador is confusing and time-consuming. We fix that — describe your situation once and we surface every program you qualify for, instantly.
+                Navigating government benefits is confusing and time-consuming. We fix that — describe your situation once and we surface every program you qualify for, instantly.
               </motion.p>
 
             </div>
@@ -441,7 +441,7 @@ export default function LandingPage() {
       <FadeUp className="py-16 px-6">
         <div className="max-w-5xl mx-auto">
           <p className="text-[0.68rem] font-bold text-gray-400 uppercase tracking-widest text-center mb-10">
-            Who uses Citizen Assist
+            Who uses Citizen Agent
           </p>
           <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
             {[
@@ -489,7 +489,7 @@ export default function LandingPage() {
                 Ready to find what you&apos;re owed?
               </h2>
               <p className="text-sm text-white/38 mb-10">
-                Free forever · No account required · El Salvador
+                Free forever · No account required 
               </p>
               <Link
                 href="/chat"
@@ -509,9 +509,9 @@ export default function LandingPage() {
             <div className="w-6 h-6 rounded-lg bg-[#1B3A8C] flex items-center justify-center">
               <MessageSquare size={10} className="text-white" />
             </div>
-            <span className="text-sm font-semibold text-gray-600">Citizen Assist</span>
+            <span className="text-sm font-semibold text-gray-600">Citizen Agent</span>
           </div>
-          <span className="text-xs text-gray-400">Free · No account required · El Salvador</span>
+          <span className="text-xs text-gray-400">Free · No account required </span>
         </div>
       </footer>
 

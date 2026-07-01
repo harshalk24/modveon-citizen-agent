@@ -157,7 +157,7 @@ export default function DashboardPage() {
           {[
             { emoji: "🛒", label: tr.contextPills[resolvedLifeEvent as keyof typeof tr.contextPills] || resolvedLifeEvent },
             resolvedEmployment !== "any" && { emoji: "💼", label: tr.contextPills[resolvedEmployment as keyof typeof tr.contextPills] || resolvedEmployment },
-            { emoji: "📍", label: "El Salvador" },
+            resolvedCountry ? { emoji: "📍", label: resolvedCountry === "SV" ? "El Salvador" : resolvedCountry } : null,
           ].filter(Boolean).map((pill: any, i) => (
             <span key={i} className="inline-flex items-center gap-1.5 text-xs font-medium px-3 py-1 rounded-full bg-gray-100 text-gray-600">
               {pill.emoji} {pill.label}

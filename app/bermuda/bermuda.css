@@ -1,0 +1,240 @@
+@import url('https://fonts.googleapis.com/css2?family=Space+Grotesk:wght@500;600;700&family=Hanken+Grotesk:wght@400;500;600;700&display=swap');
+
+:root {
+  --ca-canvas:     #F8F6F1;
+  --ca-gallery:    #E7E2D7;
+  --ca-card:       #FFFFFF;
+  --ca-raised:     #F3EEE5;
+  --ca-border:     #EAE5DB;
+  --ca-border2:    #E0DACE;
+  --ca-hair:       #F0ECE2;
+  --ca-line:       #ECE6DC;
+
+  --ca-sidebar:    #1E3550;
+  --ca-sb-border:  #2C435E;
+  --ca-sb-active:  #28425E;
+  --ca-sb-text:    #EDEFF2;
+  --ca-sb-muted:   #A9B4C4;
+  --ca-sb-faint:   #7C8B9E;
+
+  --ca-ink:        #1E3550;
+  --ca-body:       #3A4656;
+  --ca-muted:      #6A7280;
+  --ca-faint:      #9AA0A8;
+
+  --ca-accent:     #B0524A;
+  --ca-accent-d:   #974640;
+  --ca-accent-soft:#F4E4E0;
+
+  --ca-ok:         #3C7D5A;
+  --ca-ok-t:       #326B4D;
+  --ca-ok-bg:      #E7F1EB;
+  --ca-ok-bd:      #D2E5D8;
+
+  --ca-alert:      #B58233;
+  --ca-alert-t:    #8E6627;
+  --ca-alert-bg:   #F6EFD9;
+  --ca-alert-bd:   #E7DCB8;
+
+  --ca-info:       #35618C;
+  --ca-info-bg:    #E7EDF4;
+  --ca-info-bd:    #D0DCEB;
+
+  --ca-danger:     #D64242;
+  --ca-danger-bg:  #FAE0DB;
+  --ca-danger-bd:  #F2CDC5;
+
+  --ca-sand-bg:    #F6E7E2;
+  --ca-chip-bg:    #F1EDE4;
+  --ca-sky:        #7FA8C9;
+
+  --ca-r-sm:  9px;
+  --ca-r-md:  12px;
+  --ca-r-lg:  14px;
+  --ca-r-xl:  16px;
+  --ca-r-pill:99px;
+
+  --ca-shadow-card:  0 1px 2px rgba(30,53,80,.05);
+  --ca-shadow-sheet: 0 2px 8px -2px rgba(30,53,80,.10);
+
+  --ca-sidebar-w: 248px;
+
+  --ca-font-display: 'Space Grotesk', system-ui, sans-serif;
+  --ca-font-body:    'Hanken Grotesk', system-ui, sans-serif;
+  --ca-font-mono:    ui-monospace, Menlo, Consolas, monospace;
+}
+
+@keyframes ca-fade {
+  from { opacity: 0; transform: translateY(8px); }
+  to   { opacity: 1; transform: none; }
+}
+
+@keyframes ca-dot {
+  0%, 80%, 100% { transform: translateY(0);   opacity: .4; }
+  40%            { transform: translateY(-3px); opacity: 1;  }
+}
+
+@keyframes ca-caret {
+  0%, 100% { opacity: 1; }
+  50%       { opacity: 0; }
+}
+
+.ca-fade { animation: ca-fade 0.5s ease both; }
+
+.ca-dot-anim { display: flex; gap: 4px; align-items: center; }
+.ca-dot-anim span {
+  width: 6px; height: 6px; border-radius: 50%;
+  background: var(--ca-accent); display: inline-block;
+}
+.ca-dot-anim span:nth-child(1) { animation: ca-dot 1.2s infinite; }
+.ca-dot-anim span:nth-child(2) { animation: ca-dot 1.2s .15s infinite; }
+.ca-dot-anim span:nth-child(3) { animation: ca-dot 1.2s .3s infinite; }
+
+/* ── Responsive: narrow viewport / inside phone frame iframe ───────────────── */
+
+/* Hamburger button: hidden on desktop, visible on mobile */
+@media (min-width: 768px) {
+  .ca-hamburger { display: none !important; }
+}
+
+@media (max-width: 767px) {
+
+  /* ── Status-bar / Dynamic Island clearance (matches 48px status bar) ───── */
+  /* Dark bg ensures white time/icons are readable over the status bar strip */
+  .ca-fixed-root { padding-top: 48px; background-color: #1E3550 !important; }
+
+  /* ── Phone frame toggle: hide on mobile (pointless to nest frames) ──────── */
+  .ca-phone-toggle { display: none !important; }
+
+  /* ── Sidebar: hidden by default, overlay below status bar when open ─────── */
+  .ca-sidebar { display: none !important; }
+  .ca-sidebar.ca-mobile-open {
+    display: flex !important;
+    position: fixed !important;
+    top: 56px !important;   /* clears phone-frame status bar / Dynamic Island */
+    bottom: 0 !important;
+    left: 0 !important;
+    z-index: 80 !important;
+    width: var(--ca-sidebar-w) !important;
+  }
+
+  /* ── Topbar: single row — hamburger + name + toggle all on one line ─────── */
+  .ca-topbar {
+    padding: 4px 10px !important;
+    flex-wrap: nowrap !important;
+    gap: 0 !important;
+    align-items: center !important;
+    min-height: 0 !important;
+    background-color: #1E3550 !important;
+    border-bottom-color: #2C435E !important;
+  }
+  .ca-topbar-greeting { font-size: 13px !important; letter-spacing: -0.01em !important; line-height: 1.2 !important; color: #EDEFF2 !important; }
+  /* Hide "Good morning/afternoon" prefix — show only first name */
+  .ca-greeting-text { display: none !important; }
+  /* Hide subtitle to save vertical space */
+  .ca-topbar-subtitle { display: none !important; }
+
+  /* Right section: same row as greeting, pushed to right */
+  .ca-topbar-right {
+    width: auto !important;
+    margin-left: auto !important;
+    gap: 3px !important;
+    padding-bottom: 0 !important;
+    flex-wrap: nowrap !important;
+    flex-shrink: 0 !important;
+  }
+  .ca-demo-badge { display: none !important; }
+  .ca-layer-pill { display: none !important; }
+  /* Tab toggle container: dark variant */
+  .ca-topbar-right > div { background-color: #152c45 !important; }
+  /* Active tab: light chip on dark bg */
+  .ca-topbar-right a { padding: 3px 7px !important; font-size: 10px !important; color: #A9B4C4 !important; }
+  .ca-topbar-right a[style*="background-color: rgb(255"] { color: #1E3550 !important; }
+
+  /* ── Hamburger: white on dark topbar ───────────────────────────────────── */
+  .ca-hamburger { display: flex !important; width: 22px !important; height: 22px !important; color: #A9B4C4 !important; }
+
+  /* ── Context pills: hidden on mobile (saves ~40px of vertical space) ─────  */
+  .ca-context-pills-outer { display: none !important; }
+
+  /* ── Message feed: contain overscroll, hide scrollbar ──────────────────── */
+  .ca-message-feed {
+    overscroll-behavior: contain !important;
+    scrollbar-width: none !important;
+  }
+  .ca-message-feed::-webkit-scrollbar { display: none; }
+  /* Tighter message spacing on narrow screen */
+  .ca-message-feed-inner {
+    padding: 16px 0 12px !important;
+    gap: 16px !important;
+  }
+
+  /* ── Welcome: start-aligned + scrollable ───────────────────────────────── */
+  .ca-welcome-content {
+    padding: 16px 12px 12px !important;
+    justify-content: flex-start !important;
+    overflow-y: auto !important;
+  }
+  .ca-welcome-heading { font-size: 20px !important; }
+  .ca-welcome-tagline { font-size: 12px !important; margin-top: 6px !important; }
+
+  /* ── Prompt cards: compact ──────────────────────────────────────────────── */
+  .ca-prompt-card { padding: 10px 12px !important; gap: 10px !important; border-radius: 11px !important; }
+  .ca-prompt-card-icon { width: 30px !important; height: 30px !important; border-radius: 8px !important; font-size: 16px !important; }
+  .ca-prompt-card-title { font-size: 11.5px !important; }
+  .ca-prompt-card-subtitle { font-size: 10px !important; }
+
+  /* ── StepCard: pill moves below title at narrow width ──────────────────── */
+  .ca-step-card-header {
+    flex-direction: column !important;
+    gap: 5px !important;
+  }
+  .ca-step-card-header > span {
+    align-self: flex-start !important;
+    font-size: 10px !important;
+    padding: 2px 7px !important;
+  }
+
+  /* ── Chips (all scenarios): transparent bg, wrap layout, compact ─────────  */
+  .ca-chips-wrapper {
+    background: transparent !important;
+    border-top: none !important;
+    padding: 2px 10px 6px !important;
+  }
+  .ca-chips-inner {
+    flex-wrap: wrap !important;
+    gap: 4px !important;
+    padding-left: 0 !important;
+  }
+  .ca-suggestion-chip {
+    padding: 3px 9px !important;
+    font-size: 10px !important;
+    white-space: nowrap !important;
+  }
+
+  /* ── Plan page: compact header + content ───────────────────────────────── */
+  .ca-plan-back-link { display: none !important; }
+  .ca-plan-subtitle  { display: none !important; }
+  .ca-plan-header { padding: 7px 12px 6px !important; }
+  .ca-plan-heading { font-size: 14px !important; letter-spacing: -0.02em !important; }
+  .ca-plan-progress { margin-top: 6px !important; height: 4px !important; }
+  .ca-plan-content { padding: 10px 12px 20px !important; gap: 10px !important; }
+
+  /* ── Plan step cards: compact ───────────────────────────────────────────── */
+  .ca-plan-phase-header { padding: 10px 13px !important; }
+  .ca-plan-phase-label { font-size: 12px !important; }
+  .ca-plan-step-body { padding: 12px 13px !important; }
+  .ca-plan-step-title { font-size: 12px !important; }
+  .ca-plan-step-location { font-size: 11px !important; margin-bottom: 5px !important; }
+  .ca-plan-step-meta { font-size: 10.5px !important; margin-bottom: 8px !important; }
+  .ca-plan-step-note { font-size: 11px !important; padding: 8px 10px !important; margin-bottom: 10px !important; }
+  .ca-plan-step-docs { padding: 8px 10px !important; margin-bottom: 8px !important; }
+  .ca-plan-step-docs-title { font-size: 9px !important; }
+  .ca-plan-step-docs-item { font-size: 11px !important; }
+  .ca-plan-step-actions button,
+  .ca-plan-step-actions a { padding: 7px 12px !important; font-size: 11px !important; }
+
+  /* ── Composer ───────────────────────────────────────────────────────────── */
+  .ca-composer-input-wrap { padding: 8px 8px 8px 12px !important; }
+  .ca-composer-input-wrap input { font-size: 12px !important; }
+}

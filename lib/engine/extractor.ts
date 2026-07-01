@@ -166,6 +166,10 @@ Rules:
   find the .gob.sv link mentioned in the page content — never use the supplementary site's own URL.
   If no .gob.sv URL appears in the content, use the most relevant agency root (e.g. "https://www.isss.gob.sv").
   Never set official_link to a login portal URL (login.gob.sv) — use the pre-login service page instead.
+- IGNORE navigation elements, menu items, login buttons, download links, and generic page sections. Only extract actual citizen-facing services or benefits with eligibility criteria.
+- A valid scheme must have at minimum: a name, who it's for, and what the citizen needs to do or receives. If any of these are missing from the page content, do not extract it.
+- Minimum description length: 2 sentences. If you cannot write 2 sentences about what this service does and who qualifies, it is not a real scheme.
+- IGNORE internal administrative systems, compliance tools, anti-corruption portals, payroll systems, or anything that is not directly accessible and usable by a regular citizen. If the service requires the user to be a government employee or institution, do not extract it.
 
 Return ONLY valid JSON array, no markdown, no preamble:
 [

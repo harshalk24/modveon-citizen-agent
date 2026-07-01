@@ -20,7 +20,7 @@ export async function sendWhatsAppReminder(params: {
 }) {
   if (!params.phone) return
   const message = `
-*Citizen Assist* — Deadline reminder
+*Citizen Agent* — Deadline reminder
 
 *${params.daysLeft} days* left for: *${params.deadline.title}*
 

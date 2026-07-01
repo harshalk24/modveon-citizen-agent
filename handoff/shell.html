@@ -1,0 +1,232 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>CA Shell — Sidebar + Topbar</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Space+Grotesk:wght@500;600;700&family=Hanken+Grotesk:wght@400;500;600;700&display=swap" rel="stylesheet">
+<link rel="stylesheet" href="tokens.css">
+<style>
+  html, body { height: 100%; margin: 0; }
+  .ca-layout { display: flex; height: 100vh; overflow: hidden; font-family: var(--ca-font-body); background: var(--ca-canvas); }
+
+  /* ── Sidebar ──────────────────────────────────── */
+  .ca-sidebar {
+    width: var(--ca-sidebar-w);
+    flex-shrink: 0;
+    background: var(--ca-sidebar);
+    border-right: 1px solid var(--ca-sb-border);
+    display: flex;
+    flex-direction: column;
+    padding: 22px 14px;
+    z-index: var(--ca-z-sidebar);
+  }
+
+  /* Logo */
+  .ca-logo { display: flex; align-items: center; gap: 11px; padding: 2px 6px 0; }
+  .ca-logo__mark {
+    width: 34px; height: 34px;
+    border-radius: 10px;
+    background: var(--ca-accent);
+    color: #fff;
+    display: flex; align-items: center; justify-content: center;
+    font-family: var(--ca-font-display);
+    font-size: 15px; font-weight: 700;
+    flex-shrink: 0;
+  }
+  .ca-logo__name { font-size: 14.5px; font-weight: 600; color: var(--ca-sb-text); letter-spacing: -.01em; }
+  .ca-logo__sub  { font-size: 11px; color: var(--ca-sb-faint); margin-top: 1px; }
+
+  /* New conversation button */
+  .ca-new-conv {
+    margin-top: 22px;
+    display: flex; align-items: center; gap: 9px;
+    width: 100%; padding: 10px 12px;
+    border-radius: 11px;
+    border: 1px solid var(--ca-sb-border);
+    background: var(--ca-sb-active);
+    color: var(--ca-sb-text);
+    font-size: 13px; font-weight: 600;
+    font-family: var(--ca-font-body);
+    cursor: pointer; text-align: left;
+    transition: opacity .15s;
+  }
+  .ca-new-conv:hover { opacity: .85; }
+  .ca-new-conv svg   { flex-shrink: 0; }
+
+  /* Nav */
+  .ca-nav { margin-top: 20px; display: flex; flex-direction: column; gap: 3px; }
+  .ca-nav__item {
+    display: flex; align-items: center; gap: 11px;
+    padding: 9px 12px; border-radius: 10px;
+    color: var(--ca-sb-muted);
+    font-size: 13px; font-weight: 500;
+    text-decoration: none;
+    transition: background .12s, color .12s;
+  }
+  .ca-nav__item:hover { background: var(--ca-sb-active); color: var(--ca-sb-text); }
+  .ca-nav__item.active {
+    background: var(--ca-sb-active);
+    color: #fff; font-weight: 600;
+  }
+  .ca-nav__item.active svg { stroke: var(--ca-accent) !important; }
+  .ca-nav__item svg { flex-shrink: 0; }
+
+  /* Recent section */
+  .ca-recent { margin-top: 18px; border-top: 1px solid var(--ca-sb-border); padding-top: 16px; display: flex; flex-direction: column; gap: 4px; }
+  .ca-recent__label { font-size: 10.5px; font-weight: 600; letter-spacing: .06em; text-transform: uppercase; color: var(--ca-sb-faint); padding: 0 6px 4px; }
+  .ca-recent__item  { padding: 7px 12px; border-radius: 9px; font-size: 12.5px; color: var(--ca-sb-muted); text-decoration: none; transition: background .12s; }
+  .ca-recent__item:hover  { background: var(--ca-sb-active); color: var(--ca-sb-text); }
+  .ca-recent__item.active { background: var(--ca-sb-active); color: var(--ca-sb-text); }
+
+  /* Lang toggle */
+  .ca-lang { display: flex; gap: 4px; background: var(--ca-sb-active); border-radius: 10px; padding: 3px; }
+  .ca-lang__opt { flex: 1; text-align: center; padding: 5px; font-size: 11.5px; font-weight: 500; color: var(--ca-sb-faint); border-radius: 7px; cursor: pointer; }
+  .ca-lang__opt.active { background: #28425E; color: var(--ca-sb-text); font-weight: 600; }
+
+  /* User tile */
+  .ca-user-tile {
+    display: flex; align-items: center; gap: 10px;
+    padding: 8px; border-radius: 11px;
+    border: 1px solid var(--ca-sb-border);
+  }
+  .ca-user-tile__avatar {
+    width: 30px; height: 30px; border-radius: 9px;
+    background: #0E3D52; color: var(--ca-sky);
+    display: flex; align-items: center; justify-content: center;
+    font-size: 12px; font-weight: 600; flex-shrink: 0;
+  }
+  .ca-user-tile__name   { font-size: 12.5px; font-weight: 600; color: var(--ca-sb-text); }
+  .ca-user-tile__status { font-size: 10.5px; color: var(--ca-sb-faint); }
+
+  /* ── Main area ───────────────────────────────── */
+  .ca-main { flex: 1; display: flex; flex-direction: column; min-width: 0; overflow: hidden; }
+
+  /* Topbar */
+  .ca-topbar {
+    display: flex; justify-content: space-between; align-items: center;
+    padding: 16px 30px;
+    border-bottom: 1px solid var(--ca-line);
+    flex-shrink: 0;
+  }
+  .ca-topbar__title { font-family: var(--ca-font-display); font-size: 18px; font-weight: 600; color: var(--ca-ink); letter-spacing: -.02em; }
+  .ca-topbar__sub   { font-size: 12px; color: var(--ca-faint); margin-top: 1px; }
+  .ca-topbar__right { display: flex; align-items: center; gap: 12px; }
+
+  /* Layer badge */
+  .ca-layer-badge { font-size: 12px; font-weight: 600; color: var(--ca-muted); background: var(--ca-chip-bg); padding: 5px 11px; border-radius: 8px; }
+
+  /* Mode toggle */
+  .ca-mode-toggle { display: flex; background: var(--ca-chip-bg); border-radius: 11px; padding: 3px; }
+  .ca-mode-toggle__opt { padding: 6px 15px; font-size: 12.5px; font-weight: 500; color: var(--ca-muted); border-radius: 8px; cursor: pointer; }
+  .ca-mode-toggle__opt.active { background: var(--ca-card); color: var(--ca-ink); font-weight: 600; box-shadow: 0 1px 2px rgba(30,53,80,.08); }
+
+  /* Content slot */
+  .ca-content { flex: 1; overflow-y: auto; }
+
+  /* Spacer pushes user tile to bottom */
+  .ca-sidebar__spacer { flex: 1; }
+</style>
+</head>
+<body>
+
+<div class="ca-layout">
+
+  <!-- ═══════════════════ SIDEBAR ═══════════════════ -->
+  <aside class="ca-sidebar">
+
+    <div class="ca-logo">
+      <div class="ca-logo__mark">CA</div>
+      <div>
+        <div class="ca-logo__name">Citizen Assist</div>
+        <!-- Replace with your app name / jurisdiction -->
+        <div class="ca-logo__sub">Government · [Jurisdiction]</div>
+      </div>
+    </div>
+
+    <button class="ca-new-conv">
+      <!-- Plus icon -->
+      <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="var(--ca-sky)" stroke-width="2" stroke-linecap="round"><path d="M12 5v14M5 12h14"/></svg>
+      New conversation
+    </button>
+
+    <nav class="ca-nav">
+      <!-- data-page attr used to set active state from JS -->
+      <a class="ca-nav__item active" href="#" data-page="chat">
+        <svg width="17" height="17" viewBox="0 0 24 24" fill="none" stroke="var(--ca-accent)" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M21 11.5a8.5 8.5 0 0 1-12.2 7.6L3 21l1.9-5.8A8.5 8.5 0 1 1 21 11.5z"/></svg>
+        Chat
+      </a>
+      <a class="ca-nav__item" href="#" data-page="dashboard">
+        <svg width="17" height="17" viewBox="0 0 24 24" fill="none" stroke="var(--ca-sb-faint)" stroke-width="1.7"><rect x="3" y="3" width="7" height="7" rx="1.5"/><rect x="14" y="3" width="7" height="7" rx="1.5"/><rect x="3" y="14" width="7" height="7" rx="1.5"/><rect x="14" y="14" width="7" height="7" rx="1.5"/></svg>
+        Dashboard
+      </a>
+      <a class="ca-nav__item" href="#" data-page="plan">
+        <svg width="17" height="17" viewBox="0 0 24 24" fill="none" stroke="var(--ca-sb-faint)" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round"><path d="M9 6h11M9 12h11M9 18h11"/><path d="M4 5.5l1 1 2-2"/><path d="M4 11.5l1 1 2-2"/><path d="M4 17.5l1 1 2-2"/></svg>
+        My Plan
+      </a>
+      <a class="ca-nav__item" href="#" data-page="profile">
+        <svg width="17" height="17" viewBox="0 0 24 24" fill="none" stroke="var(--ca-sb-faint)" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="8" r="4"/><path d="M4 21c0-4 4-6 8-6s8 2 8 6"/></svg>
+        My Profile
+      </a>
+    </nav>
+
+    <!-- Recent conversations — populate from your data -->
+    <div class="ca-recent">
+      <div class="ca-recent__label">Recent</div>
+      <a class="ca-recent__item active" href="#">[Recent conversation 1]</a>
+      <a class="ca-recent__item" href="#">[Recent conversation 2]</a>
+    </div>
+
+    <div class="ca-sidebar__spacer"></div>
+
+    <!-- Language toggle — add/remove options as needed -->
+    <div class="ca-lang" style="margin-bottom:12px;">
+      <div class="ca-lang__opt active">EN</div>
+      <div class="ca-lang__opt">Português</div>
+    </div>
+
+    <!-- User tile — populate from auth session -->
+    <div class="ca-user-tile">
+      <div class="ca-user-tile__avatar">[XX]</div><!-- initials -->
+      <div>
+        <div class="ca-user-tile__name">[User Name]</div>
+        <div class="ca-user-tile__status">[Permit / Status type]</div>
+      </div>
+    </div>
+
+  </aside>
+
+  <!-- ═══════════════════ MAIN ═══════════════════ -->
+  <div class="ca-main">
+
+    <!-- Topbar -->
+    <header class="ca-topbar">
+      <div>
+        <div class="ca-topbar__title">Good [time], [User First Name]</div>
+        <!-- sub shows user context — populate from session -->
+        <div class="ca-topbar__sub">[Jurisdiction] · [Permit Type] · Passport ••••[last4]</div>
+      </div>
+      <div class="ca-topbar__right">
+        <!-- Layer badge — update text to match active agent layer -->
+        <span class="ca-layer-badge">Layer 1 · Navigate</span>
+        <!-- Mode toggle -->
+        <div class="ca-mode-toggle">
+          <div class="ca-mode-toggle__opt active">Navigation</div>
+          <div class="ca-mode-toggle__opt">Proactive</div>
+        </div>
+      </div>
+    </header>
+
+    <!-- Page content slot — swap this div's contents per route -->
+    <div class="ca-content" id="ca-page-content">
+      <!-- ← your page HTML goes here -->
+      <p style="padding:40px;color:var(--ca-faint);font-size:14px;">[Page content]</p>
+    </div>
+
+  </div><!-- /ca-main -->
+</div><!-- /ca-layout -->
+
+</body>
+</html>

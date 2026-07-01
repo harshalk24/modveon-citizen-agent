@@ -1,0 +1,326 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1.0" />
+<title>Citizen Agent — Demo Script</title>
+<style>
+  * { box-sizing: border-box; margin: 0; padding: 0; }
+  body { font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif; background: #F5F3EE; color: #1E3550; padding: 48px 24px; }
+  .wrap { max-width: 780px; margin: 0 auto; }
+
+  header { margin-bottom: 40px; }
+  header h1 { font-size: 22px; font-weight: 600; letter-spacing: -0.02em; color: #1E3550; margin-bottom: 6px; }
+  header p { font-size: 13px; color: #6A7280; line-height: 1.6; }
+
+  .section-title { font-size: 11px; font-weight: 700; letter-spacing: 0.08em; text-transform: uppercase; color: #9AA0A8; margin: 48px 0 16px; }
+
+  /* ── Scenario cards ── */
+  .scenario { background: #fff; border: 1px solid #EAE5DB; border-radius: 16px; padding: 28px 32px; margin-bottom: 20px; }
+  .scenario-header { display: flex; align-items: center; gap: 12px; margin-bottom: 20px; }
+  .scenario-icon { width: 40px; height: 40px; border-radius: 10px; background: #F1EDE4; display: flex; align-items: center; justify-content: center; font-size: 20px; flex-shrink: 0; }
+  .scenario-meta { flex: 1; }
+  .scenario-title { font-size: 15px; font-weight: 600; color: #1E3550; }
+  .scenario-time { font-size: 11.5px; color: #9AA0A8; margin-top: 2px; }
+  .scenario-tag { font-size: 11px; font-weight: 600; padding: 2px 8px; border-radius: 6px; }
+  .tag-amber { background: #F6EFD9; color: #8E6627; border: 1px solid #E7DCB8; }
+  .tag-red   { background: #FAE0DB; color: #BC3A3A; border: 1px solid #F2CDC5; }
+  .tag-blue  { background: #E7EDF4; color: #35618C; border: 1px solid #D0DCEB; }
+
+  .beats { display: flex; flex-direction: column; }
+  .beat { display: flex; gap: 16px; padding: 11px 0; border-bottom: 1px solid #F1EDE4; }
+  .beat:last-child { border-bottom: none; }
+
+  .beat-label { flex-shrink: 0; width: 72px; padding-top: 1px; }
+  .beat-label span { font-size: 10px; font-weight: 700; letter-spacing: 0.05em; text-transform: uppercase; padding: 3px 7px; border-radius: 5px; display: inline-block; }
+  .lbl-screen  { background: #E7EDF4; color: #35618C; }
+  .lbl-say     { background: #EAF3DE; color: #3B6D11; }
+  .lbl-action  { background: #F6EFD9; color: #8E6627; }
+  .lbl-tip     { background: #FAE0DB; color: #BC3A3A; }
+  .lbl-cue     { background: #1E3550; color: #fff; }
+
+  .beat-body p { font-size: 13.5px; line-height: 1.7; color: #374151; }
+  .beat-body p + p { margin-top: 5px; }
+  .beat-body strong { font-weight: 600; color: #1E3550; }
+  .screen-text { font-size: 12px; font-family: "SF Mono", "Fira Code", monospace; background: #F5F3EE; border: 1px solid #EAE5DB; border-radius: 6px; padding: 8px 12px; margin-top: 6px; color: #374151; line-height: 1.65; }
+
+  /* ── ElevenLabs section ── */
+  .voice-card { background: #fff; border: 1px solid #EAE5DB; border-radius: 16px; padding: 28px 32px; margin-bottom: 20px; }
+  .voice-card h3 { font-size: 14px; font-weight: 600; color: #1E3550; margin-bottom: 4px; }
+  .voice-card .persona { font-size: 12px; color: #9AA0A8; margin-bottom: 14px; }
+  .vo-text { font-size: 13.5px; line-height: 1.8; color: #374151; background: #FAFAF8; border: 1px solid #EAE5DB; border-radius: 10px; padding: 16px 20px; font-style: italic; }
+
+  /* ── Voice recommendations ── */
+  .voice-rec { display: grid; grid-template-columns: repeat(auto-fit, minmax(220px, 1fr)); gap: 12px; margin-bottom: 20px; }
+  .vr-card { background: #fff; border: 1px solid #EAE5DB; border-radius: 12px; padding: 16px 18px; }
+  .vr-name { font-size: 14px; font-weight: 600; color: #1E3550; margin-bottom: 4px; }
+  .vr-desc { font-size: 12px; color: #6A7280; line-height: 1.6; }
+  .vr-badge { display: inline-block; font-size: 10px; font-weight: 600; padding: 2px 7px; border-radius: 5px; margin-top: 6px; }
+  .badge-rec { background: #EAF3DE; color: #3B6D11; border: 1px solid #C0DD97; }
+  .badge-alt { background: #E7EDF4; color: #35618C; border: 1px solid #D0DCEB; }
+
+  .settings-box { background: #F6EFD9; border: 1px solid #E7DCB8; border-radius: 10px; padding: 14px 18px; margin-bottom: 32px; }
+  .settings-box p { font-size: 12.5px; color: #7A5C1A; line-height: 1.7; }
+  .settings-box strong { font-weight: 600; }
+
+  .tip-box { background: #FAE0DB; border: 1px solid #F2CDC5; border-radius: 10px; padding: 12px 16px; margin-bottom: 28px; }
+  .tip-box p { font-size: 12.5px; color: #7A2828; line-height: 1.6; }
+  .tip-box strong { font-weight: 600; }
+
+  .divider { text-align: center; font-size: 11px; color: #9AA0A8; font-weight: 600; letter-spacing: 0.08em; text-transform: uppercase; padding: 8px 0 20px; }
+</style>
+</head>
+<body>
+<div class="wrap">
+
+  <header>
+    <h1>Citizen Agent — Demo Script</h1>
+    <p>Presenter guide for all 5 scenarios. Target: each scenario under 40 seconds, full demo under 3 minutes. Open <code>/bermuda/proactive</code> before starting.</p>
+  </header>
+
+  <!-- Opening monologue -->
+  <div class="scenario" style="margin-bottom:24px">
+    <div class="beats">
+      <div class="beat">
+        <div class="beat-label"><span class="lbl-say">Opening</span></div>
+        <div class="beat-body">
+          <p>AI already runs through the Verified OS today — routing every citizen signal, keeping communities aligned, powering the accountability loop. The Citizen Agent is what we're building next: where that AI steps out front and acts directly for the citizen.</p>
+          <p style="margin-top:10px">It's a true agent — it understands a person's situation, reasons over verified government information, and takes action: finding the right answers, surfacing the benefits they're actually owed, and moving them through government processes on their behalf.</p>
+          <p style="margin-top:10px">This is the next layer we're accelerating, and the one that completes our Verified Operating System. Here's where we're headed.</p>
+          <p style="margin-top:10px"><strong>All five citizens you're about to see have already been verified through onboarding — the agent knows exactly who it's acting for.</strong></p>
+          <p style="margin-top:10px">With this, let's dive into the Citizen Agent Demo.</p>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <div class="tip-box">
+    <p><strong>How to use with ElevenLabs voiceover:</strong> For each scenario, start playing the pre-recorded voiceover clip, then immediately open the scenario on screen. The <span style="background:#1E3550;color:#fff;font-size:10px;font-weight:700;padding:2px 7px;border-radius:4px;display:inline">⏱ CUE</span> beats tell you exactly when to tap — matched to what the voiceover is saying at that moment. Scenarios 4 and 5 are fully automatic: no taps at all.</p>
+  </div>
+
+  <div class="section-title">Demo script — presenter beats</div>
+
+  <!-- ── 1. NEWBORN ──────────────────────────────────────────────── -->
+  <div class="scenario">
+    <div class="scenario-header">
+      <div class="scenario-icon">👶</div>
+      <div class="scenario-meta">
+        <div class="scenario-title">1 · Newborn Registration — Sarah Williams <span class="scenario-tag tag-amber" style="margin-left:8px">3 days old</span></div>
+        <div class="scenario-time">~38 seconds · fully automatic</div>
+      </div>
+    </div>
+    <div class="beats">
+      <div class="beat">
+        <div class="beat-label"><span class="lbl-action">Start</span></div>
+        <div class="beat-body"><p>Play voiceover clip, then immediately open the Newborn scenario. The agent's opening message and typing animation run on their own — no tap needed.</p></div>
+      </div>
+      <div class="beat">
+        <div class="beat-label"><span class="lbl-screen">Screen</span></div>
+        <div class="beat-body">
+          <div class="screen-text">"Sarah — your baby was born 3 days ago. I can register the birth and set up health coverage right now."</div>
+          <p style="margin-top:8px;font-size:12.5px;color:#6A7280">Four tool cards run automatically. Then the name input appears.</p>
+        </div>
+      </div>
+      <div class="beat">
+        <div class="beat-label"><span class="lbl-screen">Screen</span></div>
+        <div class="beat-body"><p>Agent asks <em>"What's her name?"</em> — typing animation auto-sends <strong>Emily</strong>. Registration and health insurance enrollment run automatically from there.</p></div>
+      </div>
+      <div class="beat">
+        <div class="beat-label"><span class="lbl-screen">Screen</span></div>
+        <div class="beat-body"><p>Birth registered · health insurance enrolled · WhatsApp sent · success card.</p></div>
+      </div>
+    </div>
+  </div>
+
+  <!-- ── 2. VEHICLE ─────────────────────────────────────────────── -->
+  <div class="scenario">
+    <div class="scenario-header">
+      <div class="scenario-icon">🚗</div>
+      <div class="scenario-meta">
+        <div class="scenario-title">2 · Vehicle Renewal — Alex Morgan <span class="scenario-tag tag-amber" style="margin-left:8px">11 days left</span></div>
+        <div class="scenario-time">~24 seconds · 1 action</div>
+      </div>
+    </div>
+    <div class="beats">
+      <div class="beat">
+        <div class="beat-label"><span class="lbl-action">Start</span></div>
+        <div class="beat-body"><p>Play voiceover clip, then immediately open the Vehicle scenario. Tool cards run automatically.</p></div>
+      </div>
+      <div class="beat">
+        <div class="beat-label"><span class="lbl-screen">Screen</span></div>
+        <div class="beat-body">
+          <div class="screen-text">"Hi Alex — your vehicle licence expires in 11 days. Two unpaid parking tickets would've blocked renewal at the counter. I've checked everything and prepared a combined payment."</div>
+          <p style="margin-top:8px;font-size:12.5px;color:#6A7280">Tool cards run. Payment summary card appears around 0:11. Wait for the cue.</p>
+        </div>
+      </div>
+      <div class="beat">
+        <div class="beat-label"><span class="lbl-cue">⏱ 0:14</span></div>
+        <div class="beat-body"><p>When you hear <em>"One tap to confirm"</em> — tap <strong>"Confirm &amp; Pay $313"</strong>. Licence renewed through June 2027.</p></div>
+      </div>
+    </div>
+  </div>
+
+  <!-- ── 3. SOCIAL INSURANCE ────────────────────────────────────── -->
+  <div class="scenario">
+    <div class="scenario-header">
+      <div class="scenario-icon">💰</div>
+      <div class="scenario-meta">
+        <div class="scenario-title">3 · Social Insurance — Camille Outerbridge <span class="scenario-tag tag-red" style="margin-left:8px">Action needed</span></div>
+        <div class="scenario-time">~40 seconds · 2 actions</div>
+      </div>
+    </div>
+    <div class="beats">
+      <div class="beat">
+        <div class="beat-label"><span class="lbl-action">Start</span></div>
+        <div class="beat-body"><p>Play voiceover clip, then immediately open the Social Insurance scenario.</p></div>
+      </div>
+      <div class="beat">
+        <div class="beat-label"><span class="lbl-screen">Screen</span></div>
+        <div class="beat-body">
+          <div class="screen-text">"Camille — your employer hasn't been contributing to your Social Insurance since March. I also found a voluntary contribution lapse. Two separate issues — both have fixes."</div>
+          <p style="margin-top:8px;font-size:12.5px;color:#6A7280">"Walk me through it" chip appears immediately after the opening message.</p>
+        </div>
+      </div>
+      <div class="beat">
+        <div class="beat-label"><span class="lbl-cue">⏱ 0:07</span></div>
+        <div class="beat-body"><p>When you hear <em>"…and that almost never happens in government"</em> — tap <strong>"Walk me through it"</strong>. Tool cards run, forecast card shows pension impact.</p></div>
+      </div>
+      <div class="beat">
+        <div class="beat-label"><span class="lbl-screen">Screen</span></div>
+        <div class="beat-body"><p>Analysis complete. Agent surfaces open case from April — "Attach my records" chip appears around 0:23. Wait for the cue.</p></div>
+      </div>
+      <div class="beat">
+        <div class="beat-label"><span class="lbl-cue">⏱ 0:29</span></div>
+        <div class="beat-body"><p>When you hear <em>"it attaches her records directly"</em> — tap <strong>"Attach my records to the existing case"</strong>. Time skip → 4 days later → resolved → WhatsApp sent.</p></div>
+      </div>
+    </div>
+  </div>
+
+  <!-- ── 4. WORK PERMIT ─────────────────────────────────────────── -->
+  <div class="scenario">
+    <div class="scenario-header">
+      <div class="scenario-icon">🪪</div>
+      <div class="scenario-meta">
+        <div class="scenario-title">4 · Work Permit Renewal — Daniel Chen <span class="scenario-tag tag-blue" style="margin-left:8px">58 days left</span></div>
+        <div class="scenario-time">~28 seconds · fully automatic</div>
+      </div>
+    </div>
+    <div class="beats">
+      <div class="beat">
+        <div class="beat-label"><span class="lbl-action">Start</span></div>
+        <div class="beat-body"><p>Play voiceover clip, then immediately open the Work Permit scenario. <strong>No taps needed</strong> — everything runs automatically.</p></div>
+      </div>
+      <div class="beat">
+        <div class="beat-label"><span class="lbl-screen">Screen</span></div>
+        <div class="beat-body">
+          <div class="screen-text">"Daniel — your work permit expires in 58 days."<br/>"I've already run the checks. Ready to submit the renewal?"</div>
+          <p style="margin-top:8px;font-size:12.5px;color:#6A7280">Typing animation → six tool cards → success card (0:17) → PRC message + card (0:19) → WhatsApp (0:23) → "2 days later" (0:24) → closing (0:26).</p>
+        </div>
+      </div>
+      <div class="beat">
+        <div class="beat-label"><span class="lbl-tip">Watch</span></div>
+        <div class="beat-body"><p>The PRC card surfaces automatically — voiceover says <em>"nineteen years and eleven months"</em> just as it appears on screen. Let it land before the time skip.</p></div>
+      </div>
+    </div>
+  </div>
+
+  <!-- ── 5. BUSINESS ────────────────────────────────────────────── -->
+  <div class="scenario">
+    <div class="scenario-header">
+      <div class="scenario-icon">🏢</div>
+      <div class="scenario-meta">
+        <div class="scenario-title">5 · Business Registration — Kezia Trott <span class="scenario-tag tag-blue" style="margin-left:8px">Ready</span></div>
+        <div class="scenario-time">~30 seconds · fully automatic</div>
+      </div>
+    </div>
+    <div class="beats">
+      <div class="beat">
+        <div class="beat-label"><span class="lbl-action">Start</span></div>
+        <div class="beat-body"><p>Play voiceover clip, then immediately open the Business scenario. <strong>No taps needed</strong> — the agent auto-types "Set it up" and runs all six steps on its own.</p></div>
+      </div>
+      <div class="beat">
+        <div class="beat-label"><span class="lbl-screen">Screen</span></div>
+        <div class="beat-body">
+          <div class="screen-text">"Kezia — ready to register Bermuda Coastal Catering? I can set this up properly right now."</div>
+          <p style="margin-top:8px;font-size:12.5px;color:#6A7280">Typing animation → growth plan → structure → grant applied before incorporating → incorporated → 3 agencies registered → success card.</p>
+        </div>
+      </div>
+      <div class="beat">
+        <div class="beat-label"><span class="lbl-tip">Pause</span></div>
+        <div class="beat-body"><p>Let <em>"1 grant most people miss"</em> land on screen. Let the voiceover finish: <em>"before she even signed anything."</em></p></div>
+      </div>
+    </div>
+  </div>
+
+  <!-- ── ELEVENLABS SCRIPTS ──────────────────────────────────────── -->
+  <div class="section-title">ElevenLabs voiceover scripts</div>
+
+  <div class="settings-box">
+    <p><strong>Recommended ElevenLabs settings:</strong> Stability 45–50 · Similarity 75 · Style 20–30 · Speed 1.10–1.15x · Clarity +5. These settings produce a calm, natural pace with a slight forward energy — not robotic, not breathless.</p>
+  </div>
+
+  <div class="section-title" style="margin-top:0">Recommended voices</div>
+  <div class="voice-rec">
+    <div class="vr-card">
+      <div class="vr-name">Aria</div>
+      <div class="vr-desc">Warm, natural American English. Conversational without being casual. Strong clarity at faster speeds.</div>
+      <div class="vr-badge badge-rec">Top pick — female</div>
+    </div>
+    <div class="vr-card">
+      <div class="vr-name">Charlotte</div>
+      <div class="vr-desc">Soft British English. Calm and composed, slightly warmer than a standard presenter voice.</div>
+      <div class="vr-badge badge-rec">Top pick — British female</div>
+    </div>
+    <div class="vr-card">
+      <div class="vr-name">Daniel</div>
+      <div class="vr-desc">Calm British male. Authoritative but not stiff — works well for a government-adjacent product.</div>
+      <div class="vr-badge badge-alt">Alt — male</div>
+    </div>
+    <div class="vr-card">
+      <div class="vr-name">Liam</div>
+      <div class="vr-desc">American male, clear and warm. Good energy at 1.1x speed without sounding rushed.</div>
+      <div class="vr-badge badge-alt">Alt — male</div>
+    </div>
+  </div>
+
+  <div class="voice-card">
+    <h3>Intro</h3>
+    <div class="persona">Plays before the first scenario</div>
+    <div class="vo-text">Five real government situations. And in every single one — the agent has already done the work before the person even opens the app.</div>
+  </div>
+
+  <div class="voice-card">
+    <h3>Scenario 1 — Newborn Registration</h3>
+    <div class="persona">Sarah Williams · 3 days after birth</div>
+    <div class="vo-text">Sarah just had a baby. Three days ago. And right now, there are two government deadlines quietly ticking — a 42-day window to register the birth, and a separate one for health insurance. She has no idea either exists.<br/><br/>The agent reaches out first. It pulls her Social Insurance record, the hospital discharge certificate, her employer health plan — pre-fills the entire registration form on its own. The only thing it can't find? The baby's name.<br/><br/>One name. That's it. Birth registered. Health insurance enrolled. WhatsApp sent — before she's even left the hospital. Two office visits that simply never happened.</div>
+  </div>
+
+  <div class="voice-card">
+    <h3>Scenario 2 — Vehicle Renewal</h3>
+    <div class="persona">Alex Morgan · licence expires in 11 days</div>
+    <div class="vo-text">Alex has no idea his vehicle licence expires in 11 days. And he definitely doesn't know about two unpaid parking tickets from March — the kind TCD holds against counter renewals, even when the online portal looks completely fine.<br/><br/>The agent caught both. Built a combined payment before Alex even opened the app. One tap to confirm. Tickets cleared, licence renewed through June 2027. What used to mean a trip to TCD with a folder of receipts — gone. Done in one tap.</div>
+  </div>
+
+  <div class="voice-card">
+    <h3>Scenario 3 — Social Insurance</h3>
+    <div class="persona">Camille Outerbridge · employer gap since March</div>
+    <div class="vo-text">Camille never filed a complaint. The agent found this on its own, while reviewing something else — and that almost never happens in government.<br/><br/>Her employer stopped contributing after her March promotion. Her voluntary contributions lapsed 14 months ago. Two separate problems, quietly draining her pension forecast — and she had no idea about either.<br/><br/>Then it finds something remarkable. An open case from April, same employer, zero follow-up. No new filing needed — it attaches her records directly. Four days later: resolved. Contributions backdated, credited in full. Two issues, both closed. Not a single call. Not a single office visit.</div>
+  </div>
+
+  <div class="voice-card">
+    <h3>Scenario 4 — Work Permit Renewal</h3>
+    <div class="persona">Daniel Chen · permit expires in 58 days</div>
+    <div class="vo-text">Daniel's permit expires in 58 days. The agent has already run the checks, verified compliance, pre-filled everything. One tap — submitted.<br/><br/>Six checks in seconds. And right there in the results, something Daniel would never have looked for himself: nineteen years and eleven months of residency. One month from Permanent Residency. Reminder already set for February — everything ready the moment he qualifies.<br/><br/>Two days later: approved. What used to mean a trip to Hamilton and weeks of waiting — gone.</div>
+  </div>
+
+  <div class="voice-card">
+    <h3>Scenario 5 — Business Registration</h3>
+    <div class="persona">Kezia Trott · registering Bermuda Coastal Catering</div>
+    <div class="vo-text">Kezia wants to register her catering business. One tap — and watch what happens.<br/><br/>The agent checks her growth plan, compares structures, then finds something most people miss entirely — an SME grant that closes the moment you incorporate. Most founders register first, ask about grants second, and find out too late. The agent does it in exactly the right order.<br/><br/>Grant applied. Company incorporated. Three agencies registered. Right structure, first try. Kezia got something most founders only wish they'd known about — before she even signed anything.</div>
+  </div>
+
+  <div class="divider">— end of script —</div>
+
+</div>
+</body>
+</html>

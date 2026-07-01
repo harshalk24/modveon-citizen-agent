@@ -1,0 +1,144 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Citizen Assist — UI Handoff</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Space+Grotesk:wght@500;600;700&family=Hanken+Grotesk:wght@400;500;600;700&display=swap" rel="stylesheet">
+<link rel="stylesheet" href="tokens.css">
+<style>
+  html, body { margin:0; font-family:var(--ca-font-body); background:var(--ca-gallery); -webkit-font-smoothing:antialiased; }
+
+  /* ── Intro ──────────────────────────────────────── */
+  .ca-intro { max-width:960px; padding:56px 56px 0; }
+  .ca-intro__eyebrow { font-size:12px; font-weight:600; letter-spacing:.1em; text-transform:uppercase; color:var(--ca-accent-d); }
+  .ca-intro__title   { font-family:var(--ca-font-display); font-weight:600; font-size:34px; line-height:1.12; color:var(--ca-ink); margin:10px 0 0; letter-spacing:-.025em; }
+  .ca-intro__sub     { font-size:15px; line-height:1.65; color:var(--ca-muted); margin:14px 0 0; max-width:680px; }
+
+  /* Token swatches */
+  .ca-swatches { display:flex; gap:10px; margin-top:20px; flex-wrap:wrap; align-items:center; }
+  .ca-swatch   { display:flex; align-items:center; gap:7px; font-size:12px; color:var(--ca-muted); }
+  .ca-swatch__dot { width:14px; height:14px; border-radius:4px; border:1px solid rgba(0,0,0,.06); flex-shrink:0; }
+
+  /* File index */
+  .ca-file-index { display:flex; gap:10px; margin-top:24px; flex-wrap:wrap; }
+  .ca-file-link {
+    display:inline-flex; align-items:center; gap:7px;
+    background:var(--ca-card); border:1px solid var(--ca-border);
+    padding:8px 14px; border-radius:10px;
+    font-size:12.5px; font-weight:600; color:var(--ca-ink);
+    text-decoration:none; transition:border-color .15s, box-shadow .15s;
+  }
+  .ca-file-link:hover { border-color:var(--ca-accent); box-shadow:0 2px 8px -4px rgba(176,82,74,.3); }
+  .ca-file-link__badge { font-size:10px; color:var(--ca-muted); font-weight:400; }
+
+  /* ── Frames ─────────────────────────────────────── */
+  .ca-frames { padding:44px 56px 80px; display:flex; flex-direction:column; gap:60px; }
+  .ca-frame-label { font-size:12.5px; font-weight:600; color:var(--ca-muted); margin-bottom:12px; }
+  .ca-frame { border-radius:18px; overflow:hidden; box-shadow:var(--ca-shadow-modal); }
+  .ca-frame iframe { display:block; border:none; width:100%; }
+
+  .ca-section-title { font-family:var(--ca-font-display); font-size:20px; font-weight:600; color:var(--ca-ink); margin:0 0 24px; letter-spacing:-.02em; }
+
+  /* Token table */
+  .ca-token-table { background:var(--ca-card); border:1px solid var(--ca-border); border-radius:14px; overflow:hidden; margin-top:24px; box-shadow:var(--ca-shadow-card); }
+  .ca-token-table table { width:100%; border-collapse:collapse; font-size:13px; }
+  .ca-token-table th { text-align:left; padding:10px 16px; font-size:10.5px; font-weight:700; letter-spacing:.06em; text-transform:uppercase; color:var(--ca-faint); background:var(--ca-raised); border-bottom:1px solid var(--ca-line); }
+  .ca-token-table td { padding:10px 16px; border-bottom:1px solid var(--ca-hair); color:var(--ca-body); vertical-align:middle; }
+  .ca-token-table tr:last-child td { border-bottom:none; }
+  .ca-token-table__swatch { width:20px; height:20px; border-radius:5px; border:1px solid rgba(0,0,0,.07); display:inline-block; vertical-align:middle; }
+  .ca-token-table code { font-family:var(--ca-font-mono); font-size:11.5px; color:var(--ca-accent-d); background:var(--ca-accent-soft); padding:2px 6px; border-radius:4px; }
+  .ca-token-table .role { font-size:11.5px; color:var(--ca-muted); }
+</style>
+</head>
+<body>
+
+<!-- ── Intro ──────────────────────────────────────── -->
+<div class="ca-intro">
+  <div class="ca-intro__eyebrow">Citizen Assist · UI Handoff · June 2026</div>
+  <h1 class="ca-intro__title">Bermuda Flag · Navy Rail</h1>
+  <p class="ca-intro__sub">Visual reference for all four screens. The design token file is <code style="font-family:var(--ca-font-mono);font-size:13px;color:var(--ca-accent-d);background:var(--ca-accent-soft);padding:2px 6px;border-radius:4px;">tokens.css</code> — drop it in your stack and map the <code style="font-family:var(--ca-font-mono);font-size:13px;color:var(--ca-accent-d);background:var(--ca-accent-soft);padding:2px 6px;border-radius:4px;">--ca-*</code> variables to your components. Full spec in <code style="font-family:var(--ca-font-mono);font-size:13px;color:var(--ca-accent-d);background:var(--ca-accent-soft);padding:2px 6px;border-radius:4px;">HANDOFF.md</code>.</p>
+
+  <div class="ca-swatches">
+    <div class="ca-swatch"><div class="ca-swatch__dot" style="background:#F8F6F1;"></div>Limestone</div>
+    <div class="ca-swatch"><div class="ca-swatch__dot" style="background:#1E3550;"></div>Atlantic navy</div>
+    <div class="ca-swatch"><div class="ca-swatch__dot" style="background:#B0524A;"></div>Ensign red · primary</div>
+    <div class="ca-swatch"><div class="ca-swatch__dot" style="background:#3C7D5A;"></div>Sea green · done</div>
+    <div class="ca-swatch"><div class="ca-swatch__dot" style="background:#B58233;"></div>Amber · urgent</div>
+    <div class="ca-swatch"><div class="ca-swatch__dot" style="background:#35618C;"></div>Sky · info</div>
+    <div class="ca-swatch"><div class="ca-swatch__dot" style="background:#D64242;"></div>Coral · errors only</div>
+  </div>
+
+  <div class="ca-file-index">
+    <a class="ca-file-link" href="shell.html" target="_blank">shell.html <span class="ca-file-link__badge">App shell</span></a>
+    <a class="ca-file-link" href="chat.html" target="_blank">chat.html <span class="ca-file-link__badge">Navigation Agent</span></a>
+    <a class="ca-file-link" href="proactive.html" target="_blank">proactive.html <span class="ca-file-link__badge">Proactive Agent</span></a>
+    <a class="ca-file-link" href="plan.html" target="_blank">plan.html <span class="ca-file-link__badge">My Plan</span></a>
+    <a class="ca-file-link" href="tokens.css" target="_blank">tokens.css <span class="ca-file-link__badge">Design tokens</span></a>
+    <a class="ca-file-link" href="HANDOFF.md" target="_blank">HANDOFF.md <span class="ca-file-link__badge">Written spec</span></a>
+  </div>
+</div>
+
+<!-- ── Screen frames ──────────────────────────────── -->
+<div class="ca-frames">
+
+  <!-- Shell -->
+  <div>
+    <div class="ca-frame-label">01 · App Shell — Sidebar + Topbar</div>
+    <div class="ca-frame">
+      <iframe src="shell.html" height="540" title="App Shell"></iframe>
+    </div>
+  </div>
+
+  <!-- Chat -->
+  <div>
+    <div class="ca-frame-label">02 · Chat — Navigation Agent (conversation state)</div>
+    <div class="ca-frame">
+      <iframe src="chat.html" height="720" title="Chat Screen"></iframe>
+    </div>
+  </div>
+
+  <!-- Proactive -->
+  <div>
+    <div class="ca-frame-label">03 · Proactive Agent — result cards + auto-fill form</div>
+    <div class="ca-frame">
+      <iframe src="proactive.html" height="820" title="Proactive Screen"></iframe>
+    </div>
+  </div>
+
+  <!-- Plan -->
+  <div>
+    <div class="ca-frame-label">04 · My Plan — arrival checklist</div>
+    <div class="ca-frame">
+      <iframe src="plan.html" height="660" title="Plan Screen"></iframe>
+    </div>
+  </div>
+
+  <!-- Token reference -->
+  <div>
+    <div class="ca-frame-label" style="margin-bottom:0;">Token reference</div>
+    <div class="ca-token-table" style="margin-top:14px;">
+      <table>
+        <thead><tr><th>Swatch</th><th>Token</th><th>Value</th><th>Role</th></tr></thead>
+        <tbody>
+          <tr><td><span class="ca-token-table__swatch" style="background:#F8F6F1;"></span></td><td><code>--ca-canvas</code></td><td>#F8F6F1</td><td class="role">Page background (limestone)</td></tr>
+          <tr><td><span class="ca-token-table__swatch" style="background:#1E3550;"></span></td><td><code>--ca-sidebar</code></td><td>#1E3550</td><td class="role">Left rail (Atlantic navy)</td></tr>
+          <tr><td><span class="ca-token-table__swatch" style="background:#B0524A;"></span></td><td><code>--ca-accent</code></td><td>#B0524A</td><td class="role">All CTAs, links, active state (ensign red)</td></tr>
+          <tr><td><span class="ca-token-table__swatch" style="background:#3C7D5A;"></span></td><td><code>--ca-ok</code></td><td>#3C7D5A</td><td class="role">Done / verified / complete (sea green)</td></tr>
+          <tr><td><span class="ca-token-table__swatch" style="background:#B58233;"></span></td><td><code>--ca-alert</code></td><td>#B58233</td><td class="role">Urgent / time-sensitive (amber)</td></tr>
+          <tr><td><span class="ca-token-table__swatch" style="background:#35618C;"></span></td><td><code>--ca-info</code></td><td>#35618C</td><td class="role">Online status / upcoming phases (sky)</td></tr>
+          <tr><td><span class="ca-token-table__swatch" style="background:#D64242;"></span></td><td><code>--ca-danger</code></td><td>#D64242</td><td class="role">Errors only — never urgency (coral)</td></tr>
+          <tr><td><span class="ca-token-table__swatch" style="background:#EDEFF2;"></span></td><td><code>--ca-sb-text</code></td><td>#EDEFF2</td><td class="role">Sidebar primary text</td></tr>
+          <tr><td><span class="ca-token-table__swatch" style="background:#FFFFFF;border:1px solid #eee;"></span></td><td><code>--ca-card</code></td><td>#FFFFFF</td><td class="role">Card / sheet surface</td></tr>
+          <tr><td><span class="ca-token-table__swatch" style="background:#F3EEE5;"></span></td><td><code>--ca-raised</code></td><td>#F3EEE5</td><td class="role">Slightly raised surface, section headers</td></tr>
+        </tbody>
+      </table>
+    </div>
+  </div>
+
+</div>
+
+</body>
+</html>

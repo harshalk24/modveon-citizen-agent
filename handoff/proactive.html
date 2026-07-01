@@ -1,0 +1,303 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>CA Proactive — Job Match + Auto-fill</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Space+Grotesk:wght@500;600;700&family=Hanken+Grotesk:wght@400;500;600;700&display=swap" rel="stylesheet">
+<link rel="stylesheet" href="tokens.css">
+<style>
+  html, body { height:100%; margin:0; font-family:var(--ca-font-body); background:var(--ca-canvas); color:var(--ca-ink); }
+
+  /* Feed layout — same as chat.html */
+  .ca-chat-wrap  { display:flex; flex-direction:column; height:100%; }
+  .ca-chat-feed  { flex:1; overflow-y:auto; }
+  .ca-chat-foot  { flex-shrink:0; padding:0 24px 22px; }
+  .ca-feed-inner { max-width:760px; margin:0 auto; padding:26px 24px 24px; display:flex; flex-direction:column; gap:24px; }
+
+  /* Agent message (reuse from chat.html) */
+  .ca-msg-agent       { display:flex; gap:13px; animation:ca-fade .5s ease both; }
+  .ca-msg-agent__body { flex:1; min-width:0; }
+  .ca-msg-agent__header { display:flex; align-items:center; gap:7px; margin-bottom:8px; }
+  .ca-msg-agent__name   { font-size:12.5px; font-weight:600; color:var(--ca-ink); }
+  .ca-msg-agent__dot    { width:5px; height:5px; border-radius:50%; background:var(--ca-ok); }
+  .ca-msg-agent p       { font-size:15px; line-height:1.7; color:var(--ca-body); margin:0; }
+
+  /* Result cards list */
+  .ca-result-list { display:flex; flex-direction:column; gap:11px; margin-top:14px; }
+
+  /* Result card */
+  .ca-result-card { background:var(--ca-card); border:1px solid var(--ca-border); border-radius:13px; padding:16px 18px; box-shadow:var(--ca-shadow-card); }
+  .ca-result-card__head   { display:flex; justify-content:space-between; gap:14px; align-items:flex-start; }
+  .ca-result-card__title  { font-size:14.5px; font-weight:600; color:var(--ca-ink); }
+  .ca-result-card__org    { font-size:12px; color:var(--ca-faint); margin-top:2px; }
+  .ca-result-card__meta   { display:grid; grid-template-columns:1fr 1fr; gap:7px 18px; margin-top:13px; }
+  .ca-result-card__meta-item { display:flex; align-items:center; gap:7px; font-size:12px; color:var(--ca-muted); }
+  .ca-result-card__meta-item svg { flex-shrink:0; }
+
+  /* Auto-fill form card */
+  .ca-form-card { background:var(--ca-card); border:1px solid var(--ca-border); border-radius:14px; overflow:hidden; box-shadow:var(--ca-shadow-sheet); margin-top:14px; }
+
+  /* Form header — dark bar */
+  .ca-form-card__header {
+    background:var(--ca-sidebar);
+    border-bottom:1px solid var(--ca-sb-border);
+    padding:15px 20px;
+    display:flex; justify-content:space-between; align-items:flex-start; gap:14px;
+  }
+  .ca-form-card__portal  { font-size:11px; font-weight:600; color:var(--ca-sky); letter-spacing:.02em; }
+  .ca-form-card__title   { font-family:var(--ca-font-display); font-size:17px; font-weight:600; color:#fff; margin-top:3px; letter-spacing:-.01em; }
+  .ca-form-card__id      { font-size:10.5px; color:var(--ca-sb-muted); margin-top:2px; font-family:var(--ca-font-mono); }
+
+  /* Agent filling chip */
+  .ca-filling-chip { flex-shrink:0; display:inline-flex; align-items:center; gap:6px; font-size:11px; font-weight:600; color:#fff; background:rgba(127,168,201,0.22); padding:5px 11px; border-radius:8px; }
+  .ca-filling-chip__dot { width:6px; height:6px; border-radius:50%; background:var(--ca-sky); animation:ca-caret 1s ease-in-out infinite; }
+
+  /* Form section */
+  .ca-form-section { padding:18px 20px; border-bottom:1px solid var(--ca-hair); }
+  .ca-form-section:last-of-type { border-bottom:none; }
+  .ca-form-section__head { display:flex; align-items:center; gap:9px; margin-bottom:14px; }
+  .ca-form-section__title { font-family:var(--ca-font-display); font-size:15px; font-weight:600; color:var(--ca-ink); margin:0; letter-spacing:-.01em; }
+  .ca-form-grid { display:grid; grid-template-columns:1fr 1fr; gap:14px 18px; }
+  .ca-form-grid--full { grid-column:1 / -1; }
+
+  /* Form fields */
+  .ca-field label { display:block; font-size:12px; font-weight:500; color:var(--ca-muted); margin-bottom:6px; }
+  .ca-field__value {
+    border:1px solid var(--ca-border2); border-radius:9px;
+    padding:9px 12px; font-size:13px; color:var(--ca-ink);
+    background:var(--ca-raised); font-family:var(--ca-font-body);
+  }
+  /* Active (agent typing) */
+  .ca-field__value--active {
+    border-color:var(--ca-accent);
+    background:var(--ca-accent-soft);
+    box-shadow:0 0 0 3px rgba(176,82,74,.16);
+  }
+  /* Pending (not yet filled) */
+  .ca-field__value--pending {
+    border-style:dashed;
+    color:var(--ca-faint);
+    font-family:var(--ca-font-mono);
+  }
+  /* Blinking cursor inside active field */
+  .ca-caret { display:inline-block; width:1.5px; height:14px; background:var(--ca-accent); margin-left:1px; vertical-align:-2px; animation:ca-caret 1s step-end infinite; }
+
+  /* Form footer */
+  .ca-form-footer { padding:13px 20px; background:var(--ca-raised); display:flex; justify-content:space-between; align-items:center; }
+  .ca-form-footer__note { font-size:11.5px; color:var(--ca-faint); }
+  .ca-form-footer__mode { font-size:11px; color:var(--ca-faint); font-family:var(--ca-font-mono); }
+
+  /* Suggestion chips (reused) */
+  .ca-suggestions { display:flex; flex-wrap:wrap; gap:9px; padding-left:41px; animation:ca-fade .5s .1s ease both; }
+  .ca-suggestion--primary   { background:var(--ca-accent); border:none; color:#fff; font-size:13px; font-weight:600; padding:9px 16px; border-radius:11px; cursor:pointer; font-family:var(--ca-font-body); }
+  .ca-suggestion--secondary { background:var(--ca-card); border:1px solid var(--ca-border2); color:var(--ca-body); font-size:13px; font-weight:500; padding:9px 16px; border-radius:11px; cursor:pointer; font-family:var(--ca-font-body); }
+
+  /* Agent working bar */
+  .ca-agent-working { display:flex; align-items:center; gap:10px; background:var(--ca-raised); border:1px solid var(--ca-line); border-radius:16px; padding:11px 12px 11px 18px; }
+  .ca-agent-working__text { flex:1; font-size:14px; color:var(--ca-faint); }
+  .ca-dot-anim span { width:6px; height:6px; border-radius:50%; background:var(--ca-accent); display:inline-block; }
+  .ca-dot-anim span:nth-child(1) { animation:ca-dot 1.2s infinite; }
+  .ca-dot-anim span:nth-child(2) { animation:ca-dot 1.2s .15s infinite; }
+  .ca-dot-anim span:nth-child(3) { animation:ca-dot 1.2s .3s infinite; }
+</style>
+</head>
+<body>
+
+<!--
+  PROACTIVE AGENT SCREEN
+  =======================
+  Content area — wrap with sidebar + topbar from shell.html.
+  Replace all [PLACEHOLDER] text with your real app content.
+
+  This screen covers two stages:
+  1. Agent presents matched results (job listings, forms, services, etc.)
+  2. Agent opens and auto-fills a form / application
+-->
+
+<div class="ca-chat-wrap">
+  <div class="ca-chat-feed">
+    <div class="ca-feed-inner">
+
+      <!-- ── STAGE 1: Agent presents results ────────── -->
+      <div class="ca-msg-agent">
+        <div class="ca-agent-mark">CA</div>
+        <div class="ca-msg-agent__body">
+          <div class="ca-msg-agent__header">
+            <span class="ca-msg-agent__name">Citizen Agent</span>
+            <span class="ca-msg-agent__dot"></span>
+          </div>
+
+          <p>
+            <!-- Replace with your actual agent copy -->
+            I found <strong>[N] [result type — e.g. open positions / matching services / relevant forms]</strong> that match your profile. Here are the top matches:
+          </p>
+
+          <div class="ca-result-list">
+
+            <!-- RESULT CARD 1 — primary match -->
+            <div class="ca-result-card">
+              <div class="ca-result-card__head">
+                <div>
+                  <div style="display:flex;align-items:center;gap:8px;">
+                    <span class="ca-result-card__title">[Result 1 title]</span>
+                    <!-- Match confidence chip — show when relevant -->
+                    <span class="ca-chip ca-chip--ok" style="font-size:10px;">[N]% match</span>
+                  </div>
+                  <div class="ca-result-card__org">[Organisation / department / category]</div>
+                </div>
+                <button class="ca-btn ca-btn--primary ca-btn--sm" style="flex-shrink:0;">Select</button>
+              </div>
+              <!-- Metadata grid — use the fields relevant to your result type -->
+              <div class="ca-result-card__meta">
+                <span class="ca-result-card__meta-item">
+                  <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="var(--ca-faint)" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round"><path d="M20 10c0 6-8 12-8 12s-8-6-8-12a8 8 0 0 1 16 0z"/><circle cx="12" cy="10" r="2.5"/></svg>
+                  [Location]
+                </span>
+                <span class="ca-result-card__meta-item">
+                  <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="var(--ca-faint)" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round"><rect x="4" y="5" width="16" height="16" rx="2"/><path d="M4 10h16M8 3v4M16 3v4"/></svg>
+                  [Date / deadline]
+                </span>
+                <span class="ca-result-card__meta-item">
+                  <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="var(--ca-faint)" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="8" width="18" height="12" rx="2"/><path d="M8 8V6a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2"/></svg>
+                  [Requirement / eligibility]
+                </span>
+                <span class="ca-result-card__meta-item">
+                  <span style="width:13px;text-align:center;color:var(--ca-faint);font-weight:700;">$</span>
+                  [Fee / salary / value]
+                </span>
+              </div>
+            </div>
+
+            <!-- RESULT CARD 2 — secondary match -->
+            <div class="ca-result-card">
+              <div class="ca-result-card__head">
+                <div>
+                  <div class="ca-result-card__title">[Result 2 title]</div>
+                  <div class="ca-result-card__org">[Organisation / department]</div>
+                </div>
+                <button class="ca-btn ca-btn--ghost ca-btn--sm" style="flex-shrink:0;">Select</button>
+              </div>
+              <div class="ca-result-card__meta">
+                <span class="ca-result-card__meta-item"><svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="var(--ca-faint)" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round"><path d="M20 10c0 6-8 12-8 12s-8-6-8-12a8 8 0 0 1 16 0z"/><circle cx="12" cy="10" r="2.5"/></svg>[Location]</span>
+                <span class="ca-result-card__meta-item"><svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="var(--ca-faint)" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round"><rect x="4" y="5" width="16" height="16" rx="2"/><path d="M4 10h16M8 3v4M16 3v4"/></svg>[Date / deadline]</span>
+              </div>
+            </div>
+
+          </div><!-- /result-list -->
+        </div>
+      </div>
+
+      <!-- ── STAGE 2: Agent auto-fills form ──────────── -->
+      <div class="ca-msg-agent">
+        <div class="ca-agent-mark">CA</div>
+        <div class="ca-msg-agent__body">
+          <div class="ca-msg-agent__header">
+            <span class="ca-msg-agent__name">Citizen Agent</span>
+            <span class="ca-msg-agent__dot"></span>
+          </div>
+          <p>
+            I've opened the official [form / application] for <strong>[Result 1 title]</strong>. Watch as I fill it in — you can edit any field at any time.
+          </p>
+
+          <!-- AUTO-FILL FORM CARD -->
+          <div class="ca-form-card">
+
+            <!-- Dark header bar -->
+            <div class="ca-form-card__header">
+              <div>
+                <div class="ca-form-card__portal">[Portal / authority name]</div>
+                <div class="ca-form-card__title">[Form / application title]</div>
+                <div class="ca-form-card__id">[Form ID / reference number]</div>
+              </div>
+              <div class="ca-filling-chip">
+                <span class="ca-filling-chip__dot"></span>
+                Agent filling
+              </div>
+            </div>
+
+            <!-- SECTION 1 — complete -->
+            <div class="ca-form-section">
+              <div class="ca-form-section__head">
+                <h4 class="ca-form-section__title">[Section 1 name]</h4>
+                <span class="ca-chip ca-chip--ok" style="font-size:10.5px;">
+                  <svg width="10" height="10" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="3" stroke-linecap="round" stroke-linejoin="round"><path d="M5 12.5l4.5 4.5L19 7"/></svg>
+                  Section complete
+                </span>
+              </div>
+              <div class="ca-form-grid">
+                <div class="ca-field">
+                  <label>[Field 1 label]</label>
+                  <div class="ca-field__value">[Filled value]</div>
+                </div>
+                <div class="ca-field">
+                  <label>[Field 2 label]</label>
+                  <div class="ca-field__value">[Filled value]</div>
+                </div>
+                <div class="ca-field ca-form-grid--full">
+                  <label>[Long field label]</label>
+                  <div class="ca-field__value" style="line-height:1.55;">[Filled multi-line value]</div>
+                </div>
+              </div>
+            </div>
+
+            <!-- SECTION 2 — agent currently filling -->
+            <div class="ca-form-section">
+              <div class="ca-form-section__head">
+                <h4 class="ca-form-section__title">[Section 2 name]</h4>
+                <!-- No completion chip — still in progress -->
+              </div>
+              <div class="ca-form-grid">
+                <div class="ca-field ca-form-grid--full">
+                  <label>[Field label]</label>
+                  <div class="ca-field__value">[Filled value]</div>
+                </div>
+                <!-- Active field — agent is typing here -->
+                <div class="ca-field">
+                  <label>[Active field label]</label>
+                  <div class="ca-field__value ca-field__value--active">
+                    [Partially typed value]<span class="ca-caret"></span>
+                  </div>
+                </div>
+                <!-- Pending field — not yet reached -->
+                <div class="ca-field">
+                  <label>[Pending field label]</label>
+                  <div class="ca-field__value ca-field__value--pending">DD / Month / YYYY</div>
+                </div>
+              </div>
+            </div>
+
+            <!-- Form footer -->
+            <div class="ca-form-footer">
+              <span class="ca-form-footer__note">+ [N] sections remaining · [section names]</span>
+              <span class="ca-form-footer__mode">Demo mode · [portal domain]</span>
+            </div>
+
+          </div><!-- /form card -->
+        </div>
+      </div>
+
+      <!-- Suggestion chips -->
+      <div class="ca-suggestions">
+        <button class="ca-suggestion--secondary">Edit a field</button>
+        <button class="ca-suggestion--primary">Confirm &amp; submit</button>
+      </div>
+
+    </div><!-- /feed-inner -->
+  </div><!-- /feed -->
+
+  <!-- Composer — agent working state -->
+  <div class="ca-chat-foot">
+    <div style="max-width:760px; margin:0 auto;">
+      <div class="ca-agent-working">
+        <span class="ca-agent-working__text">Citizen Agent is handling this step…</span>
+        <div class="ca-dot-anim" style="display:flex;gap:4px;align-items:center;"><span></span><span></span><span></span></div>
+      </div>
+    </div>
+  </div>
+
+</div><!-- /chat-wrap -->
+</body>
+</html>

@@ -1,0 +1,174 @@
+/**
+ * CITIZEN ASSIST — BERMUDA FLAG · NAVY RAIL
+ * Design Tokens — June 2026
+ *
+ * Palette origin: Bermuda Red Ensign flag
+ *   Primary canvas = warm flag-white limestone
+ *   Rail            = deep Atlantic navy
+ *   Action          = muted ensign red
+ *   Done/success    = sea green
+ *   Urgent/warning  = amber
+ *   Info/online     = sky blue
+ *   Alert (error)   = coral (reserved — NOT used for urgency)
+ *
+ * Typography
+ *   Display / headings : Space Grotesk 500–700  (Google Fonts)
+ *   Body / UI           : Hanken Grotesk 400–700 (Google Fonts)
+ *   Mono (code/ids)     : system ui-monospace (Menlo, Consolas)
+ *
+ * Usage rules
+ *   --accent        → all primary CTAs, links, agent mark, active nav icon
+ *   --ok / --okbg   → "done", checkmarks, completed steps, verified state
+ *   --alert         → urgent / time-sensitive labels and left-border markers
+ *   --info          → "online" status, upcoming/info phases, sky chips
+ *   --danger        → true errors only (never used for urgency)
+ *   Sidebar colors  → --sb* prefix only; never use canvas colors inside sidebar
+ */
+
+:root {
+
+  /* ── Surfaces ────────────────────────────────────── */
+  --ca-canvas:     #F8F6F1;   /* main page background (limestone) */
+  --ca-gallery:    #E7E2D7;   /* outer chrome / design canvas bg  */
+  --ca-card:       #FFFFFF;   /* card / sheet surface             */
+  --ca-raised:     #F3EEE5;   /* slightly lifted surface, headers */
+  --ca-border:     #EAE5DB;   /* standard border                  */
+  --ca-border2:    #E0DACE;   /* stronger border                  */
+  --ca-hair:       #F0ECE2;   /* hairline divider                 */
+  --ca-line:       #ECE6DC;   /* section separator                */
+
+  /* ── Sidebar rail ───────────────────────────────── */
+  --ca-sidebar:    #1E3550;   /* rail background                  */
+  --ca-sb-border:  #2C435E;   /* rail border + dividers           */
+  --ca-sb-active:  #28425E;   /* active / hover item bg           */
+  --ca-sb-text:    #EDEFF2;   /* primary sidebar text             */
+  --ca-sb-muted:   #A9B4C4;   /* secondary sidebar text           */
+  --ca-sb-faint:   #7C8B9E;   /* tertiary / icon color            */
+
+  /* ── Ink / body text ────────────────────────────── */
+  --ca-ink:        #1E3550;   /* headings, strong text            */
+  --ca-body:       #3A4656;   /* body paragraphs                  */
+  --ca-muted:      #6A7280;   /* secondary text, labels           */
+  --ca-faint:      #9AA0A8;   /* placeholders, tertiary           */
+
+  /* ── Primary — Ensign Red ───────────────────────── */
+  --ca-accent:     #B0524A;
+  --ca-accent-d:   #974640;   /* darker shade for text-on-light   */
+  --ca-accent-soft:#F4E4E0;   /* soft tint for chips / bg         */
+
+  /* ── Success — Sea Green ────────────────────────── */
+  --ca-ok:         #3C7D5A;
+  --ca-ok-t:       #326B4D;
+  --ca-ok-bg:      #E7F1EB;
+  --ca-ok-bd:      #D2E5D8;
+
+  /* ── Warning — Amber (urgent / time-sensitive) ──── */
+  --ca-alert:      #B58233;
+  --ca-alert-t:    #8E6627;
+  --ca-alert-bg:   #F6EFD9;
+  --ca-alert-bd:   #E7DCB8;
+
+  /* ── Info — Sky Blue (online / upcoming phases) ─── */
+  --ca-info:       #35618C;
+  --ca-info-bg:    #E7EDF4;
+  --ca-info-bd:    #D0DCEB;
+
+  /* ── Danger — Coral (errors only) ──────────────── */
+  --ca-danger:     #D64242;
+  --ca-danger-t:   #BC3A3A;
+  --ca-danger-bg:  #FAE0DB;
+  --ca-danger-bd:  #F2CDC5;
+
+  /* ── Misc ───────────────────────────────────────── */
+  --ca-sand-bg:    #F6E7E2;   /* user message bubble bg           */
+  --ca-chip-bg:    #F1EDE4;   /* neutral chip / toggle bg         */
+  --ca-sky:        #7FA8C9;   /* lagoon highlight (accent pair)   */
+
+  /* ── Radius ──────────────────────────────────────── */
+  --ca-r-xs:  6px;
+  --ca-r-sm:  9px;
+  --ca-r-md:  12px;
+  --ca-r-lg:  14px;
+  --ca-r-xl:  16px;
+  --ca-r-2xl: 18px;
+  --ca-r-pill:99px;
+
+  /* ── Shadows ─────────────────────────────────────── */
+  --ca-shadow-card:    0 1px 2px rgba(30,53,80,.05);
+  --ca-shadow-sheet:   0 2px 8px -2px rgba(30,53,80,.10);
+  --ca-shadow-modal:   0 16px 44px -16px rgba(30,53,80,.28), 0 2px 8px rgba(30,53,80,.06);
+
+  /* ── Spacing ─────────────────────────────────────── */
+  --ca-sidebar-w: 248px;
+
+  /* ── Typography ──────────────────────────────────── */
+  --ca-font-display: 'Space Grotesk', system-ui, sans-serif;
+  --ca-font-body:    'Hanken Grotesk', system-ui, sans-serif;
+  --ca-font-mono:    ui-monospace, Menlo, Consolas, monospace;
+
+  /* ── Z-index stack ───────────────────────────────── */
+  --ca-z-sidebar: 100;
+  --ca-z-topbar:  200;
+  --ca-z-modal:   300;
+  --ca-z-toast:   400;
+}
+
+/* ── Font import (add to your <head>) ────────────────
+   <link rel="preconnect" href="https://fonts.googleapis.com">
+   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+   <link href="https://fonts.googleapis.com/css2?family=Space+Grotesk:wght@500;600;700&family=Hanken+Grotesk:wght@400;500;600;700&display=swap" rel="stylesheet">
+   ──────────────────────────────────────────────────── */
+
+/* ── Base resets (optional, safe to use) ─────────────*/
+*, *::before, *::after { box-sizing: border-box; }
+
+body {
+  font-family: var(--ca-font-body);
+  background:  var(--ca-canvas);
+  color:       var(--ca-ink);
+  -webkit-font-smoothing: antialiased;
+  margin: 0;
+}
+
+/* ── Utility classes ─────────────────────────────────*/
+
+/* Chips */
+.ca-chip          { display:inline-flex; align-items:center; gap:6px; font-size:12px; font-weight:600; padding:4px 10px; border-radius:var(--ca-r-sm); }
+.ca-chip--neutral { color:var(--ca-muted);   background:var(--ca-chip-bg); }
+.ca-chip--ok      { color:var(--ca-ok-t);    background:var(--ca-ok-bg);   border:1px solid var(--ca-ok-bd); }
+.ca-chip--alert   { color:var(--ca-alert-t); background:var(--ca-alert-bg);border:1px solid var(--ca-alert-bd); }
+.ca-chip--info    { color:var(--ca-info);    background:var(--ca-info-bg); border:1px solid var(--ca-info-bd); }
+.ca-chip--danger  { color:var(--ca-danger-t);background:var(--ca-danger-bg);border:1px solid var(--ca-danger-bd); }
+
+/* Buttons */
+.ca-btn           { display:inline-flex; align-items:center; gap:6px; font-family:var(--ca-font-body); font-weight:600; cursor:pointer; border:none; border-radius:var(--ca-r-sm); transition:opacity .15s; }
+.ca-btn:hover     { opacity:.88; }
+.ca-btn--primary  { background:var(--ca-accent); color:#fff; padding:9px 16px; font-size:13px; }
+.ca-btn--ghost    { background:var(--ca-card);   color:var(--ca-body); padding:9px 16px; font-size:13px; border:1px solid var(--ca-border2); }
+.ca-btn--sm       { padding:6px 12px; font-size:12px; }
+
+/* Cards */
+.ca-card          { background:var(--ca-card); border:1px solid var(--ca-border); border-radius:var(--ca-r-lg); box-shadow:var(--ca-shadow-card); }
+.ca-card--urgent  { border-left:3px solid var(--ca-alert); }
+.ca-card--done    { border-left:3px solid var(--ca-ok); }
+.ca-card--info    { border-left:3px solid var(--ca-sky); }
+
+/* Progress bar */
+.ca-progress      { height:6px; background:var(--ca-hair); border-radius:var(--ca-r-pill); overflow:hidden; }
+.ca-progress__bar { height:100%; background:var(--ca-ok); border-radius:var(--ca-r-pill); transition:width .4s ease; }
+
+/* Agent avatar */
+.ca-agent-mark    { width:28px; height:28px; border-radius:9px; background:var(--ca-accent); color:#fff; display:flex; align-items:center; justify-content:center; font-family:var(--ca-font-display); font-size:11px; font-weight:700; flex-shrink:0; }
+
+/* User message bubble */
+.ca-user-msg      { max-width:78%; background:var(--ca-sand-bg); color:var(--ca-ink); padding:11px 16px; border-radius:16px; border-top-right-radius:5px; font-size:14.5px; line-height:1.55; font-weight:500; align-self:flex-end; }
+
+/* Composer */
+.ca-composer      { display:flex; align-items:center; gap:10px; background:var(--ca-card); border:1px solid var(--ca-border2); border-radius:var(--ca-r-xl); padding:11px 12px 11px 18px; box-shadow:var(--ca-shadow-card); }
+.ca-composer__input { flex:1; font-size:14px; color:var(--ca-faint); font-family:var(--ca-font-body); background:none; border:none; outline:none; }
+.ca-composer__send  { width:34px; height:34px; border-radius:11px; background:var(--ca-accent); border:none; color:#fff; display:flex; align-items:center; justify-content:center; cursor:pointer; flex-shrink:0; }
+
+/* Animations */
+@keyframes ca-fade  { from { opacity:0; transform:translateY(8px); } to { opacity:1; transform:none; } }
+@keyframes ca-caret { 0%,100% { opacity:1; } 50% { opacity:0; } }
+@keyframes ca-dot   { 0%,80%,100% { transform:translateY(0); opacity:.4; } 40% { transform:translateY(-3px); opacity:1; } }

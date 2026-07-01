@@ -164,11 +164,49 @@ export default function PreviewChatPage() {
     await withTyping(1800)
     addMsg({
       id: uid(), type: "assistant",
-      content: "Based on your situation, here are **5 benefits** you qualify for:\n\n**1. RNPN birth registration** — ⚠️ 27 days left\n**2. Maternity benefit** — $400/month for 12 weeks\n**3. ISSS dependent enrollment** — within 1 year\n**4. Child subsidy** — $50/month\n**5. Paternity benefit (partner)** — 3 days paid leave\n\nTotal value: **$1,750/month**\n\nWant me to start with the most urgent — the RNPN registration?",
+      content: `${langRef.current === "es" ? `Basándome en tu situación, encontré **5 beneficios** para los que calificás — total: **$1,750/mes**. El más urgente tiene un plazo de 27 días:` : `Based on your situation, I found **5 benefits** you qualify for — total value: **$1,750/month**. The most urgent has a 27-day deadline:`}`,
+    })
+    await delay(300)
+    // Benefit cards with apply links
+    const es = langRef.current === "es"
+    const benefitCards = [
+      { docName: es ? "Registro de nacimiento — RNPN" : "Birth registration — RNPN", docApplyUrl: "https://www.rnpn.gob.sv", docMode: "in-person", docData: [
+        { key: es ? "Valor" : "Value",        value: es ? "Obligatorio" : "Required" },
+        { key: es ? "Plazo" : "Deadline",     value: es ? "⚠️ 27 días desde el nacimiento" : "⚠️ 27 days from birth" },
+        { key: es ? "Dónde" : "Where",        value: "RNPN · rnpn.gob.sv" },
+      ]},
+      { docName: es ? "Prestación por maternidad — ISSS" : "Maternity benefit — ISSS", docApplyUrl: "https://www.isss.gob.sv", docMode: "in-person", docData: [
+        { key: es ? "Valor" : "Value",        value: es ? "$400/mes por 12 semanas" : "$400/month for 12 weeks" },
+        { key: es ? "Quién califica" : "Who", value: es ? "Trabajadoras con 36 semanas cotizadas" : "Formal workers with 36 weeks contributions" },
+        { key: es ? "Dónde" : "Where",        value: "ISSS · isss.gob.sv" },
+      ]},
+      { docName: es ? "Inscripción de bebé en ISSS" : "Baby ISSS enrollment", docApplyUrl: "https://www.isss.gob.sv", docMode: "in-person", docData: [
+        { key: es ? "Valor" : "Value",        value: es ? "Cobertura médica del bebé" : "Baby healthcare coverage" },
+        { key: es ? "Plazo" : "Deadline",     value: es ? "Dentro de 1 año del nacimiento" : "Within 1 year of birth" },
+        { key: es ? "Requiere" : "Requires",  value: es ? "Partida de nacimiento del RNPN primero" : "RNPN birth cert first" },
+      ]},
+      { docName: es ? "Subsidio por hijo" : "Child subsidy", docApplyUrl: "https://www.presidencia.gob.sv", docMode: "online", docData: [
+        { key: es ? "Valor" : "Value",        value: "$50/mes" },
+        { key: es ? "Cómo" : "How",           value: es ? "Automático después del RNPN" : "Auto-processed after RNPN registration" },
+      ]},
+      { docName: es ? "Licencia de paternidad" : "Paternity benefit", docApplyUrl: "https://www.isss.gob.sv", docMode: "in-person", docData: [
+        { key: es ? "Valor" : "Value",        value: es ? "3 días pagos" : "3 paid days" },
+        { key: es ? "Quién" : "Who",          value: es ? "El patrono lo tramita" : "Employer files on father's behalf" },
+      ]},
+    ]
+    for (const b of benefitCards) {
+      addMsg({ id: uid("ben"), type: "doc-retrieved", docName: b.docName, docData: b.docData, ...({ docApplyUrl: b.docApplyUrl, docMode: b.docMode } as any) })
+      await delay(250)
+    }
+    await delay(400)
+    await withTyping(1000)
+    addMsg({
+      id: uid(), type: "assistant",
+      content: es ? "¿Querés que tramite el registro del RNPN ahora mismo? Es el más urgente." : "Want me to handle the RNPN registration right now? It's the most time-sensitive.",
     })
     setGate("benefits-confirm", [
-      { label: "Yes, handle RNPN", value: "yes-rnpn", primary: true },
-      { label: "Not now",          value: "not-now" },
+      { label: es ? "Sí, hacelo" : "Yes, handle RNPN", value: "yes-rnpn", primary: true },
+      { label: es ? "Ahora no" : "Not now",             value: "not-now" },
     ])
   }
 
@@ -177,6 +215,7 @@ export default function PreviewChatPage() {
     await withTyping(1200)
     addMsg({
       id: uid("form"), type: "form-preview",
+      ...({ formTitle: "Birth Registration — RNPN", formAgency: "RNPN" } as any),
       content: "The form is ready. Here's a preview — does everything look correct?",
       formFields: [
         { label: "Parent name",          value: MOCK.name,         status: "filled",   source: "DUI"           },
@@ -227,7 +266,7 @@ export default function PreviewChatPage() {
     await delay(1500)
     addMsg({
       id: uid("wa"), type: "whatsapp-mock",
-      whatsappText: `📱 Citizen Assist → ${MOCK.whatsapp}\n\n"María, your RNPN submission was received ✓ Reference: RNPN-2026-88341. I'll update you when it's processed (3–5 days)."`,
+      whatsappText: `📱 Citizen Agent → ${MOCK.whatsapp}\n\n"María, your RNPN submission was received ✓ Reference: RNPN-2026-88341. I'll update you when it's processed (3–5 days)."`,
     })
     await delay(2000)
     await withTyping(2000)
@@ -299,7 +338,7 @@ export default function PreviewChatPage() {
     await withTyping(1000)
     addMsg({
       id: uid("wa2"), type: "whatsapp-mock",
-      whatsappText: `📱 Citizen Assist → ${MOCK.whatsapp}\n\n"Reminder for tomorrow: ISSS Soyapango visit for baby enrollment. Bring: DUI + RNPN certificate. Say: 'Vengo a inscribir a mi bebé como dependiente'. Hours: 7:30am–3:30pm."`,
+      whatsappText: `📱 Citizen Agent → ${MOCK.whatsapp}\n\n"Reminder for tomorrow: ISSS Soyapango visit for baby enrollment. Bring: DUI + RNPN certificate. Say: 'Vengo a inscribir a mi bebé como dependiente'. Hours: 7:30am–3:30pm."`,
     })
     await delay(1000)
     await withTyping(1200)
@@ -352,7 +391,10 @@ export default function PreviewChatPage() {
           ? `${g}, María! 👋 Tu identidad ha sido verificada ✓\n\nHe cargado tus registros y estoy listo para ayudarte a reclamar tus beneficios.`
           : `${g}, María! 👋 Your identity has been verified ✓\n\nI've loaded your records and I'm ready to help you claim your benefits.`,
       })
-      setGate("start")
+      setGate("start", [
+        { label: lang === "es" ? "¿Qué tengo que hacer?" : "What do I need to do?",     value: "start", primary: true },
+        { label: lang === "es" ? "Mostrarme mis beneficios" : "Show me my benefits",     value: "start" },
+      ])
     }, 80)
     return () => clearTimeout(t)
   }, []) // eslint-disable-line react-hooks/exhaustive-deps
@@ -368,6 +410,11 @@ export default function PreviewChatPage() {
     const gate = gateRef.current
     clearGate()
 
+    if (gate === "start") {
+      addMsg({ id: uid("u0"), type: "user", content: value === "start" ? (lang === "es" ? "¿Qué tengo que hacer?" : "What do I need to do?") : (lang === "es" ? "Mostrarme mis beneficios" : "Show me my benefits") })
+      setTimeout(() => runScenario(), 400)
+      return
+    }
     if (gate === "initial") {
       if (value === "yes-apply") {
         addMsg({ id: uid("u1"), type: "user", content: "Yes, do it for me" })
@@ -410,7 +457,8 @@ export default function PreviewChatPage() {
       }
       if (value === "benefits") {
         addMsg({ id: uid("u"), type: "user", content: "Show all my benefits first" })
-        await runShowBenefits()
+        await withTyping(800)
+        addMsg({ id: uid(), type: "assistant", content: "Here's your full benefit summary:\n\n✅ **RNPN registration** — submitted ✓\n⏳ **Maternity benefit** — $400/mo for 12 weeks · isss.gob.sv\n⏳ **Baby ISSS enrollment** — within 1 year · isss.gob.sv\n⏳ **Child subsidy** — $50/mo · auto after RNPN confirms\n⏳ **Paternity benefit** — 3 days paid leave · partner's employer" })
       }
       if (value === "done") {
         addMsg({ id: uid("u5"), type: "user", content: "That's enough for today" })
@@ -480,7 +528,7 @@ export default function PreviewChatPage() {
         {isTyping && (
           <div className="flex justify-start">
             <div className="max-w-[85%]">
-              <p className="text-[11px] text-gray-400 px-1 mb-1">Citizen Assist</p>
+              <p className="text-[11px] text-gray-400 px-1 mb-1">Citizen Agent</p>
               <div className="bg-white border border-gray-200 rounded-2xl rounded-tl-sm px-4 py-3 shadow-sm">
                 <div className="flex gap-1 items-center">
                   <span className="w-1.5 h-1.5 bg-gray-300 rounded-full animate-bounce [animation-delay:0ms]" />
@@ -497,14 +545,7 @@ export default function PreviewChatPage() {
       {/* Chip / input gate */}
       {waitingForInput && (
         <div className="bg-white border-t border-gray-100 px-4 py-2.5 flex-shrink-0">
-          {waitingForInput === "start" ? (
-            <button
-              onClick={handleStart}
-              className="px-5 py-2 rounded-full bg-yellow-400 hover:bg-yellow-500 text-yellow-900 text-sm font-semibold transition-colors"
-            >
-              {lang === "es" ? "Comenzar →" : "Start →"}
-            </button>
-          ) : waitingForInput === "baby-name" ? (
+            {waitingForInput === "baby-name" ? (
             <div className="flex gap-2">
               <input
                 autoFocus
@@ -547,7 +588,7 @@ export default function PreviewChatPage() {
       <div className="bg-white border-t border-gray-100 px-4 py-3 flex-shrink-0">
         <div className="flex items-center gap-2">
           <div className="flex-1 border border-gray-200 rounded-full px-4 py-2.5 text-sm text-gray-400 bg-gray-50 select-none">
-            {inputDisabled ? "Citizen Assist is handling this step…" : "Type your message…"}
+            {inputDisabled ? "Citizen Agent is handling this step…" : "Type your message…"}
           </div>
           <div className="w-9 h-9 rounded-full bg-gray-200 flex items-center justify-center opacity-40">
             <Send size={14} className="text-gray-500" />

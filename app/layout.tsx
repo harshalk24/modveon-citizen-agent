@@ -8,8 +8,8 @@ import Sidebar from "@/components/layout/Sidebar"
 const dmSans = DM_Sans({ subsets: ["latin"], variable: "--font-sans" })
 
 export const metadata: Metadata = {
-  title: "Citizen Assist — El Salvador",
-  description: "AI-powered citizen navigation agent for El Salvador government benefits",
+  title: "Citizen Agent",
+  description: "AI-powered citizen navigation agent — find every government benefit you qualify for",
 }
 
 export default function RootLayout({ children }: { children: React.ReactNode }) {

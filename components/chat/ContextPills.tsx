@@ -21,7 +21,7 @@ export default function ContextPills({ citizen }: { citizen: CitizenContextData 
     citizen.profile.employment && citizen.profile.employment !== "any"
       ? { emoji: "💼", label: tr.contextPills[citizen.profile.employment as keyof typeof tr.contextPills] }
       : null,
-    { emoji: "📍", label: "El Salvador" },
+    citizen.profile.country ? { emoji: "📍", label: citizen.profile.country === "SV" ? "El Salvador" : citizen.profile.country } : null,
   ].filter(Boolean) as { emoji: string; label: string }[]
 
   if (pills.length === 0) return null

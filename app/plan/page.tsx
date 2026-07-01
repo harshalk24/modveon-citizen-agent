@@ -351,7 +351,7 @@ export default function PlanPage() {
           <div>
             <h1 className="text-xl font-semibold text-gray-900">{tr.plan.title}</h1>
             <p className="text-sm text-gray-500 mt-0.5">
-              {tr.profile.lifeEvents[resolvedLifeEvent as keyof typeof tr.profile.lifeEvents] || resolvedLifeEvent} · El Salvador
+              {tr.profile.lifeEvents[resolvedLifeEvent as keyof typeof tr.profile.lifeEvents] || resolvedLifeEvent}
             </p>
             {citizen?.planUpdatedAt && (
               <p className="text-xs text-gray-400 mt-1">

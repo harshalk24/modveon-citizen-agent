@@ -2,8 +2,8 @@ export type Lang = "en" | "es"
 
 export const translations = {
   en: {
-    appName: "Citizen Assist",
-    appSubtitle: "El Salvador",
+    appName: "Citizen Agent",
+    appSubtitle: "Government benefits · Worldwide",
     nav: {
       chat: "Chat",
       dashboard: "Dashboard",
@@ -21,12 +21,12 @@ export const translations = {
       viewBenefits: (n: number) => `See my ${n} benefits`,
       openPlan: "Open plan",
       flagTooltip: "Flag incorrect information",
-      agentName: "Citizen Assist",
+      agentName: "Citizen Agent",
       dontUnderstand: "I don't understand this step",
       welcome: "Hi! Tell me your situation — I'll find every government benefit you qualify for.",
     },
     onboarding: {
-      title: "Welcome to Citizen Assist",
+      title: "Welcome to Citizen Agent",
       subtitle: "Your personal guide to every government benefit in El Salvador",
       nameLabel: "What's your first name?",
       namePlaceholder: "e.g. María",
@@ -152,8 +152,8 @@ export const translations = {
     },
   },
   es: {
-    appName: "Citizen Assist",
-    appSubtitle: "El Salvador",
+    appName: "Citizen Agent",
+    appSubtitle: "Government benefits · Worldwide",
     nav: {
       chat: "Chat",
       dashboard: "Dashboard",
@@ -171,12 +171,12 @@ export const translations = {
       viewBenefits: (n: number) => `Ver mis ${n} beneficios`,
       openPlan: "Abrir plan",
       flagTooltip: "Reportar información incorrecta",
-      agentName: "Citizen Assist",
+      agentName: "Citizen Agent",
       dontUnderstand: "No entiendo este paso",
       welcome: "¡Hola! Contame tu situación — te digo todos los beneficios del gobierno que te corresponden.",
     },
     onboarding: {
-      title: "Bienvenido a Citizen Assist",
+      title: "Bienvenido a Citizen Agent",
       subtitle: "Tu guía personal para todos los trámites gubernamentales de El Salvador",
       nameLabel: "¿Cómo te llamás?",
       namePlaceholder: "ej. María",

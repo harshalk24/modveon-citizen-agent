@@ -107,8 +107,8 @@ function ChatContent() {
       setMessages([{
         id: generateId(), role: "assistant",
         content: lang === "es"
-          ? "¡Hola! Soy Citizen Assist — encuentro todos los beneficios del gobierno de El Salvador para los que calificás, y te ayudo a tramitarlos. ¿En qué te puedo ayudar hoy?"
-          : "Hi! I'm Citizen Assist — I find every government benefit you qualify for in El Salvador, and help you claim them. What can I help you with today?",
+          ? "¡Hola! Soy Citizen Agent — encuentro los beneficios del gobierno para los que calificás y te ayudo a tramitarlos. ¿En qué te puedo ayudar hoy?"
+          : "Hi! I'm Citizen Agent — I find every government benefit you qualify for and help you claim them. What can I help you with today?",
         actionButtons: [
           { label: lang === "es" ? "🍼 Acabo de tener un bebé"          : "🍼 I just had a baby",             action: "ob:situation:new-baby",        variant: "outline" },
           { label: lang === "es" ? "💼 Perdí mi trabajo"                 : "💼 I lost my job",                 action: "ob:situation:job-loss",        variant: "outline" },
@@ -792,8 +792,8 @@ function ChatContent() {
               {citizen?.profile.lifeEvent && (
                 <p className="text-xs text-gray-400 mt-0.5">
                   {entitlementCount > 0
-                    ? `${entitlementCount} benefits found · El Salvador`
-                    : "El Salvador"}
+                    ? `${entitlementCount} benefits found`
+                    : ""}
                 </p>
               )}
             </div>
@@ -903,7 +903,7 @@ function ChatContent() {
             </button>
           </div>
           <p className="text-center text-xs text-gray-400 pb-2 px-4">
-            Citizen Assist can make mistakes. Verify important information with the relevant government agency.
+            Citizen Agent can make mistakes. Verify important information with the relevant government agency.
           </p>
         </div>
       </div>

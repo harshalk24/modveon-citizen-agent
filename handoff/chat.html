@@ -1,0 +1,370 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>CA Chat — Navigation Agent</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Space+Grotesk:wght@500;600;700&family=Hanken+Grotesk:wght@400;500;600;700&display=swap" rel="stylesheet">
+<link rel="stylesheet" href="tokens.css">
+<style>
+  html, body { height: 100%; margin: 0; font-family: var(--ca-font-body); background: var(--ca-canvas); color: var(--ca-ink); }
+
+  /* ── Layout (main content area — place inside ca-main from shell.html) ── */
+  .ca-chat-wrap  { display: flex; flex-direction: column; height: 100%; }
+  .ca-chat-ctx   { padding: 12px 0 0; flex-shrink: 0; }
+  .ca-chat-feed  { flex: 1; overflow-y: auto; }
+  .ca-chat-foot  { flex-shrink: 0; padding: 0 24px 22px; }
+
+  /* Context pills row */
+  .ca-ctx-row { max-width: 740px; margin: 0 auto; display: flex; gap: 8px; padding: 0 24px; flex-wrap: wrap; }
+  .ca-ctx-pill {
+    display: flex; align-items: center; gap: 6px;
+    font-size: 12px; font-weight: 500; color: var(--ca-body);
+    background: var(--ca-chip-bg); padding: 5px 12px; border-radius: 9px;
+  }
+  .ca-ctx-pill--live::before { content:''; width:6px; height:6px; border-radius:50%; background:var(--ca-ok); flex-shrink:0; }
+
+  /* Feed inner */
+  .ca-feed-inner { max-width: 740px; margin: 0 auto; padding: 26px 24px 24px; display: flex; flex-direction: column; gap: 26px; }
+
+  /* User message */
+  .ca-msg-user  { display: flex; justify-content: flex-end; animation: ca-fade .5s ease both; }
+
+  /* Agent message row */
+  .ca-msg-agent { display: flex; gap: 13px; animation: ca-fade .5s ease both; }
+  .ca-msg-agent__body { flex: 1; min-width: 0; }
+  .ca-msg-agent__header { display: flex; align-items: center; gap: 7px; margin-bottom: 8px; }
+  .ca-msg-agent__name   { font-size: 12.5px; font-weight: 600; color: var(--ca-ink); }
+  .ca-msg-agent__dot    { width: 5px; height: 5px; border-radius: 50%; background: var(--ca-ok); flex-shrink: 0; }
+  .ca-msg-agent p       { font-size: 15px; line-height: 1.7; color: var(--ca-body); margin: 0; }
+
+  /* Activity card (tool-call result) */
+  .ca-activity-card { background: var(--ca-card); border: 1px solid var(--ca-border); border-radius: 14px; overflow: hidden; box-shadow: var(--ca-shadow-card); }
+  .ca-activity-card__bar { height: 3px; background: var(--ca-hair); }
+  .ca-activity-card__bar--complete { background: var(--ca-ok); }
+  .ca-activity-card__head {
+    display: flex; justify-content: space-between; align-items: center;
+    padding: 12px 16px;
+    background: var(--ca-raised);
+    border-bottom: 1px solid var(--ca-line);
+  }
+  .ca-activity-card__count { display: flex; gap: 9px; align-items: center; }
+  .ca-activity-card__check { width: 18px; height: 18px; border-radius: 50%; background: var(--ca-ok); color: #fff; display: flex; align-items: center; justify-content: center; flex-shrink: 0; }
+  .ca-activity-card__row { padding: 11px 16px; border-bottom: 1px solid var(--ca-hair); }
+  .ca-activity-card__row:last-child { border-bottom: none; }
+  .ca-activity-row { display: flex; gap: 11px; align-items: flex-start; }
+  .ca-activity-row__icon { flex-shrink: 0; margin-top: 1px; }
+  .ca-activity-row__detail { font-size: 13px; color: var(--ca-body); }
+  .ca-activity-row__mono {
+    font-family: var(--ca-font-mono); font-size: 10.5px; color: var(--ca-muted);
+    background: var(--ca-raised); border: 1px solid var(--ca-line); border-radius: 7px;
+    padding: 6px 9px; margin: 6px 0 0; line-height: 1.5; display: block;
+  }
+  /* Warning row variant */
+  .ca-activity-row--warn .ca-activity-row__detail { font-weight: 600; }
+  .ca-activity-row--warn .ca-activity-row__mono { color: var(--ca-alert-t); background: var(--ca-alert-bg); border-color: var(--ca-alert-bd); }
+
+  /* Step cards */
+  .ca-step-list { display: flex; flex-direction: column; gap: 11px; margin-top: 16px; }
+  .ca-step-card { background: var(--ca-card); border: 1px solid var(--ca-border); border-radius: 13px; padding: 15px 17px; box-shadow: var(--ca-shadow-card); }
+  .ca-step-card--urgent { border-left: 3px solid var(--ca-alert); }
+  .ca-step-card--done   { border-left: 3px solid var(--ca-ok); }
+  .ca-step-card__head   { display: flex; justify-content: space-between; gap: 14px; align-items: flex-start; }
+  .ca-step-card__title-row { display: flex; align-items: center; gap: 8px; flex-wrap: wrap; min-width: 0; }
+  .ca-step-card__title  { font-size: 14px; font-weight: 600; color: var(--ca-ink); }
+  .ca-step-card__cost   { flex-shrink: 0; font-size: 12px; font-weight: 600; color: var(--ca-ink); background: var(--ca-chip-bg); padding: 3px 10px; border-radius: 8px; }
+  .ca-step-card__body   { font-size: 13px; line-height: 1.6; color: var(--ca-muted); margin: 8px 0 0; }
+  .ca-step-card__foot   { display: flex; justify-content: space-between; align-items: center; margin-top: 12px; }
+
+  /* Channel chip */
+  .ca-channel-chip { display: inline-flex; align-items: center; gap: 5px; font-size: 11px; font-weight: 600; padding: 3px 9px; border-radius: 7px; }
+  .ca-channel-chip--online   { color: var(--ca-info); background: var(--ca-info-bg); border: 1px solid var(--ca-info-bd); }
+  .ca-channel-chip--inperson { color: var(--ca-muted); background: var(--ca-chip-bg); }
+
+  /* Suggestion chips row */
+  .ca-suggestions { display: flex; flex-wrap: wrap; gap: 9px; padding-left: 41px; animation: ca-fade .5s .15s ease both; }
+  .ca-suggestion--primary { background: var(--ca-accent); border: none; color: #fff; font-size: 13px; font-weight: 600; padding: 9px 16px; border-radius: 11px; cursor: pointer; font-family: var(--ca-font-body); }
+  .ca-suggestion--secondary { background: var(--ca-card); border: 1px solid var(--ca-border2); color: var(--ca-body); font-size: 13px; font-weight: 500; padding: 9px 16px; border-radius: 11px; cursor: pointer; font-family: var(--ca-font-body); }
+  .ca-suggestion--primary:hover, .ca-suggestion--secondary:hover { opacity: .88; }
+
+  /* Welcome empty state */
+  .ca-welcome { flex: 1; display: flex; flex-direction: column; align-items: center; justify-content: center; padding: 40px; }
+  .ca-welcome__badge { display: inline-flex; align-items: center; gap: 7px; background: var(--ca-accent-soft); color: var(--ca-accent-d); font-size: 11.5px; font-weight: 600; padding: 5px 12px; border-radius: var(--ca-r-pill); animation: ca-fade .6s ease both; }
+  .ca-welcome__badge::before { content:''; width:7px; height:7px; border-radius:50%; background:var(--ca-ok); }
+  .ca-welcome__title { font-family: var(--ca-font-display); font-weight: 600; font-size: 31px; color: var(--ca-ink); margin: 18px 0 0; letter-spacing: -.025em; animation: ca-fade .6s .05s ease both; }
+  .ca-welcome__sub   { font-size: 15px; color: var(--ca-muted); margin: 10px 0 0; text-align: center; max-width: 430px; line-height: 1.6; animation: ca-fade .6s .1s ease both; }
+
+  /* Prompt cards (welcome screen) */
+  .ca-prompt-list { display: flex; flex-direction: column; gap: 10px; margin-top: 30px; width: 100%; max-width: 540px; animation: ca-fade .6s .15s ease both; }
+  .ca-prompt-card {
+    display: flex; align-items: center; gap: 14px;
+    padding: 14px 16px;
+    background: var(--ca-card); border: 1px solid var(--ca-border); border-radius: 14px;
+    cursor: pointer; transition: border-color .15s, box-shadow .15s;
+  }
+  .ca-prompt-card:hover { border-color: var(--ca-accent); box-shadow: 0 4px 14px -6px rgba(176,82,74,.22); }
+  .ca-prompt-card__icon { width: 38px; height: 38px; border-radius: 10px; background: var(--ca-accent-soft); flex-shrink: 0; display: flex; align-items: center; justify-content: center; }
+  .ca-prompt-card__title { font-size: 13.5px; font-weight: 600; color: var(--ca-ink); flex: 1; }
+  .ca-prompt-card__sub   { font-size: 12px; color: var(--ca-faint); margin-top: 1px; }
+
+  /* Composer */
+  .ca-composer-wrap { max-width: 740px; margin: 0 auto; }
+  /* Agent-working bar */
+  .ca-agent-working {
+    display: flex; align-items: center; gap: 10px;
+    background: var(--ca-raised); border: 1px solid var(--ca-line); border-radius: 16px;
+    padding: 11px 12px 11px 18px;
+  }
+  .ca-agent-working__text { flex: 1; font-size: 14px; color: var(--ca-faint); }
+  .ca-dot-anim { display: flex; gap: 4px; align-items: center; }
+  .ca-dot-anim span { width: 6px; height: 6px; border-radius: 50%; background: var(--ca-accent); }
+  .ca-dot-anim span:nth-child(1) { animation: ca-dot 1.2s infinite; }
+  .ca-dot-anim span:nth-child(2) { animation: ca-dot 1.2s .15s infinite; }
+  .ca-dot-anim span:nth-child(3) { animation: ca-dot 1.2s .3s infinite; }
+
+  /* More steps note */
+  .ca-more-note { text-align: center; font-size: 12px; color: var(--ca-faint); padding: 2px; }
+</style>
+</head>
+<body>
+
+<!--
+  CHAT SCREEN — Navigation Agent
+  ================================
+  This file shows the CONTENT AREA of the chat screen.
+  Wrap this with the sidebar + topbar from shell.html.
+  Replace all [PLACEHOLDER] text with your real app content.
+
+  Key states shown here:
+  1. Empty/welcome state (ca-welcome)
+  2. Conversation state (ca-feed-inner)
+
+  State 1 is shown by default. Your app should toggle between them.
+-->
+
+<div class="ca-chat-wrap">
+
+  <!-- ── STATE 1: Welcome / empty ─────────────────── -->
+  <!-- Hide this when a conversation is active -->
+  <div class="ca-welcome" id="ca-welcome-state">
+
+    <div class="ca-welcome__badge">Citizen Agent · online</div>
+    <h2 class="ca-welcome__title">Good [time], [User First Name]</h2>
+    <p class="ca-welcome__sub">
+      <!-- Replace with your app's value proposition -->
+      [Describe what the agent can help with — one or two sentences.]
+    </p>
+
+    <!-- Prompt cards — replace with your real use cases -->
+    <div class="ca-prompt-list">
+      <div class="ca-prompt-card">
+        <div class="ca-prompt-card__icon">
+          <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="var(--ca-accent-d)" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="4" width="18" height="16" rx="2"/><path d="M3 9h18M8 14h5"/></svg>
+        </div>
+        <div>
+          <div class="ca-prompt-card__title">[Prompt 1 title]</div>
+          <div class="ca-prompt-card__sub">[Short description]</div>
+        </div>
+        <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="var(--ca-faint)" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M9 6l6 6-6 6"/></svg>
+      </div>
+      <div class="ca-prompt-card">
+        <div class="ca-prompt-card__icon">
+          <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="var(--ca-accent-d)" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M3 11l9-7 9 7"/><path d="M5 10v9h14v-9"/></svg>
+        </div>
+        <div>
+          <div class="ca-prompt-card__title">[Prompt 2 title]</div>
+          <div class="ca-prompt-card__sub">[Short description]</div>
+        </div>
+        <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="var(--ca-faint)" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M9 6l6 6-6 6"/></svg>
+      </div>
+      <div class="ca-prompt-card">
+        <div class="ca-prompt-card__icon">
+          <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="var(--ca-accent-d)" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="8" width="18" height="12" rx="2"/><path d="M8 8V6a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2"/></svg>
+        </div>
+        <div>
+          <div class="ca-prompt-card__title">[Prompt 3 title]</div>
+          <div class="ca-prompt-card__sub">[Short description]</div>
+        </div>
+        <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="var(--ca-faint)" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M9 6l6 6-6 6"/></svg>
+      </div>
+    </div>
+
+  </div><!-- /welcome state -->
+
+  <!-- ── STATE 2: Active conversation ─────────────── -->
+  <!-- Show this when a conversation is active -->
+  <div id="ca-conversation-state" style="display:none; flex:1; flex-direction:column; overflow:hidden;">
+
+    <!-- Context pills (below topbar) -->
+    <div class="ca-chat-ctx">
+      <div class="ca-ctx-row">
+        <!-- Populate from user session / conversation context -->
+        <span class="ca-ctx-pill ca-ctx-pill--live">[Location]</span>
+        <span class="ca-ctx-pill">[Permit / Status type]</span>
+        <span class="ca-ctx-pill">[User Name]</span>
+        <!-- Add more context pills as relevant -->
+      </div>
+    </div>
+
+    <!-- Message feed -->
+    <div class="ca-chat-feed">
+      <div class="ca-feed-inner">
+
+        <!-- USER MESSAGE -->
+        <div class="ca-msg-user">
+          <div class="ca-user-msg">
+            [User's message text]
+          </div>
+        </div>
+
+        <!-- AGENT: ACTIVITY / TOOL CALL CARD -->
+        <!-- Show this while agent is running checks — collapse after -->
+        <div class="ca-msg-agent">
+          <div class="ca-agent-mark">CA</div>
+          <div class="ca-msg-agent__body">
+            <div class="ca-msg-agent__header">
+              <span class="ca-msg-agent__name">Citizen Agent</span>
+              <span class="ca-msg-agent__dot"></span>
+            </div>
+            <div class="ca-activity-card">
+              <!-- Top bar — full width = complete -->
+              <div class="ca-activity-card__bar ca-activity-card__bar--complete"></div>
+              <div class="ca-activity-card__head">
+                <div class="ca-activity-card__count">
+                  <div class="ca-activity-card__check">
+                    <svg width="11" height="11" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="3" stroke-linecap="round" stroke-linejoin="round"><path d="M5 12.5l4.5 4.5L19 7"/></svg>
+                  </div>
+                  <span style="font-size:13px; font-weight:600; color:var(--ca-ink);">All [N] checks complete</span>
+                </div>
+                <span style="font-size:11px; color:var(--ca-faint);">[N]/[N]</span>
+              </div>
+              <!-- Check row — success -->
+              <div class="ca-activity-card__row">
+                <div class="ca-activity-row">
+                  <div class="ca-activity-row__icon">
+                    <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="var(--ca-ok)" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round"><path d="M5 12.5l4.5 4.5L19 7"/></svg>
+                  </div>
+                  <div>
+                    <div class="ca-activity-row__detail">[Check result description]</div>
+                    <code class="ca-activity-row__mono">[Machine-readable detail or metadata]</code>
+                  </div>
+                </div>
+              </div>
+              <!-- Check row — warning/dependency -->
+              <div class="ca-activity-card__row">
+                <div class="ca-activity-row ca-activity-row--warn">
+                  <div class="ca-activity-row__icon">
+                    <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="var(--ca-alert)" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 8v5M12 16.5v.5"/><path d="M10.3 3.9 2.4 18a1.8 1.8 0 0 0 1.6 2.7h16a1.8 1.8 0 0 0 1.6-2.7L13.7 3.9a1.9 1.9 0 0 0-3.4 0z"/></svg>
+                  </div>
+                  <div>
+                    <div class="ca-activity-row__detail">[Warning / dependency label]</div>
+                    <code class="ca-activity-row__mono">[Dependency detail]</code>
+                  </div>
+                </div>
+              </div>
+            </div>
+          </div>
+        </div>
+
+        <!-- AGENT: TEXT MESSAGE + STEP CARDS -->
+        <div class="ca-msg-agent">
+          <div class="ca-agent-mark">CA</div>
+          <div class="ca-msg-agent__body">
+            <div class="ca-msg-agent__header">
+              <span class="ca-msg-agent__name">Citizen Agent</span>
+              <span class="ca-msg-agent__dot"></span>
+            </div>
+            <p>
+              [Agent's response paragraph. Use <strong> for emphasis — keep it minimal.]
+            </p>
+
+            <!-- STEP CARDS LIST -->
+            <div class="ca-step-list">
+
+              <!-- Urgent step -->
+              <div class="ca-step-card ca-step-card--urgent">
+                <div class="ca-step-card__head">
+                  <div class="ca-step-card__title-row">
+                    <span class="ca-step-card__title">Step 1 — [Step name]</span>
+                    <span class="ca-chip ca-chip--alert">Time-sensitive</span>
+                  </div>
+                  <span class="ca-step-card__cost">[Cost] · [Timeframe]</span>
+                </div>
+                <p class="ca-step-card__body">[Step description — 1–2 sentences.]</p>
+                <div class="ca-step-card__foot">
+                  <span class="ca-channel-chip ca-channel-chip--inperson">
+                    <svg width="11" height="11" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M20 10c0 6-8 12-8 12s-8-6-8-12a8 8 0 0 1 16 0z"/><circle cx="12" cy="10" r="2.5"/></svg>
+                    In-person
+                  </span>
+                </div>
+              </div>
+
+              <!-- Urgent step with CTA -->
+              <div class="ca-step-card ca-step-card--urgent">
+                <div class="ca-step-card__head">
+                  <div class="ca-step-card__title-row">
+                    <span class="ca-step-card__title">Step 2 — [Step name]</span>
+                    <span class="ca-chip ca-chip--alert">Time-sensitive</span>
+                  </div>
+                  <span class="ca-step-card__cost">[Cost] · [Timeframe]</span>
+                </div>
+                <p class="ca-step-card__body">[Step description — 1–2 sentences.]</p>
+                <div class="ca-step-card__foot">
+                  <span class="ca-channel-chip ca-channel-chip--online">
+                    <span style="width:6px;height:6px;border-radius:50%;background:var(--ca-ok);"></span>
+                    Online
+                  </span>
+                  <button class="ca-btn ca-btn--primary ca-btn--sm">
+                    Open registration
+                    <svg width="11" height="11" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M7 17L17 7M8 7h9v9"/></svg>
+                  </button>
+                </div>
+              </div>
+
+              <!-- More steps note -->
+              <p class="ca-more-note">+ [N] more steps · [summary]</p>
+
+            </div><!-- /step list -->
+          </div>
+        </div><!-- /agent msg -->
+
+        <!-- SUGGESTION CHIPS -->
+        <div class="ca-suggestions">
+          <!-- Primary suggestion — most likely next action -->
+          <button class="ca-suggestion--primary">[Primary suggestion text]</button>
+          <button class="ca-suggestion--secondary">[Secondary suggestion]</button>
+          <button class="ca-suggestion--secondary">[Secondary suggestion] →</button>
+        </div>
+
+      </div><!-- /feed-inner -->
+    </div><!-- /feed -->
+
+  </div><!-- /conversation state -->
+
+  <!-- ── COMPOSER (always visible) ──────────────────── -->
+  <div class="ca-chat-foot">
+    <div class="ca-composer-wrap">
+
+      <!-- Normal composer — shown when user can type -->
+      <div class="ca-composer" id="ca-composer-normal">
+        <input class="ca-composer__input" type="text" placeholder="[Ask about your services…]">
+        <button class="ca-composer__send" aria-label="Send">
+          <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 19V5M5 12l7-7 7 7"/></svg>
+        </button>
+      </div>
+
+      <!-- Agent-working bar — show when agent is processing -->
+      <div class="ca-agent-working" id="ca-agent-working" style="display:none;">
+        <span class="ca-agent-working__text">Citizen Agent is handling this step…</span>
+        <div class="ca-dot-anim"><span></span><span></span><span></span></div>
+      </div>
+
+    </div>
+  </div>
+
+</div><!-- /chat-wrap -->
+
+</body>
+</html>
