@@ -3,18 +3,10 @@
 // local SLM (Phi-4 Mini, Gemma 4 E4B, or a fine-tuned 3B model). These
 // are classification tasks — a small model will be faster and cheaper
 // once fine-tuned on your verified KB data. Swap by replacing the
-// gemini.getGenerativeModel() calls with your SLM client; the interface
-// stays identical.
+// getLLM().complete() calls with your SLM client; the interface stays identical.
 
-import { GoogleGenerativeAI } from "@google/generative-ai"
+import { getLLM } from "@/lib/llm"
 import type { ExtractedScheme } from "./extractor"
-
-// Lazy singleton — deferred so Next.js can build without GEMINI_API_KEY set.
-let _gemini: GoogleGenerativeAI | null = null
-function getGemini(): GoogleGenerativeAI {
-  if (!_gemini) _gemini = new GoogleGenerativeAI(process.env.GEMINI_API_KEY!)
-  return _gemini
-}
 
 export type VerificationStatus = "pass" | "flag" | "fail"
 
@@ -108,15 +100,6 @@ async function validateContentMatch(
   schemeName: string,
   pageMarkdown: string
 ): Promise<{ matches: boolean; reason: string }> {
-  const model = getGemini().getGenerativeModel({
-    model: "gemini-2.0-flash",
-    generationConfig: {
-      responseMimeType: "application/json",
-      maxOutputTokens: 100,
-      temperature: 0.0,
-    },
-  })
-
   const prompt = `Does this web page still contain information about the government service: "${schemeName}"?
 
 Page content (first 1500 chars):
@@ -125,8 +108,8 @@ ${pageMarkdown.slice(0, 1500)}
 Return ONLY: {"matches": true or false, "reason": "one sentence"}`
 
   try {
-    const result = await model.generateContent(prompt)
-    return JSON.parse(result.response.text().trim()) as {
+    const text = await getLLM().complete(prompt, { temperature: 0.0, maxTokens: 100, json: true })
+    return JSON.parse(text.trim()) as {
       matches: boolean
       reason: string
     }
@@ -198,15 +181,6 @@ async function validateChangeSignificance(
     return { significant: false, changedFields: [] }
   }
 
-  const model = getGemini().getGenerativeModel({
-    model: "gemini-2.0-flash",
-    generationConfig: {
-      responseMimeType: "application/json",
-      maxOutputTokens: 100,
-      temperature: 0.0,
-    },
-  })
-
   const oldValues = changedFields.reduce<Record<string, unknown>>(
     (acc, f) => ({ ...acc, [f]: oldScheme[f] }),
     {}
@@ -225,8 +199,8 @@ New values: ${JSON.stringify(newValues)}
 Return ONLY: {"significant": true or false}`
 
   try {
-    const result = await model.generateContent(prompt)
-    const parsed = JSON.parse(result.response.text().trim()) as {
+    const text = await getLLM().complete(prompt, { temperature: 0.0, maxTokens: 100, json: true })
+    const parsed = JSON.parse(text.trim()) as {
       significant: boolean
     }
     return { significant: parsed.significant, changedFields }

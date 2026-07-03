@@ -1,6 +1,4 @@
-import { GoogleGenerativeAI } from "@google/generative-ai"
-
-const gemini = new GoogleGenerativeAI(process.env.GEMINI_API_KEY!)
+import { getLLM } from "@/lib/llm"
 
 export type QueryType =
   | "out-of-scope"        // nothing to do with El Salvador government services
@@ -21,21 +19,17 @@ const VALID_TYPES: QueryType[] = [
   "no-context-open",
 ]
 
+export interface Classification {
+  type: QueryType
+  confidence: number // 0..1
+}
+
 export async function classifyQuery(params: {
   message: string
   hasLifeEvent: boolean
   hasEntitlements: boolean
   conversationHistory: string
-}): Promise<QueryType> {
-  const model = gemini.getGenerativeModel({
-    model: "gemini-2.0-flash",
-    generationConfig: {
-      responseMimeType: "application/json",
-      maxOutputTokens: 50,
-      temperature: 0.0, // deterministic
-    },
-  })
-
+}): Promise<Classification> {
   const prompt = `You are classifying a citizen's message to a government services assistant for El Salvador.
 
 Citizen context:
@@ -68,23 +62,30 @@ Examples: "what else can I apply for?", "any other benefits?", "what am I missin
 "no-context-open" — citizen is asking about benefits or schemes in general but has NOT described their situation yet (hasLifeEvent=false and hasEntitlements=false).
 Examples: "what schemes am I eligible for?", "what benefits exist?", "what can I apply for?", "qué beneficios hay?"
 
+For "confidence": be calibrated, not reflexively high. Use 0.9+ only when the message clearly and unambiguously fits one type. Lower it (e.g. 0.3-0.6) when the message is vague, garbled, off-topic-but-contains-a-keyword, could plausibly fit more than one type, or is about a third party rather than the citizen themself.
+Example of a LOW-confidence case: message = "asdkj store baby ??? idk lol" → {"type": "out-of-scope", "confidence": 0.4} — because it's garbled and only loosely touches two different topics without clearly being about either.
+Example of a HIGH-confidence case: message = "I just had a baby" → {"type": "service-lookup", "confidence": 0.95} — clear and unambiguous.
+
 Return ONLY this JSON with no other text:
-{"type": "<one of the seven types above>"}`
+{"type": "<one of the seven types above>", "confidence": <number between 0 and 1 representing how confident you are in this classification>}`
 
   try {
-    const result = await model.generateContent(prompt)
-    const text = result.response.text().trim()
+    const text = (await getLLM().complete(prompt, { temperature: 0.0, maxTokens: 60, json: true })).trim()
     const parsed = JSON.parse(text.replace(/```json|```/g, "").trim())
+    const confidence = typeof parsed.confidence === "number" && parsed.confidence >= 0 && parsed.confidence <= 1
+      ? parsed.confidence
+      : 0
 
     if (VALID_TYPES.includes(parsed.type)) {
-      return parsed.type as QueryType
+      return { type: parsed.type as QueryType, confidence }
     }
 
-    // Fallback if LLM returns unexpected value
+    // Fallback if LLM returns unexpected value — treat as low confidence, never crash.
     console.warn("classifyQuery: unexpected type:", parsed.type, "— falling back")
-    return params.hasLifeEvent ? "open-ended" : "service-lookup"
+    return { type: params.hasLifeEvent ? "open-ended" : "service-lookup", confidence: 0 }
   } catch (e) {
     console.error("classifyQuery failed:", e)
-    return "service-lookup"
+    // Parse/API failure = low confidence = no durable write downstream (fail safe).
+    return { type: "service-lookup", confidence: 0 }
   }
 }

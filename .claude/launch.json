@@ -3,12 +3,11 @@
   "configurations": [
     {
       "name": "citizen-assist",
-      "runtimeExecutable": "C:\\Program Files\\nodejs\\node.exe",
-      "runtimeArgs": ["node_modules\\next\\dist\\bin\\next", "dev"],
+      "runtimeExecutable": "npm",
+      "runtimeArgs": ["run", "dev"],
       "port": 3000,
-      "autoPort": false,
       "env": {
-        "PATH": "C:\\Program Files\\nodejs;C:\\Windows\\system32;C:\\Windows"
+        "PATH": "/Users/harshalkondhalkar/.local/node/node-v22.14.0-darwin-arm64/bin:/usr/local/bin:/usr/bin:/bin"
       }
     }
   ]

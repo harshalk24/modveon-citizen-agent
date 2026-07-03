@@ -37,6 +37,30 @@ export function extractLifeEvent(message: string): string | null {
   return null
 }
 
+// Detects an explicit yes/no reply to a pending confirmation prompt.
+// Keyword-based, same approach as extractLifeEvent — not a later-task concern.
+export function extractConfirmation(message: string): "yes" | "no" | null {
+  const lower = message.toLowerCase().trim()
+
+  const matches = (phrases: string[]) =>
+    phrases.some(p => (p.includes(" ") ? lower.includes(p) : new RegExp(`\\b${p}\\b`).test(lower)))
+
+  const noPhrases = [
+    "no", "nope", "not yet", "don't", "do not", "cancel", "nevermind", "never mind",
+    "todavía no", "todavia no", "no todavía", "no todavia", "cancelar",
+  ]
+  if (matches(noPhrases)) return "no"
+
+  const yesPhrases = [
+    "yes", "yeah", "yep", "yup", "sure", "confirm", "confirmed", "correct",
+    "that's right", "thats right", "go ahead", "start new plan", "start a new plan", "please do",
+    "sí", "si", "confirmo", "correcto", "dale", "está bien", "esta bien", "empezá", "empeza",
+  ]
+  if (matches(yesPhrases)) return "yes"
+
+  return null
+}
+
 export function extractEmployment(message: string): string | null {
   const lower = message.toLowerCase()
   if (/\b(employed|formal job|work for|trabajando|trabajo formal|contrato)\b/.test(lower)) return "employed"

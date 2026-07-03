@@ -1,36 +1,27 @@
-import { GoogleGenerativeAI, Content } from "@google/generative-ai"
-
-const gemini = new GoogleGenerativeAI(process.env.GEMINI_API_KEY!)
-
-const MODEL = "gemini-2.0-flash"
+import { getLLM, ChatMessage } from "@/lib/llm"
 
 export async function streamChat(params: {
   systemPrompt: string
   messages: { role: "user" | "model"; parts: string }[]
   maxTokens?: number
 }) {
-  const model = gemini.getGenerativeModel({
-    model: MODEL,
-    systemInstruction: params.systemPrompt,
-    generationConfig: {
-      maxOutputTokens: params.maxTokens || 400,
-      temperature: 0.3,
-    }
-  })
-  // Gemini requires history to start with a user turn — strip leading model messages
-  const allButLast = params.messages.slice(0, -1)
-  const firstUserIdx = allButLast.findIndex(m => m.role === "user")
-  const historyMsgs = firstUserIdx >= 0 ? allButLast.slice(firstUserIdx) : []
-
-  const history: Content[] = historyMsgs.map(m => ({
-    role: m.role,
-    parts: [{ text: m.parts }],
+  const messages: ChatMessage[] = params.messages.map(m => ({
+    role:    m.role === "model" ? "assistant" : "user",
+    content: m.parts,
   }))
 
-  const chat = model.startChat({ history })
-  const last = params.messages[params.messages.length - 1]
-  const result = await chat.sendMessageStream(last.parts)
-  return result.stream
+  const stream = getLLM().streamChat(params.systemPrompt, messages, {
+    temperature: 0.3,
+    maxTokens:   params.maxTokens || 400,
+  })
+
+  // Wrap each yielded string so existing consumers (`chunk.text()`) keep working unchanged.
+  async function* wrapped() {
+    for await (const text of stream) {
+      yield { text: () => text }
+    }
+  }
+  return wrapped()
 }
 
 export async function generatePlan(params: {
@@ -38,15 +29,6 @@ export async function generatePlan(params: {
   profile: any
   language?: "en" | "es"
 }): Promise<any> {
-  const model = gemini.getGenerativeModel({
-    model: MODEL,
-    generationConfig: {
-      responseMimeType: "application/json",
-      maxOutputTokens: 2000,
-      temperature: 0.1,
-    }
-  })
-
   const isEs = params.language === "es"
   const prompt = `Generate a week-by-week action plan for this citizen.
 Profile: ${JSON.stringify(params.profile)}
@@ -67,11 +49,10 @@ Rules:
 
   let text = ""
   try {
-    const result = await model.generateContent(prompt)
-    text = result.response.text()
-  } catch (geminiErr: any) {
-    console.error("Gemini generatePlan error:", geminiErr?.message ?? geminiErr)
-    throw new Error(`Gemini API error: ${geminiErr?.message ?? "unknown"}`)
+    text = await getLLM().complete(prompt, { temperature: 0.1, maxTokens: 2000, json: true })
+  } catch (err: any) {
+    console.error("generatePlan error:", err?.message ?? err)
+    throw new Error(`LLM API error: ${err?.message ?? "unknown"}`)
   }
 
   // Strip any accidental markdown fences before parsing
@@ -80,20 +61,15 @@ Rules:
     return JSON.parse(cleaned)
   } catch (parseErr: any) {
     console.error("generatePlan JSON.parse failed. Raw response (first 500 chars):", cleaned.slice(0, 500))
-    throw new Error(`Gemini returned non-JSON: ${parseErr.message}`)
+    throw new Error(`LLM returned non-JSON: ${parseErr.message}`)
   }
 }
 
 export async function summariseConversation(messages: any[], language: "en" | "es" = "en"): Promise<string> {
-  const model = gemini.getGenerativeModel({
-    model: MODEL,
-    generationConfig: { maxOutputTokens: 200, temperature: 0.1 }
-  })
-
   const prompt = language === "es"
     ? `Resumí esta conversación en máximo 3 oraciones cortas. Solo incluí hechos relevantes sobre la situación del ciudadano. No incluyas saludos ni frases genéricas.\nConversación: ${JSON.stringify(messages)}`
     : `Summarize this conversation in at most 3 short sentences. Include only relevant facts about the citizen's situation. No greetings or generic phrases.\nConversation: ${JSON.stringify(messages)}`
 
-  const result = await model.generateContent(prompt)
-  return result.response.text().trim()
+  const text = await getLLM().complete(prompt, { temperature: 0.1, maxTokens: 200 })
+  return text.trim()
 }

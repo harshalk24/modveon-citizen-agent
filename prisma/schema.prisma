@@ -30,6 +30,7 @@ model CitizenContext {
   id                  String   @id @default(cuid())
   citizenId           String   @unique
   lifeEvent           String?
+  pendingLifeEvent    String?
   employment          String?
   entitlementsJson    String   @default("[]")
   conversationSummary String?

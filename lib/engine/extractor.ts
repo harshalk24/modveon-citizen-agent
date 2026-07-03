@@ -1,12 +1,5 @@
-import { GoogleGenerativeAI } from "@google/generative-ai"
+import { getLLM } from "@/lib/llm"
 import type { CrawlResult } from "./crawler"
-
-// Lazy singleton — deferred so Next.js can build without GEMINI_API_KEY set.
-let _gemini: GoogleGenerativeAI | null = null
-function getGemini(): GoogleGenerativeAI {
-  if (!_gemini) _gemini = new GoogleGenerativeAI(process.env.GEMINI_API_KEY!)
-  return _gemini
-}
 
 // ── SUPPLEMENTARY DOMAIN BLOCKLIST ────────────────────
 // These sites are used ONLY as knowledge sources for scraping.
@@ -127,15 +120,6 @@ export interface ExtractedScheme {
 export async function extractSchemes(
   crawlResult: CrawlResult
 ): Promise<ExtractedScheme[]> {
-  const model = getGemini().getGenerativeModel({
-    model: "gemini-2.0-flash",
-    generationConfig: {
-      responseMimeType: "application/json",
-      maxOutputTokens: 8192,
-      temperature: 0.1,
-    },
-  })
-
   // Trim to fit context window — 8000 chars covers most pages
   const content = crawlResult.markdown.slice(0, 8000)
 
@@ -200,8 +184,7 @@ Return ONLY valid JSON array, no markdown, no preamble:
 If no schemes found: []`
 
   try {
-    const result = await model.generateContent(prompt)
-    const text = result.response.text()
+    const text = await getLLM().complete(prompt, { temperature: 0.1, maxTokens: 8192, json: true })
     const cleaned = text.replace(/```json|```/g, "").trim()
 
     // Robust parse: if the JSON is truncated (model hit token limit mid-array),

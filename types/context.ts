@@ -32,6 +32,7 @@ export interface CitizenContextData {
     country: string
     employment: string
     lifeEvent: string
+    pendingLifeEvent?: string
     language: "es" | "en"
     email?: string
     whatsappNumber?: string

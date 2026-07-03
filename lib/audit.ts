@@ -1,4 +1,5 @@
 import { prisma } from "@/lib/prisma"
+import { getActiveModelLabel } from "@/lib/llm"
 
 export function logResponse(params: {
   citizenId?: string
@@ -16,7 +17,7 @@ export function logResponse(params: {
       prompt: params.prompt.slice(0, 2000),
       response: params.response.slice(0, 4000),
       kbSourceIds: JSON.stringify(params.kbSourceIds),
-      model: params.model || "gemini-2.0-flash",
+      model: params.model || getActiveModelLabel(),
       latencyMs: params.latencyMs,
     }
   }).catch(console.error)
