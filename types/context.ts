@@ -25,12 +25,23 @@ export interface PlanStep {
   completedAt?: string
 }
 
+export type Employment = "formal" | "informal" | "unemployed" | "unknown"
+
+// Maps legacy values (from before the formal/informal/unemployed/unknown
+// vocabulary) so old DB rows don't silently mismatch KB eligibility.
+export function normalizeEmployment(value: string | null | undefined): Employment {
+  if (value === "employed") return "formal"
+  if (value === "self-employed") return "informal"
+  if (value === "formal" || value === "informal" || value === "unemployed") return value
+  return "unknown"
+}
+
 export interface CitizenContextData {
   citizenId: string
   profile: {
     firstName: string
     country: string
-    employment: string
+    employment: Employment
     lifeEvent: string
     pendingLifeEvent?: string
     language: "es" | "en"
@@ -38,6 +49,10 @@ export interface CitizenContextData {
     whatsappNumber?: string
     gender?: string
   }
+  // Slot-filling (Task S1) — decision-relevant facts gathered for the CURRENT
+  // situation only (see lib/slots.ts). Not episodic history.
+  slots?: Record<string, string>
+  pendingSlot?: string
   entitlements: EntitlementStatus[]
   planSteps: PlanStep[]
   deadlines: {

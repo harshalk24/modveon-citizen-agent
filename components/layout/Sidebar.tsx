@@ -112,7 +112,7 @@ export default function Sidebar() {
     citizen?.profile.lifeEvent
       ? tr.contextPills[citizen.profile.lifeEvent as keyof typeof tr.contextPills]
       : null,
-    !lifeEventImpliesUnemployed && citizen?.profile.employment && citizen.profile.employment !== "any"
+    !lifeEventImpliesUnemployed && citizen?.profile.employment && citizen.profile.employment !== "unknown"
       ? tr.contextPills[citizen.profile.employment as keyof typeof tr.contextPills]
       : null,
     citizen?.profile.country ? (citizen.profile.country === "SV" ? "El Salvador" : citizen.profile.country) : null,

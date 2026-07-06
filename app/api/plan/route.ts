@@ -1,6 +1,7 @@
 import { NextResponse } from "next/server"
 import { generatePlan } from "@/lib/ai"
 import { validatePlanJSON } from "@/lib/validator"
+import { verifyPlanOrder, reorderPlan, hedgePlanSteps, enforcePlanCosts, buildSafeFallbackPlan, Plan } from "@/lib/plan-verify"
 import { prisma } from "@/lib/prisma"
 
 async function savePlanToDB(
@@ -53,20 +54,30 @@ export async function POST(req: Request) {
     return NextResponse.json({ error: "citizenId required to generate plan" }, { status: 400 })
   }
 
-  // Compact services before sending to Gemini — full KB objects are large and
-  // inflate the prompt unnecessarily.  Keep only what the plan template needs.
+  // Compact services before sending to the LLM — full KB objects are large and
+  // inflate the prompt unnecessarily. Keep dependsOn/blocks/amount/confidence/
+  // reviewStatus too — needed for order verification and hedging below.
   const compactServices = (services as any[]).map(s => ({
-    id:         s.id,
-    name:       language === "es" ? (s.nameEs || s.name) : s.name,
-    agency:     s.agency,
-    sourceUrl:  s.sourceUrl || s.applyUrl,
-    documents:  language === "es" ? (s.documentsEs || s.documents) : s.documents,
-    deadline:   s.deadline  || null,
+    id:           s.id,
+    name:         language === "es" ? (s.nameEs || s.name) : s.name,
+    agency:       s.agency,
+    agencyAddress: s.sourceUrl || s.applyUrl,
+    documents:    language === "es" ? (s.documentsEs || s.documents) : s.documents,
+    deadline:     s.deadline  || null,
     deadlineDays: s.deadlineDays || null,
-    dependsOn:  s.dependsOn || [],
+    dependsOn:    s.dependsOn || [],
+    blocks:       s.blocks || [],
+    amount:       s.amount || undefined,
+    confidence:   s.confidence,
+    reviewStatus: s.reviewStatus,
+    costUncertain: s.costUncertain,
   }))
 
+  const genericLabel = (week: number) => language === "es" ? `Semana ${week}` : `Week ${week}`
+
   try {
+    let plan: Plan | null = null
+
     const result = await generatePlan({ services: compactServices, profile, language })
     console.log("Plan generated, validating...")
     const validation = validatePlanJSON(JSON.stringify(result))
@@ -78,43 +89,62 @@ export async function POST(req: Request) {
       const retryValidation = validatePlanJSON(JSON.stringify(retry))
       console.log("Plan retry validation:", retryValidation.valid ? "OK" : retryValidation.error)
 
-      if (!retryValidation.valid) {
-        // Fallback: build a minimal plan directly from the compact service list
-        const fallback = {
-          weeks: [{
-            week:  1,
-            label: language === "es" ? "Semana 1 — Hacé esto primero" : "Week 1 — Do these first",
-            steps: compactServices.slice(0, 3).map((s: any) => ({
-              serviceId:              s.id,
-              title:                  s.name,
-              agency:                 s.agency,
-              agencyAddress:          s.sourceUrl,
-              deadline:               s.deadline || null,
-              estimatedTime:          language === "es" ? "30 minutos en persona" : "30 minutes in person",
-              cost:                   "Free",
-              documents:              s.documents || [],
-              whatToSayWhenYouArrive: language === "es"
-                ? `Hola, vengo a tramitar ${s.name}.`
-                : `Hi, I'm here to apply for ${s.name}.`,
-              whatToDoIfProblems:     language === "es"
-                ? `Contactá a ${s.agency} directamente en ${s.sourceUrl}`
-                : `Contact ${s.agency} directly at ${s.sourceUrl}`,
-              canDoOnline: false,
-              onlineUrl:   null,
-              why:         language === "es" ? "Prioridad alta" : "High priority",
-            })),
-          }],
-        }
-        await savePlanToDB(citizenId, fallback, compactServices, profile?.lifeEvent)
-        return NextResponse.json(fallback)
-      }
-
-      await savePlanToDB(citizenId, retryValidation.parsed, compactServices, profile?.lifeEvent)
-      return NextResponse.json(retryValidation.parsed)
+      if (retryValidation.valid) plan = retryValidation.parsed
+    } else {
+      plan = validation.parsed
     }
 
-    await savePlanToDB(citizenId, validation.parsed, compactServices, profile?.lifeEvent)
-    return NextResponse.json(validation.parsed)
+    if (!plan) {
+      // Both JSON-validity attempts failed — safe, ordered, non-fabricated fallback.
+      console.warn("Plan generation failed JSON validation twice — using safe fallback")
+      const fallback = buildSafeFallbackPlan(compactServices, language as "en" | "es")
+      const hedged = hedgePlanSteps(enforcePlanCosts(fallback, compactServices), compactServices)
+      await savePlanToDB(citizenId, hedged, compactServices, profile?.lifeEvent)
+      return NextResponse.json(hedged)
+    }
+
+    // Dependency order is deterministically enforced — never trusted to the
+    // model just because the prompt said "put dependencies in earlier weeks".
+    let orderCheck = verifyPlanOrder(plan, compactServices)
+    if (!orderCheck.ok) {
+      console.warn("Plan order violated:", orderCheck.violations)
+      const reordered = reorderPlan(plan, compactServices, genericLabel)
+      const reorderedCheck = verifyPlanOrder(reordered, compactServices)
+
+      if (reorderedCheck.ok) {
+        console.log("Plan order fixed via deterministic reorder")
+        plan = reordered
+      } else {
+        // Only reachable with a genuine cycle among the retrieved services —
+        // regenerate once with the violations fed back, per the Task-6 pattern.
+        console.warn("Deterministic reorder could not resolve the graph — regenerating once")
+        const regen = await generatePlan({
+          services: compactServices,
+          profile,
+          language,
+          feedback: `Your previous plan violated these dependencies: ${JSON.stringify(orderCheck.violations)}. Reorder the steps so every dependency appears in an earlier (or same, earlier-listed) week than the step that depends on it.`,
+        })
+        const regenValidation = validatePlanJSON(JSON.stringify(regen))
+        const regenPlan = regenValidation.valid ? (regenValidation.parsed as Plan) : null
+        const regenOrderCheck = regenPlan ? verifyPlanOrder(regenPlan, compactServices) : { ok: false, violations: [] }
+
+        if (regenPlan && regenOrderCheck.ok) {
+          plan = regenPlan
+        } else {
+          console.warn("Regeneration still violates order — using safe fallback")
+          plan = buildSafeFallbackPlan(compactServices, language as "en" | "es")
+        }
+      }
+    }
+
+    // Cost enforcement and unverified-figure hedging apply regardless of which
+    // path produced the final plan — order-correctness, cost-backing, and
+    // fact-hedging are orthogonal checks. Cost enforcement runs first so its
+    // corrected values are what hedging (deadline hedging, mainly) sees.
+    plan = hedgePlanSteps(enforcePlanCosts(plan, compactServices), compactServices)
+
+    await savePlanToDB(citizenId, plan, compactServices, profile?.lifeEvent)
+    return NextResponse.json(plan)
   } catch (err: any) {
     console.error("Plan generation error:", err)
     // Return the actual error message so the client can surface it for debugging

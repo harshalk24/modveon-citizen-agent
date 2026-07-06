@@ -28,6 +28,7 @@ export async function generatePlan(params: {
   services: any[]
   profile: any
   language?: "en" | "es"
+  feedback?: string
 }): Promise<any> {
   const isEs = params.language === "es"
   const prompt = `Generate a week-by-week action plan for this citizen.
@@ -45,7 +46,7 @@ Rules:
 - cost: "Free" or exact amount. estimatedTime: realistic (e.g. "30 minutos en persona").
 - whatToSayWhenYouArrive: one specific sentence to say at the counter.
 - whatToDoIfProblems: one sentence naming a specific escalation contact.
-- Output ONLY JSON, no markdown, no explanation.`
+- Output ONLY JSON, no markdown, no explanation.${params.feedback ? `\n\nIMPORTANT: ${params.feedback}` : ""}`
 
   let text = ""
   try {

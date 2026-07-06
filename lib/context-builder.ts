@@ -1,6 +1,7 @@
 import { CitizenContextData } from "@/types/context"
 import { Service } from "@/lib/kb"
 import { QueryType } from "@/lib/classify-query"
+import { SlotDef } from "@/lib/slots"
 
 // ── Dynamic mode blocks (need ctx for personalisation) ──────────────
 
@@ -32,10 +33,15 @@ NEVER say "I cannot find any schemes." NEVER ask them to describe their situatio
 THIS IS A PLAN CLARIFICATION — explain the specific step in full detail: what to do on arrival, documents to bring, what to say, how long it takes, what to do if problems arise. Simple language. DO NOT ask them to re-describe their situation.
 `
       case "diaspora-navigation":
-        return `
+        return ctx.slots?.poderPurpose
+          ? `
 THIS IS A DIASPORA / PODER NOTARIAL QUERY — fully supported. Give the complete step-by-step process.
-Standard poder from US: (1) US notary notarizes, (2) state apostille, (3) RREES consular or CNR El Salvador. Fee ~$40.
+The only valid routes for a legal poder notarial in El Salvador are before a Salvadoran consul (recommended — cheaper, in person; book at rree.gob.sv) OR a notary authorized by El Salvador's Supreme Court. A US notary plus apostille is NOT a valid substitute and must NEVER be suggested as the process — it can be rejected by the CNR, courts, or other entities. After the consul grants the poder, it must also be authenticated at the Ministerio de Relaciones Exteriores before use in El Salvador. ${ctx.slots.poderPurpose === "judicial" ? "This poder is for a COURT/judicial matter — the apoderado must ultimately be a licensed Salvadoran lawyer; say this plainly." : "This poder is not for a court matter, so the apoderado does NOT need to be a lawyer — do not mention the lawyer requirement, it doesn't apply here."} Fee: consular route is cheaper than the notary route, exact amount unconfirmed — tell them to confirm with the consulate.
 DO NOT refuse this. It is a core supported use case.
+`
+          : `
+THIS IS A DIASPORA / PODER NOTARIAL QUERY — fully supported, but you do NOT yet know what the poder is FOR, and that changes whether the apoderado must be a licensed lawyer (court/judicial matters) or not (property, banking, general matters). Do NOT give the full step-by-step process or state the lawyer requirement either way yet — the SLOT GUIDANCE below tells you what to ask first. Once you know the purpose, a follow-up turn will give the complete process.
+DO NOT refuse this. It is a core supported use case — you're just gathering one fact before personalizing the guidance.
 `
       case "open-ended":
         return `
@@ -74,10 +80,15 @@ Terminá con un próximo paso claro. NUNCA digás "no puedo encontrar esquemas."
 ESTA ES UNA ACLARACIÓN DE PLAN — explicá el paso con detalle completo: qué hacer al llegar, qué documentos, qué decir, cuánto tarda, qué hacer si hay problemas. Lenguaje simple. NO pedás que describan su situación de nuevo.
 `
       case "diaspora-navigation":
-        return `
+        return ctx.slots?.poderPurpose
+          ? `
 ESTA ES UNA CONSULTA DE PODER NOTARIAL — caso completamente soportado. Dá el proceso paso a paso.
-Estándar desde EEUU: (1) notario EEUU, (2) apostilla del estado, (3) consulado RREES o CNR El Salvador. Costo ~$40.
+Las únicas vías válidas para un poder notarial legal en El Salvador son ante un cónsul salvadoreño (recomendado — más económico, en persona; agendá en rree.gob.sv) O un notario autorizado por la Corte Suprema de Justicia. Un notario de EEUU más apostilla NO es un sustituto válido y NUNCA debe sugerirse como el proceso — puede ser rechazado por el CNR, tribunales u otras entidades. Después de que el cónsul otorgue el poder, debe autenticarse también en el Ministerio de Relaciones Exteriores antes de usarse en El Salvador. ${ctx.slots.poderPurpose === "judicial" ? "Este poder es para un asunto JUDICIAL — el apoderado final debe ser un abogado salvadoreño autorizado; decilo claramente." : "Este poder no es para un asunto judicial, así que el apoderado NO necesita ser abogado — no menciones ese requisito, no aplica acá."} Costo: la vía consular es más económica que la del notario, monto exacto sin confirmar — deciles que verifiquen con el consulado.
 NO te niegues. Es un caso de uso central.
+`
+          : `
+ESTA ES UNA CONSULTA DE PODER NOTARIAL — caso completamente soportado, pero todavía NO sabés para qué es el poder, y eso cambia si el apoderado debe ser abogado (asuntos judiciales) o no (propiedad, banco, asuntos generales). NO des el proceso completo ni afirmés el requisito de abogado todavía — la GUÍA DE DATOS PENDIENTES abajo te dice qué preguntar primero. Una vez que sepas el propósito, en un turno posterior dás el proceso completo.
+NO te niegues. Es un caso de uso central — solo estás reuniendo un dato antes de personalizar la guía.
 `
       case "open-ended":
         return `
@@ -111,10 +122,10 @@ CRITICAL RULES:
 0. ABSOLUTE CONSTRAINT: You have access to a KNOWLEDGE BASE section below. It contains the COMPLETE list of government services this citizen qualifies for. You MUST NOT list any service, benefit, program, or scheme that is not explicitly in that KNOWLEDGE BASE. Not AFP. Not severance pay. Not PROCOMES. Not any other program. ONLY what is in the KNOWLEDGE BASE JSON array.
 1. ASSUME FIRST. Never ask for information you can reasonably assume. State assumption, show results, let citizen correct.
 2. ONE QUESTION MAX per response, and only ask if NONE of the KB services can answer the question AND the answer genuinely changes which services to show. If the citizen asks "what are my entitlements" or "what can I apply for" — answer immediately from the KB services already loaded in context.
-2a. ISSS ASSUMPTION. If employment is "employed", always assume the citizen contributes to ISSS. Immediately surface maternity benefit, paternity leave, and dependent enrollment without asking.
+2a. ISSS ASSUMPTION. If employment is "formal", always assume the citizen contributes to ISSS. Immediately surface maternity benefit, paternity leave, and dependent enrollment without asking.
 2b. SITUATION OVER PROFILE. Surface universal services first (regardless of employment), then employment-specific benefits.
 2c. DOCUMENT LISTS. When listing documents, use: [doc name] DOC_INFO:[slug] per line.
-2d. NEVER RE-ASK EMPLOYMENT. If employment is already set in CITIZEN CONTEXT (anything other than "any"), do not ask about it again in any follow-up message. Treat it as confirmed and use it silently.
+2d. NEVER RE-ASK EMPLOYMENT. If employment is already set in CITIZEN CONTEXT (anything other than "unknown"), do not ask about it again in any follow-up message. Treat it as confirmed and use it silently.
 3. EMPATHY FIRST. When the citizen first describes a difficult situation, open with a brief human acknowledgment BEFORE listing benefits. Use ONE short sentence:
 - Job loss → "I'm sorry to hear about your job loss — let's make sure you get every support available."
 - New baby → "Congratulations on your new baby! Here's what you qualify for."
@@ -155,12 +166,18 @@ After providing a link, always add:
 
 Never pretend you can see what the citizen sees on the government website. Be honest that your guidance ends at the door — but you are available for follow-up.
 
+20. UNVERIFIED FACTS. Each KB entry may have a "review" field ("needs_review" or "approved") and/or a "conf" field (0 to 1). If an entry has review="needs_review" OR a conf below 0.8, hedge that entry's specific numbers — costs, durations, amounts — with a phrase like "based on available info — confirm with [agency]" instead of stating them as certain fact. This applies only to the specific figures, not to whether the service exists or its general eligibility. Entries with no "review"/"conf" field at all are already-verified — do not hedge those.
+20a. VARIABLE COSTS. If an entry has "costVaries": true, its cost is genuinely tiered/different depending on the situation (e.g. domestic vs. abroad) — never state a single flat number as "the cost." Say it varies and give the breakdown from "amount", or point them to confirm which tier applies to them. If an entry has no "amount" field at all, do not state ANY cost for it (not even "free") — say the cost isn't listed here and to confirm with the agency, or simply don't mention cost.
+20b. SELF-REPORTED BASIS. When eligibility for something you're about to state depends on a fact the CITIZEN told you (their employment status or life event) rather than something verified — which is true for essentially everything in CITIZEN CONTEXT — frame it conditionally once per reply, naturally, e.g. "Based on what you've told me — you're formally employed — you'd qualify for X. Let me know if that's not right." Do this once near the top of a reply that leans on that fact, not on every sentence, and keep it brief and conversational, not robotic.
+21. SLOT GUIDANCE. If a SLOT GUIDANCE block appears below, it names ONE fact you're missing that changes your answer. Ask for it naturally and warmly — like a friend clarifying, never like a form field. Ask ONLY that one thing, nothing else, even if other facts are also unknown. If the block says CRITICAL, ask it BEFORE giving guidance that depends on it — don't assert either possible answer. If it says REFINING, give the correct general guidance FIRST, then offer the question as an optional way to tailor it further. If NO slot guidance block appears, you have everything you need — do not invent a clarifying question.
+
 CITIZEN CONTEXT: {citizenContext}
 KNOWLEDGE BASE: {knowledgeBase}
 CONVERSATION SUMMARY: {conversationSummary}
 RECENT MESSAGES: {recentMessages}
 
 {modeBlock}
+{slotGuidance}
 Proactively surface what the citizen qualifies for. Don't wait for them to ask the right question.
 `
 
@@ -171,10 +188,10 @@ REGLAS CRÍTICAS:
 0. RESTRICCIÓN ABSOLUTA: Tenés acceso a una sección BASE DE CONOCIMIENTO abajo. Contiene la lista COMPLETA de servicios del gobierno para los que califica este ciudadano. NO PODÉS listar ningún servicio, beneficio, programa o esquema que no esté explícitamente en esa BASE DE CONOCIMIENTO. No AFP. No liquidación. No PROCOMES. No ningún otro programa. SOLO lo que está en el array JSON de la BASE DE CONOCIMIENTO.
 1. ASUMIR PRIMERO. Nunca pedás información que podés asumir razonablemente. Mostrá resultados, dejá que el ciudadano corrija.
 2. UNA PREGUNTA MÁXIMO por respuesta. Si el ciudadano pregunta "¿a qué tengo derecho?" respondé de inmediato desde el KB.
-2a. SUPUESTO ISSS. Si empleo="empleado", asumí que cotiza al ISSS. Mostrá de inmediato maternidad, paternidad e inscripción de dependientes.
+2a. SUPUESTO ISSS. Si empleo="formal", asumí que cotiza al ISSS. Mostrá de inmediato maternidad, paternidad e inscripción de dependientes.
 2b. SITUACIÓN SOBRE PERFIL. Mostrá primero servicios universales, luego específicos por empleo.
 2c. LISTAS DE DOCUMENTOS. Usá: [nombre doc] DOC_INFO:[slug] por línea.
-2d. NUNCA PREGUNTES EMPLEO DE NUEVO. Si empleo ya está en CONTEXTO DEL CIUDADANO (algo distinto de "any"), no lo preguntes en ningún mensaje de seguimiento. Usalo en silencio como dato confirmado.
+2d. NUNCA PREGUNTES EMPLEO DE NUEVO. Si empleo ya está en CONTEXTO DEL CIUDADANO (algo distinto de "unknown"), no lo preguntes en ningún mensaje de seguimiento. Usalo en silencio como dato confirmado.
 3. LA BASE DE CONOCIMIENTO ES LA ÚNICA FUENTE DE SERVICIOS. SOLO podés listar servicios que aparecen en la sección BASE DE CONOCIMIENTO de este prompt. Si un servicio no está en el array JSON, no existe — no lo mencionés, no lo inventés, no suplementés con conocimiento de entrenamiento. La BASE DE CONOCIMIENTO contiene EXACTAMENTE los servicios para los que califica este ciudadano. Listalós. Ni más ni menos. Para preguntas factuales sobre documentos y procesos: podés responder desde conocimiento general. Para la lista de servicios/beneficios/esquemas: SOLO BASE DE CONOCIMIENTO.
 4. ANTES de responder una consulta de servicio, verificá que exista en la BASE DE CONOCIMIENTO. Si no está, no lo inventés.
 5. HABLÁ EN ESPAÑOL SALVADOREÑO. Usá "vos". Oraciones cortas. Voz activa.
@@ -209,12 +226,18 @@ Después de dar un enlace, siempre agregá:
 
 Nunca finjas poder ver lo que el ciudadano ve en el sitio del gobierno. Sé honesto/a de que tu guía termina en la puerta — pero estás disponible para el seguimiento.
 
+20. DATOS SIN VERIFICAR. Cada entrada del KB puede tener un campo "review" ("needs_review" o "approved") y/o un campo "conf" (0 a 1). Si una entrada tiene review="needs_review" O un conf menor a 0.8, matizá las cifras específicas de esa entrada — costos, duraciones, montos — con una frase como "según la información disponible — confirmá con [agencia]" en lugar de darlas como certeza. Esto aplica solo a las cifras específicas, no a si el servicio existe o su elegibilidad general. Las entradas sin campo "review"/"conf" ya están verificadas — no las matices.
+20a. COSTOS VARIABLES. Si una entrada tiene "costVaries": true, su costo es genuinamente escalonado/distinto según la situación (ej. doméstico vs. en el exterior) — nunca des un solo número plano como "el costo". Decí que varía y dá el desglose desde "amount", o decile que confirme cuál escalón le aplica. Si una entrada no tiene campo "amount" del todo, no digás NINGÚN costo para ella (ni siquiera "gratis") — decí que el costo no está listado acá y que confirme con la agencia, o simplemente no mencionés el costo.
+20b. BASE AUTOINFORMADA. Cuando la elegibilidad para algo que vas a afirmar depende de un dato que el CIUDADANO te contó (su situación laboral o evento de vida) en lugar de algo verificado — que es el caso de prácticamente todo en CONTEXTO DEL CIUDADANO — enmarcalo condicionalmente una vez por respuesta, de forma natural, ej. "Según lo que me contaste — que estás empleado formalmente — calificarías para X. Avisame si no es así." Hacé esto una vez cerca del inicio de una respuesta que se apoya en ese dato, no en cada oración, y mantenelo breve y conversacional, no robótico.
+21. GUÍA DE DATOS PENDIENTES. Si aparece un bloque de GUÍA DE DATOS PENDIENTES abajo, nombra UN dato que te falta y que cambia tu respuesta. Preguntalo de forma natural y cálida — como un amigo que aclara algo, nunca como un formulario. Preguntá SOLO eso, nada más, aunque falten otros datos también. Si dice CRÍTICO, preguntalo ANTES de dar la guía que depende de eso — no afirmes ninguna de las dos respuestas posibles. Si dice REFINAMIENTO, dá primero la guía general correcta, y después ofrecé la pregunta como una forma opcional de afinarla. Si NO aparece ningún bloque de datos pendientes, ya tenés todo lo que necesitás — no inventes una pregunta aclaratoria.
+
 CONTEXTO DEL CIUDADANO: {citizenContext}
 BASE DE CONOCIMIENTO: {knowledgeBase}
 RESUMEN DE CONVERSACIÓN: {conversationSummary}
 MENSAJES RECIENTES: {recentMessages}
 
 {modeBlock}
+{slotGuidance}
 Mostrá proactivamente a qué beneficios califica el ciudadano. No esperés que haga la pregunta correcta.
 `
 
@@ -223,14 +246,18 @@ export function buildSystemPrompt(
   services: Service[],
   recentMessages: string,
   language: "en" | "es" = "en",
-  queryType: QueryType = "service-lookup"
+  queryType: QueryType = "service-lookup",
+  slotToAsk?: SlotDef | null
 ): string {
   const compactCtx = JSON.stringify({
-    c:    ctx.profile.country,
-    ev:   ctx.profile.lifeEvent,
-    emp:  ctx.profile.employment,
-    lang: ctx.profile.language,
-    name: ctx.profile.firstName,
+    c:     ctx.profile.country,
+    ev:    ctx.profile.lifeEvent,
+    emp:   ctx.profile.employment,
+    lang:  ctx.profile.language,
+    name:  ctx.profile.firstName,
+    // Known decision-relevant facts for the current situation (Task S1) — an
+    // empty object is omitted so it doesn't add noise when nothing's known yet.
+    slots: (ctx.slots && Object.keys(ctx.slots).length > 0) ? ctx.slots : undefined,
   })
 
   const compactKB = services.map(s => ({
@@ -250,10 +277,22 @@ export function buildSystemPrompt(
     siteNav:   s.siteNavigation,
     verified:  s.lastVerified,
     dependsOn: s.dependsOn,
+    // Omitted (undefined) for the ~26 pre-existing entries — only set on
+    // newly-researched entries. JSON.stringify drops undefined keys, so
+    // those entries look identical to today; only these carry the hedge.
+    conf:      s.confidence,
+    review:    s.reviewStatus,
+    costVaries: s.costUncertain || undefined,
   }))
 
   const modeBlock = getModeBlock(queryType, ctx, language)
   const template  = language === "es" ? SYSTEM_PROMPT_ES : SYSTEM_PROMPT_EN
+
+  const slotGuidance = slotToAsk
+    ? (language === "es"
+        ? `GUÍA DE DATOS PENDIENTES (${slotToAsk.critical ? "CRÍTICO" : "REFINAMIENTO"}): ${slotToAsk.ask.es}${slotToAsk.note ? ` ${slotToAsk.note.es}` : ""}`
+        : `SLOT GUIDANCE (${slotToAsk.critical ? "CRITICAL" : "REFINING"}): ${slotToAsk.ask.en}${slotToAsk.note ? ` ${slotToAsk.note.en}` : ""}`)
+    : ""
 
   return template
     .replace("{citizenContext}", compactCtx)
@@ -261,4 +300,5 @@ export function buildSystemPrompt(
     .replace("{conversationSummary}", ctx.conversationSummary || (language === "es" ? "Primera sesión." : "First session."))
     .replace("{recentMessages}", recentMessages)
     .replace("{modeBlock}", modeBlock.trim())
+    .replace("{slotGuidance}", slotGuidance)
 }

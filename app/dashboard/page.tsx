@@ -47,7 +47,7 @@ export default function DashboardPage() {
   const resolvedLifeEvent = citizen?.profile.lifeEvent ||
     (typeof window !== "undefined" ? localStorage.getItem("ca_detected_life_event") : "") || ""
   const resolvedEmployment = citizen?.profile.employment ||
-    (typeof window !== "undefined" ? localStorage.getItem("ca_detected_employment") : "") || "any"
+    (typeof window !== "undefined" ? localStorage.getItem("ca_detected_employment") : "") || "unknown"
   const resolvedCountry = citizen?.profile.country || "SV"
 
   // Empty state — no life event detected yet

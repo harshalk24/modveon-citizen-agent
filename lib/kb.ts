@@ -27,6 +27,19 @@ export interface Service {
   capitalAddress?: string
   universalTip?: string
   siteNavigation?: string
+  confidence?: number        // 0..1, from research; low = unverified
+  reviewStatus?: "needs_review" | "approved"
+  // True when the real-world cost is genuinely tiered/variable (not a single
+  // number) even though the entry itself is approved/high-confidence — the
+  // reply/plan must frame it as "varies" and never state one flat figure as
+  // THE cost. Independent of reviewStatus/confidence, which grade factual
+  // accuracy, not whether a single number can honestly represent the cost.
+  costUncertain?: boolean
+  // Slot-filling (Task S1): suppress this service from retrieval when a known
+  // slot value matches — e.g. don't surface Matrícula de Empresa once the
+  // citizen has confirmed they're a solo/below-threshold vendor. Deterministic
+  // input-side filtering; never touches grounding/plan-verify logic itself.
+  suppressWhenSlot?: { key: string; matches: string[] }
 }
 
 export const services: Service[] = [
@@ -34,45 +47,51 @@ export const services: Service[] = [
   {
     id: "sv-rnpn-birth-registration",
     country: "SV", lifeEvents: ["new-baby"], employment: ["any"],
-    name: "Birth registration at RNPN",
-    nameEs: "Registro de nacimiento en el RNPN",
+    name: "Birth certificate (certificación de partida) — RNPN",
+    nameEs: "Certificación de partida de nacimiento — RNPN",
     agency: "RNPN", agencyFull: "Registro Nacional de las Personas Naturales",
-    description: "Register your baby's birth within 30 days. A late fee applies if missed.",
-    descriptionEs: "Registrá el nacimiento de tu bebé dentro de 30 días. Se cobra multa si se pasa el plazo.",
+    description: "Get the official birth certificate (certificación de partida) for your baby from RNPN — required before ISSS dependent enrollment and the child subsidy. Cost depends on use: about $3–$5 for domestic use (still issued by alcaldías, varies by municipality); $20 for an authenticated partida for use abroad — as of June 25, 2026 this is issued exclusively by RNPN (not alcaldías), at the RNPN Central Office or a DUI Centro (Santa Ana, San Miguel, Usulután, etc.); and about $35 for consular/online certification requested from abroad via Simple SV — a fee waiver for citizens abroad was under legislative consideration, so confirm the current cost. Using Simple SV itself is free — the costs above are per-document fees set by the issuing institution, not the platform.",
+    descriptionEs: "Obtené la certificación de partida de nacimiento de tu bebé en el RNPN — se requiere antes de inscribir al bebé en el ISSS y del bono por hijo. El costo depende del uso: cerca de $3–$5 para uso doméstico (todavía la emiten las alcaldías, varía por municipio); $20 por una partida autenticada para uso en el exterior — desde el 25 de junio de 2026 la emite exclusivamente el RNPN (no las alcaldías), en la Oficina Central del RNPN o un Centro DUI (Santa Ana, San Miguel, Usulután, etc.); y cerca de $35 por certificación consular/en línea solicitada desde el exterior vía Simple SV — se estaba considerando una exoneración legislativa de esta tarifa para connacionales en el exterior, así que confirmá el costo actual. Usar la plataforma Simple SV en sí es gratis — los costos anteriores son tarifas por documento que fija la institución emisora, no la plataforma.",
     deadline: "30 days after birth", deadlineDays: 30,
     priority: 1, weekToApply: 1,
     documents: ["Your DUI", "Hospital discharge certificate", "Father's DUI (if applicable)"],
     documentsEs: ["Tu DUI", "Constancia de alta del hospital", "DUI del padre (si aplica)"],
-    sourceUrl: "https://www.rnpn.gob.sv", lastVerified: "2026-05-10",
+    sourceUrl: "https://www.rnpn.gob.sv/servicios/certificacion-de-partidas-en-el-salvador/", lastVerified: "2026-07-04",
     officeHours: "Monday–Friday, 8:00am–3:30pm",
     capitalAddress: "Centro Gubernamental, Alameda Juan Pablo II, San Salvador (for other cities, search 'RNPN [your city]')",
-    universalTip: "Bring originals AND photocopies of every document — RNPN keeps the originals.",
+    amount: "Varies by use: ~$3–5 domestic (via alcaldía, varies by municipality), $20 abroad-authenticated (RNPN only since June 25, 2026), ~$35 consular via Simple SV (fee waiver pending legislative approval — confirm current cost)",
+    costUncertain: true,
+    universalTip: "For domestic use: about $3–$5 at your local alcaldía (varies by municipality). For use abroad: an authenticated partida now costs $20 and, since June 25, 2026, is issued only by RNPN (not alcaldías) — go to the RNPN Central Office or a DUI Centro (Santa Ana, San Miguel, Usulután, etc.). If requesting from abroad via Simple SV, the certification is reported around $35, but a fee waiver for citizens abroad was under legislative consideration — confirm the current cost before paying. Simple SV itself is free to use; the fee is charged by the issuing institution per document.",
     siteNavigation: "rnpn.gob.sv → Servicios → Inscripción de Nacimiento (as of May 2026)",
+    confidence: 0.85,
+    reviewStatus: "approved",
     blocks: ["sv-isss-dependent-enrollment", "sv-child-subsidy"]
   },
   {
     id: "sv-isss-maternity-benefit",
-    country: "SV", lifeEvents: ["new-baby"], employment: ["employed"],
-    name: "Maternity benefit",
-    nameEs: "Prestación por maternidad",
+    country: "SV", lifeEvents: ["new-baby"], employment: ["formal"],
+    name: "Maternity benefit (subsidio por maternidad)",
+    nameEs: "Subsidio por maternidad (ISSS)",
     agency: "ISSS", agencyFull: "Instituto Salvadoreño del Seguro Social",
-    description: "100% of your base salary for 12 weeks. Requires 36 weeks of contributions.",
-    descriptionEs: "El 100% de tu salario base durante 12 semanas. Requiere 36 semanas cotizadas.",
-    amount: "$400/mo (if your salary is $400/mo)",
+    description: "16 weeks (112 days) of paid maternity leave for ISSS-insured (formally employed) mothers, with at least 10 weeks taken after birth. You receive your full salary — ISSS covers 100% of your insured base salary, and your employer tops up any difference. Requires 16 weeks of contributions in the 12 months before your presumed birth month, and 6 months with the same employer before your probable due date.",
+    descriptionEs: "16 semanas (112 días) de licencia por maternidad pagada para madres aseguradas por el ISSS (empleo formal), con al menos 10 semanas después del parto. Recibís tu salario completo — el ISSS cubre el 100% de tu salario base cotizado, y tu empleador cubre cualquier diferencia. Requiere 16 semanas cotizadas en los 12 meses antes del mes probable de parto, y 6 meses con el mismo empleador antes de la fecha probable de parto.",
+    deadline: "16 weeks (112 days) of leave, at least 10 weeks after birth", deadlineDays: 112,
     priority: 2, weekToApply: 1,
     documents: ["DUI", "Hospital discharge certificate", "ISSS referral form"],
     documentsEs: ["DUI", "Constancia del hospital", "Hoja de referencia del ISSS"],
-    sourceUrl: "https://www.isss.gob.sv", lastVerified: "2026-05-10",
+    sourceUrl: "https://elsalvador.eregulations.org/media/ley%20del%20seguro%20social.pdf", lastVerified: "2026-07-04",
     officeHours: "Monday–Friday, 7:30am–3:30pm",
     capitalAddress: "Edificio ISSS Central, 1a Calle Poniente, San Salvador (for other cities, search 'ISSS [your city]')",
-    universalTip: "Tell the security guard 'vengo por prestación de maternidad' — they will direct you to the right window.",
+    universalTip: "You receive your full salary during leave — ISSS pays 100% of your insured base salary, and your employer covers any remaining difference up to your full salary (Labor Code Art. 309, as amended by Decreto Legislativo 143/2015; ISSS Reglamento Arts. 25, 26, 28). Eligibility requires 16 weeks contributed in the 12 months before your presumed birth month, plus 6 months with your current employer before your probable due date.",
     siteNavigation: "isss.gob.sv → Ciudadano → Prestaciones → Maternidad (as of May 2026)",
     downloadUrl: "https://www.isss.gob.sv/formularios/solicitud-prestacion-maternidad.pdf",
+    confidence: 0.9,
+    reviewStatus: "approved",
     dependsOn: []
   },
   {
     id: "sv-isss-dependent-enrollment",
-    country: "SV", lifeEvents: ["new-baby"], employment: ["employed"],
+    country: "SV", lifeEvents: ["new-baby"], employment: ["formal"],
     name: "Enroll baby as ISSS dependent",
     nameEs: "Inscribir al bebé como dependiente del ISSS",
     agency: "ISSS", agencyFull: "Instituto Salvadoreño del Seguro Social",
@@ -108,7 +127,7 @@ export const services: Service[] = [
   },
   {
     id: "sv-isss-paternity-benefit",
-    country: "SV", lifeEvents: ["new-baby"], employment: ["employed"],
+    country: "SV", lifeEvents: ["new-baby"], employment: ["formal"],
     name: "Paternity benefit (partner)",
     nameEs: "Licencia de paternidad (pareja)",
     agency: "ISSS", agencyFull: "Instituto Salvadoreño del Seguro Social",
@@ -125,7 +144,7 @@ export const services: Service[] = [
   // ── EL SALVADOR — JOB LOSS ─────────────────────────────
   {
     id: "sv-isss-unemployment",
-    country: "SV", lifeEvents: ["job-loss"], employment: ["employed"],
+    country: "SV", lifeEvents: ["job-loss"], employment: ["formal"],
     name: "ISSS unemployment benefit",
     nameEs: "Prestación por desempleo del ISSS",
     agency: "ISSS", agencyFull: "Instituto Salvadoreño del Seguro Social",
@@ -142,7 +161,7 @@ export const services: Service[] = [
   },
   {
     id: "sv-insaforp-training",
-    country: "SV", lifeEvents: ["job-loss"], employment: ["unemployed", "employed"],
+    country: "SV", lifeEvents: ["job-loss"], employment: ["unemployed", "formal"],
     name: "INSAFORP free job training",
     nameEs: "Capacitación gratuita — INSAFORP",
     agency: "INSAFORP", agencyFull: "Instituto Salvadoreño de Formación Profesional",
@@ -178,20 +197,23 @@ export const services: Service[] = [
   {
     id: "sv-cnr-business-registration",
     country: "SV", lifeEvents: ["start-business"], employment: ["any"],
-    name: "Business registration at CNR",
-    nameEs: "Registro de negocio en el CNR",
+    name: "Business registration (Matrícula de Empresa) — CNR",
+    nameEs: "Matrícula de Empresa — CNR",
     agency: "CNR", agencyFull: "Centro Nacional de Registros",
-    description: "Register as a commercial entity. Fee $50–200 depending on capital.",
-    descriptionEs: "Registrá tu negocio. Costo $50-200 según el capital declarado.",
-    amount: "$50–$200", priority: 2, weekToApply: 1,
+    description: "Formal commercial registration (Matrícula de Empresa) is required only for businesses with $12,000+ in assets. Below that, you need a Tax ID (NIT) and municipal registration instead.",
+    descriptionEs: "La Matrícula de Empresa es obligatoria solo para negocios con $12,000 o más en activos. Por debajo de eso, necesitás el NIT y el registro municipal en su lugar.",
+    amount: "~$17.14 balance-deposit fee (individual-merchant base fee unconfirmed)", priority: 2, weekToApply: 1,
     documents: ["DUI", "Business name", "Business address", "Description of activities"],
     documentsEs: ["DUI", "Nombre del negocio", "Dirección", "Descripción de actividades"],
-    sourceUrl: "https://www.cnr.gob.sv", lastVerified: "2026-05-10",
+    sourceUrl: "https://www.cnr.gob.sv/servicios/detalle-de-servicios-del-registro-de-comercio/", lastVerified: "2026-05-10",
     officeHours: "Monday–Friday, 8:00am–4:00pm",
     capitalAddress: "CNR Central, 8a Calle Oriente #310, San Salvador",
-    universalTip: "You can start the process online at cnr.gob.sv — only the final signature step requires visiting in person.",
+    universalTip: "IMPORTANT: only require a Matrícula de Empresa if the citizen's business assets are $12,000 or more. Below that threshold, do NOT tell them to get a Matrícula — they only need a NIT (Ministerio de Hacienda) and municipal registration. First-year-free applies specifically to S.A.S. companies (Decreto 905), not all merchants — don't assume it applies.",
+    confidence: 0.75,
+    reviewStatus: "needs_review",
     siteNavigation: "cnr.gob.sv → Registro de Comercio → Matrícula (as of May 2026)",
-    blocks: ["sv-mh-nit"]
+    blocks: ["sv-mh-nit"],
+    suppressWhenSlot: { key: "businessSizeTier", matches: ["solo"] }
   },
   {
     id: "sv-mh-nit",
@@ -238,9 +260,9 @@ export const services: Service[] = [
     nameEs: "Poder notarial desde el extranjero",
     agency: "RREES",
     agencyFull: "Ministerio de Relaciones Exteriores — Red Consular",
-    description: "Grant legal authority to someone in El Salvador to act on your behalf for property sales, inheritance, or legal matters. Required 3-step process: US notary → apostille → RREES/CNR in El Salvador.",
-    descriptionEs: "Otorgá autorización legal a alguien en El Salvador para actuar en tu nombre. Proceso de 3 pasos: notario en EEUU → apostilla → RREES/CNR en El Salvador.",
-    amount: "$40 consulate fee",
+    description: "Grant legal authority to someone in El Salvador to act on your behalf for property sales, inheritance, or legal matters. The notarial act must be performed by someone with Salvadoran notarial authority — a Salvadoran consul (recommended: cheaper, in person at your nearest consulate) or a notary authorized by El Salvador's Supreme Court. A US notary public CANNOT supply Salvadoran public faith — a US notary plus apostille is NOT a valid substitute and can be rejected by the CNR, courts, or other entities. After the consul grants the poder, it must be authenticated at the Ministerio de Relaciones Exteriores before use in El Salvador. For judicial/court matters, the final apoderado must be a lawyer of the Republic (a non-lawyer can receive the poder, but it must be substituted to a lawyer before being exercised in court).",
+    descriptionEs: "Otorgá autorización legal a alguien en El Salvador para actuar en tu nombre en ventas de propiedad, herencias u otros trámites legales. El acto notarial debe ser realizado por alguien con fe pública salvadoreña — un cónsul salvadoreño (recomendado: más económico, en persona en tu consulado más cercano) o un notario autorizado por la Corte Suprema de Justicia. Un notario de EEUU NO puede dar fe pública salvadoreña — un notario de EEUU más apostilla NO es un sustituto válido y puede ser rechazado por el CNR, tribunales u otras entidades. Después de que el cónsul otorgue el poder, debe autenticarse en el Ministerio de Relaciones Exteriores antes de usarse en El Salvador. Para trámites judiciales, el apoderado final debe ser un abogado de la República (se le puede otorgar el poder a alguien que no sea abogado, pero debe sustituirse a un abogado antes de ejercerlo en un tribunal).",
+    amount: "~$40 (reported, unconfirmed) — consular route is cheaper than the notary route; confirm with your consulate",
     priority: 1, weekToApply: 1,
     documents: [
       "Your valid passport or DUI",
@@ -252,11 +274,13 @@ export const services: Service[] = [
       "Detalles de lo que cubre el poder (dirección del inmueble, transacción específica)",
       "Nombre y DUI de la persona que recibirá el poder en El Salvador"
     ],
-    sourceUrl: "https://rree.gob.sv",
-    lastVerified: "2026-05-19",
+    sourceUrl: "https://elsalvador.eregulations.org/media/Ley%20de%20Notariado.pdf",
+    lastVerified: "2026-07-04",
     officeHours: "Consulate hours vary by city — check rree.gob.sv for your nearest consulate",
-    universalTip: "Book your consulate appointment online at rree.gob.sv before going. Walk-in appointments are rarely available. The cost is $40 at the consulate.",
+    universalTip: "Recommended route: grant the poder before a Salvadoran consul (cheaper, in person) rather than a Supreme-Court-authorized notary. A US notary plus apostille does NOT work for a legal poder in El Salvador — it can be rejected by the CNR, courts, or other entities. After the consulate grants the poder, it must also be authenticated at the Ministerio de Relaciones Exteriores before it can be used in El Salvador. If the poder will be used in court, the apoderado must ultimately be a licensed Salvadoran lawyer. Cost: the consular route is cheaper than a notary, but the exact fee is not confirmed (reported around $40) — always verify the current fee with the specific consulate.",
     siteNavigation: "rree.gob.sv → Servicios Consulares → Actos Notariales → Citas (as of May 2026)",
+    confidence: 0.85,
+    reviewStatus: "approved",
     dependsOn: []
   },
 
@@ -277,7 +301,7 @@ export const services: Service[] = [
   },
   {
     id: "sv-isss-spouse-enrollment",
-    country: "SV", lifeEvents: ["marriage"], employment: ["employed"],
+    country: "SV", lifeEvents: ["marriage"], employment: ["formal"],
     name: "ISSS spouse / beneficiary enrollment",
     nameEs: "Inscripción de cónyuge como beneficiario ISSS",
     agency: "ISSS", agencyFull: "Instituto Salvadoreño del Seguro Social",
@@ -325,7 +349,7 @@ export const services: Service[] = [
   // ── EL SALVADOR — RETIREMENT ───────────────────────────
   {
     id: "sv-afp-retirement-pension",
-    country: "SV", lifeEvents: ["retirement"], employment: ["employed", "self-employed"],
+    country: "SV", lifeEvents: ["retirement"], employment: ["formal", "informal"],
     name: "AFP retirement pension claim",
     nameEs: "Pensión de vejez AFP",
     agency: "AFP", agencyFull: "Administradoras de Fondos de Pensiones (CRECER / CONFÍA)",
@@ -339,7 +363,7 @@ export const services: Service[] = [
   },
   {
     id: "sv-isss-retirement",
-    country: "SV", lifeEvents: ["retirement"], employment: ["employed"],
+    country: "SV", lifeEvents: ["retirement"], employment: ["formal"],
     name: "ISSS retirement benefit",
     nameEs: "Prestación de vejez ISSS",
     agency: "ISSS", agencyFull: "Instituto Salvadoreño del Seguro Social",
@@ -482,7 +506,7 @@ export const services: Service[] = [
   // ── EL SALVADOR — SOCIAL BENEFITS ─────────────────────
   {
     id: "sv-fsv-housing-loan",
-    country: "SV", lifeEvents: ["social-benefits", "housing", "property"], employment: ["employed"],
+    country: "SV", lifeEvents: ["social-benefits", "housing", "property"], employment: ["formal"],
     name: "FSV housing loan (Fondo Social para la Vivienda)",
     nameEs: "Préstamo habitacional FSV",
     agency: "FSV", agencyFull: "Fondo Social para la Vivienda",
@@ -507,15 +531,29 @@ export function lookupServices(params: {
   country: string
   lifeEvent: string
   employment: string
+  // Slot-filling (Task S1): known decision-relevant facts for the current
+  // situation, e.g. { businessSizeTier: "solo" }. Only used to suppress
+  // services whose `suppressWhenSlot` matches — retrieval-side personalization,
+  // never a change to grounding/plan-verify logic.
+  slots?: Record<string, string>
 }): Service[] {
   const results = services
     .filter(s =>
       s.country === params.country &&
       s.lifeEvents.includes(params.lifeEvent) &&
       (
+        // "any"/"unknown" (citizen status not yet known) matches every service,
+        // same as legacy behavior — precise formal-vs-informal gating applies
+        // once employment is actually known.
         params.employment === "any" ||
+        params.employment === "unknown" ||
         s.employment.includes(params.employment) ||
         s.employment.includes("any")
+      ) &&
+      !(
+        s.suppressWhenSlot &&
+        params.slots?.[s.suppressWhenSlot.key] !== undefined &&
+        s.suppressWhenSlot.matches.includes(params.slots[s.suppressWhenSlot.key])
       )
     )
     .sort((a, b) => a.priority - b.priority)
@@ -591,6 +629,13 @@ export async function lookupServicesDB(params: {
   }
 }
 
+// DEAD CODE — no callers anywhere in the app. Has 3 known correctness bugs, do
+// NOT wire this in as-is: (1) the hardcoded 4-week cap silently drops services
+// in a dependency chain deeper than 4 levels; (2) a dependsOn id that isn't in
+// `svcs` blocks its dependent forever instead of being treated as satisfied;
+// (3) a genuine cycle causes `break` and silently drops every stuck service.
+// The corrected version of this batching idea lives in lib/plan-verify.ts's
+// computeRanks(), which fixes all three and is what the plan route actually uses.
 export function sequencePlan(svcs: Service[]): Service[][] {
   const weeks: Service[][] = [[], [], [], []]
   const completed = new Set<string>()

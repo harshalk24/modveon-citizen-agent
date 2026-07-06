@@ -18,7 +18,7 @@ export default function ContextPills({ citizen }: { citizen: CitizenContextData 
     citizen.profile.lifeEvent
       ? { emoji: LIFE_EVENT_EMOJI[citizen.profile.lifeEvent] || "📋", label: tr.contextPills[citizen.profile.lifeEvent as keyof typeof tr.contextPills] }
       : null,
-    citizen.profile.employment && citizen.profile.employment !== "any"
+    citizen.profile.employment && citizen.profile.employment !== "unknown"
       ? { emoji: "💼", label: tr.contextPills[citizen.profile.employment as keyof typeof tr.contextPills] }
       : null,
     citizen.profile.country ? { emoji: "📍", label: citizen.profile.country === "SV" ? "El Salvador" : citizen.profile.country } : null,

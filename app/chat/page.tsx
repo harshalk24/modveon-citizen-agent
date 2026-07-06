@@ -128,7 +128,7 @@ function ChatContent() {
 
     // ── Returning citizen with life event ────────────────────────────
     if (citizen?.profile.lifeEvent) {
-      const svcs = lookupServices({ country: citizen.profile.country, lifeEvent: citizen.profile.lifeEvent, employment: citizen.profile.employment || "any" })
+      const svcs = lookupServices({ country: citizen.profile.country, lifeEvent: citizen.profile.lifeEvent, employment: citizen.profile.employment || "unknown" })
       setEntitlementCount(svcs.length)
       if (svcs.length > 0) {
         const urgentSvc = svcs.find(s => s.deadlineDays && s.deadlineDays <= 30)
@@ -317,7 +317,7 @@ function ChatContent() {
             ? "🔒 **Login con DUI** — Próximamente · Verificación de identidad instantánea\n\nPor ahora, contame tu situación laboral:"
             : "🔒 **Login with DUI** — Coming soon · Instant identity verification\n\nFor now, tell me your employment situation:",
           [
-            { label: lang === "es" ? "💼 Empleado formal"       : "💼 Formally employed",    action: "ob:employment:employed",   variant: "outline" },
+            { label: lang === "es" ? "💼 Empleado formal"       : "💼 Formally employed",    action: "ob:employment:formal",     variant: "outline" },
             { label: lang === "es" ? "🏠 Cuenta propia"         : "🏠 Self-employed",         action: "ob:employment:informal",   variant: "outline" },
             { label: lang === "es" ? "🔍 Sin trabajo"           : "🔍 Currently unemployed",  action: "ob:employment:unemployed", variant: "outline" },
             { label: lang === "es" ? "🌿 Sector informal"       : "🌿 Informal sector",       action: "ob:employment:informal",   variant: "outline" },
@@ -328,7 +328,7 @@ function ChatContent() {
     }
 
     if (stepType === "employment") {
-      const empLabels: Record<string, string> = { employed: lang === "es" ? "Empleado formal" : "Formally employed", unemployed: lang === "es" ? "Sin trabajo" : "Unemployed", informal: lang === "es" ? "Sector informal" : "Informal / self-employed" }
+      const empLabels: Record<string, string> = { formal: lang === "es" ? "Empleado formal" : "Formally employed", unemployed: lang === "es" ? "Sin trabajo" : "Unemployed", informal: lang === "es" ? "Sector informal" : "Informal / self-employed" }
       setOnboardingData(prev => ({ ...prev, employment: value }))
       localStorage.setItem("ca_detected_employment", value)
       addUserMsg(empLabels[value] || value)
@@ -401,7 +401,7 @@ function ChatContent() {
         await fetch("/api/context/save", {
           method: "POST",
           headers: { "Content-Type": "application/json" },
-          body: JSON.stringify({ citizenId: data.citizenId, lifeEvent: situation, employment: employment || "any", entitlements: [] }),
+          body: JSON.stringify({ citizenId: data.citizenId, lifeEvent: situation, employment: employment || "unknown", entitlements: [] }),
         })
       }
       justCompletedOnboardingRef.current = true  // block welcome effect from replacing conversation
@@ -412,7 +412,7 @@ function ChatContent() {
         const svcs = lookupServices({
           country: fresh.profile.country || "SV",
           lifeEvent: fresh.profile.lifeEvent,
-          employment: fresh.profile.employment || "any",
+          employment: fresh.profile.employment || "unknown",
         })
         setEntitlementCount(svcs.length)
         if (svcs.length > 0) {
@@ -541,7 +541,7 @@ function ChatContent() {
         // For lifeEvent/employment: prefer DB values, fall back to localStorage signals
         // captured from the chat messages (works for anonymous/new users too)
         const lifeEvent  = ctx?.profile.lifeEvent  || localStorage.getItem("ca_detected_life_event")  || ""
-        const employment = ctx?.profile.employment  || localStorage.getItem("ca_detected_employment")  || "any"
+        const employment = ctx?.profile.employment  || localStorage.getItem("ca_detected_employment")  || "unknown"
         const country    = ctx?.profile.country     || "SV"
         const citizenId  = ctx?.citizenId
 
@@ -627,7 +627,7 @@ function ChatContent() {
               ? `Mucho gusto, ${nameVal}. ¿Cuál es tu situación laboral?`
               : `Nice to meet you, ${nameVal}. What's your employment situation?`,
             actionButtons: [
-              { label: lang === "es" ? "💼 Empleado formal"    : "💼 Formally employed",   action: "ob:employment:employed",   variant: "outline" },
+              { label: lang === "es" ? "💼 Empleado formal"    : "💼 Formally employed",   action: "ob:employment:formal",     variant: "outline" },
               { label: lang === "es" ? "🏠 Cuenta propia"      : "🏠 Self-employed",        action: "ob:employment:informal",   variant: "outline" },
               { label: lang === "es" ? "🔍 Sin trabajo"        : "🔍 Currently unemployed", action: "ob:employment:unemployed", variant: "outline" },
               { label: lang === "es" ? "🌿 Sector informal"    : "🌿 Informal sector",      action: "ob:employment:informal",   variant: "outline" },

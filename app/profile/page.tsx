@@ -23,7 +23,7 @@ const LIFE_EVENTS = [
 ]
 
 const EMPLOYMENT_OPTIONS = [
-  { value: "employed",   label: "Employed (formal)" },
+  { value: "formal",     label: "Employed (formal)" },
   { value: "unemployed", label: "Unemployed" },
   { value: "informal",   label: "Self-employed / informal" },
 ]
@@ -137,7 +137,7 @@ export default function ProfilePage() {
         const mandatoryFields = [
           { key: "firstName",  label: "Name",        filled: !!citizen?.profile?.firstName && citizen.profile.firstName !== "there" },
           { key: "lifeEvent",  label: "Situation",   filled: !!citizen?.profile?.lifeEvent },
-          { key: "employment", label: "Employment",  filled: citizen?.profile?.employment !== "any" && !!citizen?.profile?.employment },
+          { key: "employment", label: "Employment",  filled: citizen?.profile?.employment !== "unknown" && !!citizen?.profile?.employment },
         ]
         const optionalFields = [
           { key: "email",       label: "Email",         filled: !!citizen?.profile?.email || !!email, optional: true },

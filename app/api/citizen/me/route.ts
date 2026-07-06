@@ -1,6 +1,6 @@
 import { NextResponse } from "next/server"
 import { prisma } from "@/lib/prisma"
-import { CitizenContextData } from "@/types/context"
+import { CitizenContextData, normalizeEmployment } from "@/types/context"
 
 export async function GET(req: Request) {
   const citizenId = req.headers.get("x-citizen-id")
@@ -26,7 +26,7 @@ export async function GET(req: Request) {
     profile: {
       firstName: citizen.firstName || "there",
       country: citizen.country,
-      employment: ctx?.employment || "any",
+      employment: normalizeEmployment(ctx?.employment),
       lifeEvent: ctx?.lifeEvent || "",
       language: (citizen.language as "en" | "es") || "es",
       email: citizen.email || undefined,

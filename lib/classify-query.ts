@@ -19,9 +19,24 @@ const VALID_TYPES: QueryType[] = [
   "no-context-open",
 ]
 
+export type LifeEvent = "new-baby" | "job-loss" | "start-business" | "diaspora"
+const VALID_LIFE_EVENTS: LifeEvent[] = ["new-baby", "job-loss", "start-business", "diaspora"]
+
+export type Employment = "formal" | "informal" | "unemployed" | "unknown"
+const VALID_EMPLOYMENT: Employment[] = ["formal", "informal", "unemployed", "unknown"]
+
+export type MemoryType = "discard" | "session" | "episodic" | "durable"
+const VALID_MEMORY_TYPES: MemoryType[] = ["discard", "session", "episodic", "durable"]
+
 export interface Classification {
   type: QueryType
   confidence: number // 0..1
+  lifeEvent: LifeEvent | null
+  lifeEventConfidence: number // 0..1
+  employment: Employment
+  employmentConfidence: number // 0..1
+  memoryType: MemoryType
+  memoryTypeConfidence: number // 0..1
 }
 
 export async function classifyQuery(params: {
@@ -66,26 +81,67 @@ For "confidence": be calibrated, not reflexively high. Use 0.9+ only when the me
 Example of a LOW-confidence case: message = "asdkj store baby ??? idk lol" → {"type": "out-of-scope", "confidence": 0.4} — because it's garbled and only loosely touches two different topics without clearly being about either.
 Example of a HIGH-confidence case: message = "I just had a baby" → {"type": "service-lookup", "confidence": 0.95} — clear and unambiguous.
 
+Also detect two more independent facets from the message, each with its own confidence:
+
+"lifeEvent" — does this message describe the CITIZEN THEMSELF experiencing one of these life events right now? One of: "new-baby" (they had/are having a baby), "job-loss" (they lost their job), "start-business" (they are starting/registering a business), "diaspora" (they are managing El Salvador affairs from abroad). Use null if the message doesn't describe the citizen having a new life event (e.g. it's a follow-up question, off-topic, or about a THIRD PARTY like "my sister" or "my cousin" rather than the citizen). Give it its own "lifeEventConfidence" (0 to 1) — use the same calibration rules as above: a message about a third party, or one that only loosely touches the topic, should get LOW lifeEventConfidence even if you still guess a slug.
+
+"employment" — the citizen's employment status, one of exactly: "formal" (a formal/contract job, an employer, ISSS/AFP contributions), "informal" (self-employed, freelance, street vendor, no contract), "unemployed" (no job, lost their job, out of work), or "unknown" (not stated in this message). Give it its own "employmentConfidence" (0 to 1) — use "unknown" with LOW confidence when the message says nothing about employment.
+
+Also detect a "memoryType" facet — what from this message is worth remembering later — with its own "memoryTypeConfidence":
+
+"discard" — greetings, thanks, small talk, or out-of-scope messages. Nothing worth remembering.
+Examples: "Hi, good afternoon", "thanks!", "who won the World Cup?"
+
+"session" — relevant only to THIS conversation (a clarifying question, "tell me more", asking about something already shown). Already covered by the conversation summary — no new fact to store.
+Examples: "Tell me more about the maternity benefit", "what do I do at RNPN?", "how long does it take?"
+
+"episodic" — the citizen reports something that HAPPENED — a completed event worth remembering, not a standing fact about who they are.
+Examples: "I registered the birth yesterday", "I already got my NIT", "I submitted the form last week"
+
+"durable" — a STABLE FACT about the citizen — describes who they are or their ongoing situation, not a one-time event.
+Examples: "I work formally", "I had a baby" (their situation changed), "I'm self-employed"
+
+The critical distinction is durable (a stable fact/situation) vs episodic (a completed event): "I had a baby" describes an ongoing new situation (durable); "I registered the birth" describes a completed action (episodic). When genuinely unsure between the two, pick the more likely one and lower memoryTypeConfidence accordingly.
+
 Return ONLY this JSON with no other text:
-{"type": "<one of the seven types above>", "confidence": <number between 0 and 1 representing how confident you are in this classification>}`
+{"type": "<one of the seven types above>", "confidence": <0 to 1>, "lifeEvent": "<one of new-baby|job-loss|start-business|diaspora, or null>", "lifeEventConfidence": <0 to 1>, "employment": "<one of formal|informal|unemployed|unknown>", "employmentConfidence": <0 to 1>, "memoryType": "<one of discard|session|episodic|durable>", "memoryTypeConfidence": <0 to 1>}`
+
+  const failSafe = (type: QueryType): Classification => ({
+    type, confidence: 0, lifeEvent: null, lifeEventConfidence: 0, employment: "unknown", employmentConfidence: 0,
+    memoryType: "discard", memoryTypeConfidence: 0,
+  })
+
+  const asConfidence = (value: unknown): number =>
+    typeof value === "number" && value >= 0 && value <= 1 ? value : 0
 
   try {
-    const text = (await getLLM().complete(prompt, { temperature: 0.0, maxTokens: 60, json: true })).trim()
+    const text = (await getLLM().complete(prompt, { temperature: 0.0, maxTokens: 200, json: true })).trim()
     const parsed = JSON.parse(text.replace(/```json|```/g, "").trim())
-    const confidence = typeof parsed.confidence === "number" && parsed.confidence >= 0 && parsed.confidence <= 1
-      ? parsed.confidence
-      : 0
+    const confidence = asConfidence(parsed.confidence)
+    const lifeEventConfidence = asConfidence(parsed.lifeEventConfidence)
+    const employmentConfidence = asConfidence(parsed.employmentConfidence)
+    const memoryTypeConfidence = asConfidence(parsed.memoryTypeConfidence)
+    const lifeEvent = VALID_LIFE_EVENTS.includes(parsed.lifeEvent) ? (parsed.lifeEvent as LifeEvent) : null
+    const employment = VALID_EMPLOYMENT.includes(parsed.employment) ? (parsed.employment as Employment) : "unknown"
+    // Invalid/missing memoryType is never stored — same fail-safe rule as everything else.
+    const memoryTypeValid = VALID_MEMORY_TYPES.includes(parsed.memoryType)
+    const memoryType = memoryTypeValid ? (parsed.memoryType as MemoryType) : "discard"
 
     if (VALID_TYPES.includes(parsed.type)) {
-      return { type: parsed.type as QueryType, confidence }
+      return {
+        type: parsed.type as QueryType, confidence,
+        lifeEvent, lifeEventConfidence,
+        employment, employmentConfidence,
+        memoryType, memoryTypeConfidence: memoryTypeValid ? memoryTypeConfidence : 0,
+      }
     }
 
     // Fallback if LLM returns unexpected value — treat as low confidence, never crash.
     console.warn("classifyQuery: unexpected type:", parsed.type, "— falling back")
-    return { type: params.hasLifeEvent ? "open-ended" : "service-lookup", confidence: 0 }
+    return failSafe(params.hasLifeEvent ? "open-ended" : "service-lookup")
   } catch (e) {
     console.error("classifyQuery failed:", e)
     // Parse/API failure = low confidence = no durable write downstream (fail safe).
-    return { type: "service-lookup", confidence: 0 }
+    return failSafe("service-lookup")
   }
 }

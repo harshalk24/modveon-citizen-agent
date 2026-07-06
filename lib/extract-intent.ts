@@ -1,3 +1,7 @@
+// Cheap keyword fallback — the server flow (app/api/chat/route.ts) now uses
+// classifyQuery's lifeEvent/employment facets as the source of truth. This is
+// kept for the client-side localStorage cache (app/chat/page.tsx), which has
+// no server round-trip to call the classifier with.
 export function extractLifeEvent(message: string): string | null {
   const patterns: Record<string, string[]> = {
     "new-baby": [
@@ -63,7 +67,7 @@ export function extractConfirmation(message: string): "yes" | "no" | null {
 
 export function extractEmployment(message: string): string | null {
   const lower = message.toLowerCase()
-  if (/\b(employed|formal job|work for|trabajando|trabajo formal|contrato)\b/.test(lower)) return "employed"
+  if (/\b(employed|formal job|work for|trabajando|trabajo formal|contrato)\b/.test(lower)) return "formal"
   if (/\b(unemployed|no job|out of work|desempleado|sin empleo|sin trabajo)\b/.test(lower)) return "unemployed"
   if (/\b(self.employed|freelance|informal|independiente|cuenta propia|negocio propio)\b/.test(lower)) return "informal"
   return null

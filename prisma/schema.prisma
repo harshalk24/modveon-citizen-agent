@@ -34,6 +34,14 @@ model CitizenContext {
   employment          String?
   entitlementsJson    String   @default("[]")
   conversationSummary String?
+  // Slot-filling (Task S1) — decision-relevant facts for the CURRENT situation
+  // only (not episodic history). slotsJson e.g. {"businessSizeTier":"solo"}.
+  // pendingSlot is the key of the slot the last turn's question asked about,
+  // so the next reply can be parsed as its answer — cleared together with
+  // slotsJson whenever lifeEvent changes (same "new situation, clean slate"
+  // reasoning already applied to entitlementsJson).
+  slotsJson           String   @default("{}")
+  pendingSlot         String?
   updatedAt           DateTime @updatedAt
 
   citizen Citizen @relation(fields: [citizenId], references: [id])

@@ -88,7 +88,7 @@ export default function PlanPage() {
     // Resolve lifeEvent: prefer DB citizen, fall back to localStorage signals
     // set by the chat page when the user typed their situation
     const lifeEvent  = currentCitizen?.profile?.lifeEvent  || (typeof window !== "undefined" ? localStorage.getItem("ca_detected_life_event")  : "") || ""
-    const employment = currentCitizen?.profile?.employment  || (typeof window !== "undefined" ? localStorage.getItem("ca_detected_employment")  : "") || "any"
+    const employment = currentCitizen?.profile?.employment  || (typeof window !== "undefined" ? localStorage.getItem("ca_detected_employment")  : "") || "unknown"
     const country    = currentCitizen?.profile?.country     || "SV"
     const citizenId  = currentCitizen?.citizenId
 

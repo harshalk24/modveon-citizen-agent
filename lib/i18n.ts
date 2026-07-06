@@ -122,10 +122,10 @@ export const translations = {
         "social-benefits": "Social assistance",
       },
       employment: {
-        employed: "Employed (formal)",
+        formal: "Employed (formal)",
         unemployed: "Unemployed",
         informal: "Self-employed / informal",
-        any: "Other",
+        unknown: "Not specified",
       },
     },
     contextPills: {
@@ -141,9 +141,10 @@ export const translations = {
       "education":       "Education & training",
       "separation":      "Separation",
       "social-benefits": "Social benefits",
-      employed:          "Employed",
+      formal:            "Employed",
       unemployed:        "Unemployed",
       informal:          "Self-employed",
+      unknown:           "Not specified",
     },
     common: {
       loading: "Loading...",
@@ -272,10 +273,10 @@ export const translations = {
         "social-benefits": "Asistencia social",
       },
       employment: {
-        employed: "Empleado (formal)",
+        formal: "Empleado (formal)",
         unemployed: "Desempleado",
         informal: "Trabajador independiente",
-        any: "Otro",
+        unknown: "No especificado",
       },
     },
     contextPills: {
@@ -291,9 +292,10 @@ export const translations = {
       "education":       "Educación y formación",
       "separation":      "Separación",
       "social-benefits": "Asistencia social",
-      employed:          "Empleada",
+      formal:            "Empleada",
       unemployed:        "Desempleada",
       informal:          "Independiente",
+      unknown:           "No especificado",
     },
     common: {
       loading: "Cargando...",

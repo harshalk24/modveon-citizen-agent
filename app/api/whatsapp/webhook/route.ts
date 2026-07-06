@@ -4,6 +4,7 @@ import { lookupServices } from "@/lib/kb"
 import { streamChat } from "@/lib/ai"
 import { buildSystemPrompt } from "@/lib/context-builder"
 import { sendWhatsAppMessage } from "@/lib/whatsapp"
+import { normalizeEmployment } from "@/types/context"
 
 export async function POST(req: Request) {
   const formData = await req.formData()
@@ -84,8 +85,9 @@ export async function POST(req: Request) {
   })
 
   const ctx = citizen?.context
+  const employment = normalizeEmployment(ctx?.employment)
   const services = ctx?.lifeEvent
-    ? lookupServices({ country: "SV", lifeEvent: ctx.lifeEvent, employment: ctx.employment || "any" })
+    ? lookupServices({ country: "SV", lifeEvent: ctx.lifeEvent, employment })
     : []
 
   const systemPrompt = buildSystemPrompt(
@@ -94,7 +96,7 @@ export async function POST(req: Request) {
       profile: {
         firstName: citizen?.firstName || "there",
         country: "SV",
-        employment: ctx?.employment || "any",
+        employment,
         lifeEvent: ctx?.lifeEvent || "",
         language: ((citizen?.language ?? undefined) as "en" | "es" | undefined) || "en"
       },
