@@ -20,6 +20,7 @@ loadDotEnvLocal()
 
 const { check, checkEntities, checkValues } = await import("../lib/grounding")
 const { services: fullKB } = await import("../lib/kb")
+const { buildKBFacts } = await import("../lib/context-builder")
 
 const hasKey = !!process.env.OPENAI_API_KEY && process.env.OPENAI_API_KEY !== "your_openai_api_key"
 
@@ -76,6 +77,25 @@ test("checkValues fails a wrong-number reply — never wrongly passes", () => {
   const result = checkValues(reply, [dependentEnrollment])
   assert.equal(result.ok, false, "must never wrongly approve a reply with an incorrect deadline")
   assert.ok(result.problems.length > 0)
+})
+
+test("checkValues hedge detection is word-boundary, not substring — a keyword embedded in the entry's OWN name must not fake a hedge", () => {
+  // Regression test (KB fail-closed task): dependentEnrollment's name is
+  // "Enroll baby as ISSS dependent" — the substring "depend" inside
+  // "dependent" must NOT register as the hedge keyword "depend". Before the
+  // word-boundary fix, checkValues found "depend" via block.includes("depend")
+  // in the service's own name (always present in its block) and wrongly
+  // treated every reply about this service as pre-hedged, silently
+  // swallowing a real, unhedged wrong-number mismatch. dependentEnrollment is
+  // needs_review (unannotated → marked in the KB fail-closed task), so this
+  // mismatch must still be caught, not hedge-excused by its own name.
+  const reply = `**${dependentEnrollment.name}** — you must enroll within 30 days of birth.`
+  const result = checkValues(reply, [dependentEnrollment])
+  assert.equal(result.ok, false, "the entry's own name containing 'depend' (from 'dependent') must not be read as a hedge")
+  assert.ok(
+    result.problems.some(p => /without hedging/i.test(p)),
+    `expected an unhedged-mismatch problem, got: ${JSON.stringify(result.problems)}`
+  )
 })
 
 test("checkValues does not misattribute a correct number for one service to a different retrieved service", () => {
@@ -205,4 +225,54 @@ test("check() catches a context contradiction (the empathy-opener bug) — never
   const result = await check(reply, [birthCert], fullKB, { lifeEvent: "new-baby", employment: "unknown" })
   assert.equal(result.grounded, false, "a reply contradicting the citizen's actual life event must never be approved")
   assert.equal(result.stage, "faithfulness")
+})
+
+// ── Fix R1: single-source facts payload (buildKBFacts) ──────────────────
+// The recurring bug (Tasks 8, S1, A): a field existed in compactKB (what
+// generation saw) but was missing from the judge's separately hand-maintained
+// facts list, so the judge flagged correct replies as unsupported. Fixed by
+// making both call sites use the SAME builder — these tests assert that
+// structurally, not just via one-off symptom checks.
+
+test("buildKBFacts is the single source — its output carries every field the judge needs, none re-listed by hand", () => {
+  const facts = buildKBFacts([birthCert], "en")
+  assert.equal(facts.length, 1)
+  const f = facts[0]
+  // The exact fields historically missing from the judge's hand list (Task A).
+  for (const key of ["hours", "address", "siteNav", "verified", "docs", "amount", "deadline", "tip"]) {
+    assert.ok(key in f, `buildKBFacts output must carry "${key}" — the judge derives its facts from this exact object`)
+  }
+})
+
+test("check() does NOT flag a visit-prep reply citing hours/address/siteNav/verified — the Task-A bug", { skip: !hasKey && "OPENAI_API_KEY not set" }, async () => {
+  // Deliberately omits universalTip's own text — it legitimately contains the
+  // word "free" in an unrelated clause ("Simple SV itself is free to use"),
+  // which trips the deterministic (Task-8) free-claim check at the "value"
+  // stage — a test-construction artifact, not something this test is about.
+  const reply = `**${birthCert.name}**
+
+**Before you go:**
+- Hours: ${birthCert.officeHours}
+- Address: ${birthCert.capitalAddress}
+- Navigation: ${birthCert.siteNavigation}, as of ${birthCert.lastVerified}`
+  const result = await check(reply, [birthCert], fullKB, { lifeEvent: "new-baby", employment: "unknown" })
+  assert.equal(result.grounded, true, JSON.stringify(result))
+})
+
+test("check() does NOT flag a reply listing the retrieved service's documents — the Task-8 bug", { skip: !hasKey && "OPENAI_API_KEY not set" }, async () => {
+  const reply = `**${birthCert.name}** — Documents needed: ${birthCert.documents.join(", ")}.`
+  const result = await check(reply, [birthCert], fullKB, { lifeEvent: "new-baby", employment: "unknown" })
+  assert.equal(result.grounded, true, JSON.stringify(result))
+})
+
+test("check() builds Spanish facts for a Spanish reply — a Spanish document list isn't flagged as a language mismatch", { skip: !hasKey && "OPENAI_API_KEY not set" }, async () => {
+  const reply = `**${birthCert.nameEs}** — Documentos necesarios: ${birthCert.documentsEs.join(", ")}.`
+  const result = await check(reply, [birthCert], fullKB, { lifeEvent: "new-baby", employment: "unknown" }, "es")
+  assert.equal(result.grounded, true, JSON.stringify(result))
+})
+
+test("check() still catches a genuinely fabricated agency/number even with the expanded facts payload", { skip: !hasKey && "OPENAI_API_KEY not set" }, async () => {
+  const reply = `**${birthCert.name}** — you must also register with the Ministry of Labor, and the fee there is $200.`
+  const result = await check(reply, [birthCert], fullKB, { lifeEvent: "new-baby", employment: "unknown" })
+  assert.equal(result.grounded, false, "a fabricated agency/fee must still be caught after the refactor")
 })

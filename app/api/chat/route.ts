@@ -10,6 +10,7 @@ import { normalizeEmployment } from "@/types/context"
 import { classifyQuery } from "@/lib/classify-query"
 import { canWriteLifeEvent, canWriteEmployment, canWriteMemoryType } from "@/lib/confidence"
 import { check as checkGrounding, buildFallbackReply } from "@/lib/grounding"
+import { logGroundingFallback, GroundingAttempt } from "@/lib/grounding-log"
 import { applySlotInferences, nextMissingSlot, SLOT_DEFS } from "@/lib/slots"
 import { prisma } from "@/lib/prisma"
 
@@ -57,6 +58,7 @@ export async function POST(req: Request) {
             lifeEvent:  dbCtx.lifeEvent        || contextData?.profile?.lifeEvent  || "",
             pendingLifeEvent: dbCtx.pendingLifeEvent || undefined,
             language:   dbCtx.citizen?.language || contextData?.profile?.language  || language,
+            municipality: dbCtx.municipality || contextData?.profile?.municipality || undefined,
           },
           slots:               JSON.parse((dbCtx.slotsJson as string) || "{}"),
           pendingSlot:         dbCtx.pendingSlot || undefined,
@@ -364,17 +366,25 @@ export async function POST(req: Request) {
     let generated = await generateFull(systemPrompt)
     let groundingOutcome: "grounded" | "regenerated" | "fell-back" = "grounded"
     let lastResult: Awaited<ReturnType<typeof checkGrounding>> = { grounded: true }
+    // Task M1 — measurement only. Captures each attempt's draft BEFORE it's
+    // overwritten/discarded below, so a fallback can be hand-judged later
+    // (legit catch vs. over-strict judge). Never read by the decision logic
+    // itself — groundingOutcome/lastResult/generated are computed exactly as
+    // before; this array is purely a side observation.
+    const attempts: GroundingAttempt[] = []
 
     // Nothing concrete to fact-check when no services were retrieved (e.g.
     // pure onboarding conversation) — skip the extra LLM round-trip.
     if (services.length > 0) {
-      lastResult = await checkGrounding(generated.text, services, fullKB, citizenCtxForGrounding)
+      lastResult = await checkGrounding(generated.text, services, fullKB, citizenCtxForGrounding, language)
+      attempts.push({ attempt: 1, draft: generated.text, stage: lastResult.stage, reasons: lastResult.problems, passed: lastResult.grounded })
 
       if (!lastResult.grounded) {
         console.warn("Grounding failed (attempt 1):", lastResult.stage, lastResult.problems)
         const regenPrompt = `${systemPrompt}\n\nIMPORTANT: your previous draft made these unsupported or incorrect claims: ${JSON.stringify(lastResult.problems)}. Rewrite your reply using ONLY the facts in the KNOWLEDGE BASE section above. For every entry with review="needs_review" or a low conf, you MUST include an explicit hedge phrase directly next to its specific figures — e.g. "this varies by source — confirm with [agency]" — not just avoid stating a number. Do not repeat these mistakes.`
         const regenerated = await generateFull(regenPrompt)
-        const regenResult = await checkGrounding(regenerated.text, services, fullKB, citizenCtxForGrounding)
+        const regenResult = await checkGrounding(regenerated.text, services, fullKB, citizenCtxForGrounding, language)
+        attempts.push({ attempt: 2, draft: regenerated.text, stage: regenResult.stage, reasons: regenResult.problems, passed: regenResult.grounded })
 
         if (regenResult.grounded) {
           generated = regenerated
@@ -392,6 +402,18 @@ export async function POST(req: Request) {
 
     const { text: fullResponse, chunks } = generated
     console.log("Grounding outcome:", groundingOutcome, groundingOutcome !== "grounded" ? { stage: lastResult.stage, problems: lastResult.problems } : "")
+
+    // Task M1 — fire-and-forget, only for non-first-try turns (see lib/grounding-log.ts).
+    if (groundingOutcome !== "grounded") {
+      logGroundingFallback({
+        citizenId: isRealCitizen ? citizenId : undefined,
+        sessionId,
+        query: userMessage,
+        attempts,
+        outcome: groundingOutcome,
+        finalReply: fullResponse,
+      })
+    }
 
     const encoder = new TextEncoder()
 

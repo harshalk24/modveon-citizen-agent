@@ -1,8 +1,12 @@
 import { NextResponse } from "next/server"
 import { prisma } from "@/lib/prisma"
+import { flattenPlanSteps, rebuildPlanFromSteps } from "@/lib/plan-shape"
 
 export async function PATCH(req: Request) {
-  const { citizenId, serviceId, week, completed } = await req.json()
+  const body = await req.json()
+  const { citizenId, serviceId, completed } = body
+  // Accept `phase` (current) or legacy `week` from clients mid-transition.
+  const phase = body.phase ?? body.week
 
   if (!citizenId || !serviceId) {
     return NextResponse.json({ error: "Missing required fields" }, { status: 400 })
@@ -11,9 +15,10 @@ export async function PATCH(req: Request) {
   const plan = await prisma.actionPlan.findUnique({ where: { citizenId } })
   if (!plan) return NextResponse.json({ error: "Plan not found" }, { status: 404 })
 
-  const steps = JSON.parse(plan.planJson) as any[]
-  const updated = steps.map((s: any) => {
-    const matches = s.serviceId === serviceId && (week === undefined || s.week === week)
+  const raw = JSON.parse(plan.planJson)
+  const steps = flattenPlanSteps(raw)
+  const updated = steps.map(s => {
+    const matches = s.serviceId === serviceId && (phase === undefined || s.phase === phase)
     return matches
       ? { ...s, status: completed ? "done" : "not-started", completedAt: completed ? new Date().toISOString() : undefined }
       : s
@@ -21,7 +26,7 @@ export async function PATCH(req: Request) {
 
   await prisma.actionPlan.update({
     where: { citizenId },
-    data: { planJson: JSON.stringify(updated) }
+    data: { planJson: JSON.stringify(rebuildPlanFromSteps(raw, updated)) }
   })
 
   return NextResponse.json({ ok: true })
@@ -37,12 +42,13 @@ export async function DELETE(req: Request) {
   const plan = await prisma.actionPlan.findUnique({ where: { citizenId } })
   if (!plan) return NextResponse.json({ error: "Plan not found" }, { status: 404 })
 
-  const steps = JSON.parse(plan.planJson) as any[]
-  const filtered = steps.filter((s: any) => s.serviceId !== serviceId)
+  const raw = JSON.parse(plan.planJson)
+  const steps = flattenPlanSteps(raw)
+  const filtered = steps.filter(s => s.serviceId !== serviceId)
 
   await prisma.actionPlan.update({
     where: { citizenId },
-    data: { planJson: JSON.stringify(filtered) }
+    data: { planJson: JSON.stringify(rebuildPlanFromSteps(raw, filtered)) }
   })
 
   // Remove associated deadline if any

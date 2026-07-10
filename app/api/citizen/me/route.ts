@@ -1,6 +1,7 @@
 import { NextResponse } from "next/server"
 import { prisma } from "@/lib/prisma"
 import { CitizenContextData, normalizeEmployment } from "@/types/context"
+import { flattenPlanSteps } from "@/lib/plan-shape"
 
 export async function GET(req: Request) {
   const citizenId = req.headers.get("x-citizen-id")
@@ -31,22 +32,16 @@ export async function GET(req: Request) {
       language: (citizen.language as "en" | "es") || "es",
       email: citizen.email || undefined,
       gender: citizen.gender || undefined,
+      municipality: ctx?.municipality || undefined,
     },
     entitlements: ctx?.entitlementsJson ? JSON.parse(ctx.entitlementsJson) : [],
-    // planJson may be stored as flat array (old format) or { weeks: [...] } (new format).
-    // Always return a flat array with a `week` property on each step so the plan page
-    // can group them with groupStepsByWeek().
+    // planJson may be stored as a flat array (oldest), { weeks: [...] }
+    // (pre-S2), or { phases: [...] } (current) — flattenPlanSteps normalizes
+    // all three into a flat, `phase`-tagged array for the plan page.
     planSteps: (() => {
       if (!plan?.planJson) return []
       const parsed = JSON.parse(plan.planJson)
-      if (Array.isArray(parsed)) return parsed   // old flat format
-      if (parsed?.weeks) {
-        // New { weeks: [...] } format — flatten, adding week number to each step
-        return parsed.weeks.flatMap((w: any) =>
-          (w.steps || []).map((s: any) => ({ ...s, week: w.week, status: s.status || "not-started" }))
-        )
-      }
-      return []
+      return flattenPlanSteps(parsed).map(s => ({ ...s, status: s.status || "not-started" })) as any
     })(),
     deadlines: citizen.deadlines.map(d => ({
       serviceId: d.serviceId,

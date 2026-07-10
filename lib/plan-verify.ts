@@ -1,4 +1,4 @@
-import { isUnverified } from "@/lib/grounding"
+import { isUnverified, containsHedgeKeyword } from "@/lib/grounding"
 
 // Structural type — works for both full KB `Service[]` and the plan route's
 // compactServices, which only carry a subset of Service's fields.
@@ -21,14 +21,16 @@ export interface PlanStep {
   [key: string]: unknown
 }
 
-export interface PlanWeek {
-  week: number
+// A phase number is a dependency rank, NOT calendar time — phase 1 is doable
+// now, phase 2 depends on something in phase 1 being done, etc. (Task S2).
+export interface PlanPhase {
+  phase: number
   label: string
   steps: PlanStep[]
 }
 
 export interface Plan {
-  weeks: PlanWeek[]
+  phases: PlanPhase[]
 }
 
 // Build "must come before" edges (id -> set of ids required before it),
@@ -57,7 +59,7 @@ function buildEdges(idSet: Set<string>, nodes: DependencyNode[]): Map<string, Se
 }
 
 // Corrected topological batching (fixes sequencePlan()'s three bugs — see
-// lib/kb.ts comment): no hardcoded week cap, an out-of-set dependency is
+// lib/kb.ts comment): no hardcoded phase cap, an out-of-set dependency is
 // treated as already satisfied rather than blocking forever, and a genuine
 // cycle dumps its stuck members into the current rank instead of dropping them.
 export function computeRanks(ids: string[], nodes: DependencyNode[]): Map<string, number> {
@@ -87,31 +89,33 @@ export function computeRanks(ids: string[], nodes: DependencyNode[]): Map<string
   return rank
 }
 
-// Verifies the LLM-generated plan's actual week/order assignment respects the
-// dependency graph — never trusts the model to have followed the prompt.
+// Verifies the LLM-generated plan's actual phase/order assignment respects
+// the dependency graph — never trusts the model to have followed the prompt.
+// A dependency must land in an earlier phase (or an earlier position within
+// the same phase) than the step that depends on it.
 export function verifyPlanOrder(plan: Plan, nodes: DependencyNode[]): { ok: boolean; violations: string[] } {
-  const stepIds = plan.weeks.flatMap(w => w.steps.map(s => s.serviceId))
+  const stepIds = plan.phases.flatMap(p => p.steps.map(s => s.serviceId))
   const idSet = new Set(stepIds)
   const edges = buildEdges(idSet, nodes)
 
-  const stepWeek = new Map<string, number>()
+  const stepPhase = new Map<string, number>()
   const stepPosition = new Map<string, number>()
-  plan.weeks.forEach(w => w.steps.forEach((s, i) => {
-    stepWeek.set(s.serviceId, w.week)
+  plan.phases.forEach(p => p.steps.forEach((s, i) => {
+    stepPhase.set(s.serviceId, p.phase)
     stepPosition.set(s.serviceId, i)
   }))
 
   const violations: string[] = []
   for (const [id, deps] of Array.from(edges)) {
-    if (!stepWeek.has(id)) continue
+    if (!stepPhase.has(id)) continue
     for (const dep of Array.from(deps)) {
-      if (!stepWeek.has(dep)) continue
-      const depWeek = stepWeek.get(dep)!
-      const ownWeek = stepWeek.get(id)!
-      if (depWeek > ownWeek) {
-        violations.push(`"${id}" is scheduled in week ${ownWeek} but depends on "${dep}", which is scheduled later (week ${depWeek})`)
-      } else if (depWeek === ownWeek && stepPosition.get(dep)! > stepPosition.get(id)!) {
-        violations.push(`"${id}" is listed before its dependency "${dep}" within the same week ${ownWeek}`)
+      if (!stepPhase.has(dep)) continue
+      const depPhase = stepPhase.get(dep)!
+      const ownPhase = stepPhase.get(id)!
+      if (depPhase > ownPhase) {
+        violations.push(`"${id}" is scheduled in phase ${ownPhase} but depends on "${dep}", which is scheduled later (phase ${depPhase})`)
+      } else if (depPhase === ownPhase && stepPosition.get(dep)! > stepPosition.get(id)!) {
+        violations.push(`"${id}" is listed before its dependency "${dep}" within the same phase ${ownPhase}`)
       }
     }
   }
@@ -119,15 +123,15 @@ export function verifyPlanOrder(plan: Plan, nodes: DependencyNode[]): { ok: bool
   return { ok: violations.length === 0, violations }
 }
 
-// Rebuilds `weeks` using the correct rank order. Each step's own LLM-authored
-// content (title, documents, etc.) is left untouched — only its week placement
-// changes. A week's original label is reused wherever that week's exact step
-// set is unchanged; otherwise a generic label is generated.
-export function reorderPlan(plan: Plan, nodes: DependencyNode[], genericLabel: (week: number) => string): Plan {
-  const stepIds = plan.weeks.flatMap(w => w.steps.map(s => s.serviceId))
+// Rebuilds `phases` using the correct rank order. Each step's own LLM-authored
+// content (title, documents, etc.) is left untouched — only its phase
+// placement changes. A phase's original label is reused wherever that phase's
+// exact step set is unchanged; otherwise a generic label is generated.
+export function reorderPlan(plan: Plan, nodes: DependencyNode[], genericLabel: (phase: number) => string): Plan {
+  const stepIds = plan.phases.flatMap(p => p.steps.map(s => s.serviceId))
   const ranks = computeRanks(stepIds, nodes)
   const stepById = new Map<string, PlanStep>()
-  plan.weeks.forEach(w => w.steps.forEach(s => stepById.set(s.serviceId, s)))
+  plan.phases.forEach(p => p.steps.forEach(s => stepById.set(s.serviceId, s)))
 
   const rankGroups = new Map<number, string[]>()
   for (const id of stepIds) {
@@ -137,28 +141,29 @@ export function reorderPlan(plan: Plan, nodes: DependencyNode[], genericLabel: (
   }
   const sortedRanks = Array.from(rankGroups.keys()).sort((a, b) => a - b)
 
-  const weeks: PlanWeek[] = sortedRanks.map((r, i) => {
-    const weekNum = i + 1
+  const phases: PlanPhase[] = sortedRanks.map((r, i) => {
+    const phaseNum = i + 1
     const ids = rankGroups.get(r)!
-    const unchanged = plan.weeks.find(w => {
-      const origIds = w.steps.map(s => s.serviceId)
+    const unchanged = plan.phases.find(p => {
+      const origIds = p.steps.map(s => s.serviceId)
       return origIds.length === ids.length && origIds.every(id => ids.includes(id))
     })
     return {
-      week: weekNum,
-      label: unchanged ? unchanged.label : genericLabel(weekNum),
+      phase: phaseNum,
+      label: unchanged ? unchanged.label : genericLabel(phaseNum),
       steps: ids.map(id => stepById.get(id)).filter((s): s is PlanStep => !!s),
     }
   })
 
-  return { weeks }
+  return { phases }
 }
 
-const HEDGE_MARKERS = [
-  "confirm", "unconfirmed", "verify", "not confirmed", "based on available",
-  "no confirmado", "confirmá", "verificá", "varies", "varía",
-]
-const hasHedgeText = (text: string) => HEDGE_MARKERS.some(k => text.toLowerCase().includes(k))
+// Fix B1: uses lib/grounding.ts's HEDGE_KEYWORDS (via containsHedgeKeyword)
+// instead of a hand-copied list — a Spanish hedge ("depende", "puede variar")
+// recognized by grounding is now guaranteed to be recognized here too; the
+// two layers can't drift apart the way they did before (grounding had terms
+// plan-verify was missing).
+const hasHedgeText = (text: string) => containsHedgeKeyword(text)
 
 // A step citing a figure from an unverified service must hedge it, consistent
 // with the reply-path behavior (Task 5/6) — applied regardless of whether the
@@ -167,9 +172,9 @@ export function hedgePlanSteps<N extends DependencyNode>(plan: Plan, nodes: N[])
   const byId = new Map(nodes.map(n => [n.id, n]))
 
   return {
-    weeks: plan.weeks.map(w => ({
-      ...w,
-      steps: w.steps.map(step => {
+    phases: plan.phases.map(p => ({
+      ...p,
+      steps: p.steps.map(step => {
         const node = byId.get(step.serviceId)
         if (!node || !isUnverified(node)) return step
 
@@ -192,8 +197,9 @@ const amountDenotesFree = (amount?: string) => !!amount && /\bfree\b|\bgratis\b|
 const extractDollarNumbers = (text: string) =>
   Array.from(text.matchAll(/\$\s*([\d,]+(?:\.\d+)?)/g)).map(m => m[1].replace(/,/g, ""))
 const VARIANCE_WORDS = [
-  "varies", "vary", "varía", "depends", "según", "tier", "domestic", "abroad",
+  "varies", "vary", "varía", "depends", "depende", "según", "tier", "domestic", "abroad",
   "confirm", "verify", "unconfirmed", "not confirmed", "no confirmado",
+  "aproximadamente", "alrededor de", "puede variar",
 ]
 const hasVarianceLanguage = (text: string) => VARIANCE_WORDS.some(k => text.toLowerCase().includes(k))
 
@@ -213,9 +219,9 @@ export function enforcePlanCosts<N extends DependencyNode>(plan: Plan, nodes: N[
       : `Cost not confirmed — verify with ${node.agency ?? "the agency"}`
 
   return {
-    weeks: plan.weeks.map(w => ({
-      ...w,
-      steps: w.steps.map(step => {
+    phases: plan.phases.map(p => ({
+      ...p,
+      steps: p.steps.map(step => {
         const node = byId.get(step.serviceId)
         const cost = typeof step.cost === "string" ? step.cost : ""
         if (!node || !cost) return step
@@ -256,7 +262,7 @@ export function enforcePlanCosts<N extends DependencyNode>(plan: Plan, nodes: N[
 // Deterministic, dependency-ordered fallback for when generation fails twice.
 // Never fabricates a cost or duration — uses the real KB amount/deadline when
 // present, an honest "not confirmed" phrase otherwise. Covers every retrieved
-// service (not just 3), batched into weeks by the corrected topological order.
+// service (not just 3), batched into phases by the corrected topological order.
 export function buildSafeFallbackPlan(
   compactServices: (DependencyNode & { name: string; agencyAddress: string; documents: string[] })[],
   language: "en" | "es"
@@ -273,8 +279,8 @@ export function buildSafeFallbackPlan(
   }
   const sortedRanks = Array.from(byRank.keys()).sort((a, b) => a - b)
 
-  const weeks = sortedRanks.map((r, i) => {
-    const weekNum = i + 1
+  const phases = sortedRanks.map((r, i) => {
+    const phaseNum = i + 1
     const steps = byRank.get(r)!.map(s => {
       const unverified = isUnverified(s)
       const costFromKB = s.amount
@@ -301,11 +307,11 @@ export function buildSafeFallbackPlan(
       }
     })
     return {
-      week:  weekNum,
-      label: isEs ? `Semana ${weekNum}` : `Week ${weekNum}`,
+      phase: phaseNum,
+      label: isEs ? `Fase ${phaseNum}` : `Phase ${phaseNum}`,
       steps,
     }
   })
 
-  return { weeks }
+  return { phases }
 }

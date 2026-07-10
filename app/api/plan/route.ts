@@ -6,20 +6,22 @@ import { prisma } from "@/lib/prisma"
 
 async function savePlanToDB(
   citizenId: string,
-  validatedPlan: { weeks: any[] },
+  validatedPlan: { phases: any[] },
   services: any[],
   lifeEvent?: string
 ) {
-  // Store the full { weeks: [...] } structure so the plan page gets week labels
+  // Store the full { phases: [...] } structure so the plan page gets phase labels
   await prisma.actionPlan.upsert({
     where:  { citizenId },
     create: { citizenId, planJson: JSON.stringify(validatedPlan), lifeEvent: lifeEvent || null },
     update: { planJson: JSON.stringify(validatedPlan), lifeEvent: lifeEvent || null },
   })
 
-  // Create deadline records for steps that have deadlineDays
-  for (const week of validatedPlan.weeks) {
-    for (const step of week.steps) {
+  // Create deadline records for steps that have deadlineDays — deadlines only
+  // ever come from this real, structured field, never manufactured from phase
+  // number (a phase is a dependency rank, not a calendar position).
+  for (const phase of validatedPlan.phases) {
+    for (const step of phase.steps) {
       const svc = services.find((s: any) => s.id === step.serviceId)
       if (svc?.deadlineDays) {
         const existing = await prisma.deadline.findFirst({
@@ -73,7 +75,7 @@ export async function POST(req: Request) {
     costUncertain: s.costUncertain,
   }))
 
-  const genericLabel = (week: number) => language === "es" ? `Semana ${week}` : `Week ${week}`
+  const genericLabel = (phase: number) => language === "es" ? `Fase ${phase}` : `Phase ${phase}`
 
   try {
     let plan: Plan | null = null
@@ -104,7 +106,7 @@ export async function POST(req: Request) {
     }
 
     // Dependency order is deterministically enforced — never trusted to the
-    // model just because the prompt said "put dependencies in earlier weeks".
+    // model just because the prompt said "put dependencies in earlier phases".
     let orderCheck = verifyPlanOrder(plan, compactServices)
     if (!orderCheck.ok) {
       console.warn("Plan order violated:", orderCheck.violations)
@@ -122,7 +124,7 @@ export async function POST(req: Request) {
           services: compactServices,
           profile,
           language,
-          feedback: `Your previous plan violated these dependencies: ${JSON.stringify(orderCheck.violations)}. Reorder the steps so every dependency appears in an earlier (or same, earlier-listed) week than the step that depends on it.`,
+          feedback: `Your previous plan violated these dependencies: ${JSON.stringify(orderCheck.violations)}. Reorder the steps so every dependency appears in an earlier (or same, earlier-listed) phase than the step that depends on it.`,
         })
         const regenValidation = validatePlanJSON(JSON.stringify(regen))
         const regenPlan = regenValidation.valid ? (regenValidation.parsed as Plan) : null

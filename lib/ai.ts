@@ -31,19 +31,24 @@ export async function generatePlan(params: {
   feedback?: string
 }): Promise<any> {
   const isEs = params.language === "es"
-  const prompt = `Generate a week-by-week action plan for this citizen.
+  const prompt = `Generate a phased action plan for this citizen. Phases are NOT calendar time —
+each phase number is a dependency rank: phase 1 must be doable now, phase 2 depends on
+something in phase 1 being done first, and so on. Do not imply a calendar schedule
+("this week", "next week") anywhere — only mention timing where a step genuinely has a
+real deadline or duration.
 Profile: ${JSON.stringify(params.profile)}
 Services: ${JSON.stringify(params.services)}
 
 Return ONLY this JSON structure:
-{"weeks":[{"week":1,"label":"string","steps":[{"serviceId":"string","title":"string","agency":"string","agencyAddress":"string","deadline":"string or null","estimatedTime":"string","cost":"string","documents":["string"],"whatToSayWhenYouArrive":"string","whatToDoIfProblems":"string","canDoOnline":false,"onlineUrl":"string or null","why":"string"}]}]}
+{"phases":[{"phase":1,"label":"string","steps":[{"serviceId":"string","title":"string","agency":"string","agencyAddress":"string","deadline":"string or null","estimatedTime":"string","cost":"string","documents":["string"],"whatToSayWhenYouArrive":"string","whatToDoIfProblems":"string","canDoOnline":false,"onlineUrl":"string or null","why":"string"}]}]}
 
 Rules:
-- Max 3 steps per week. Spread steps across multiple weeks if needed.
+- Max 3 steps per phase. Spread steps across multiple phases if needed.
 - serviceId must match one of the provided service IDs exactly.
-- dependsOn: put dependencies in earlier weeks.
+- dependsOn: put dependencies in earlier phases.
+- label: describe what the phase accomplishes (e.g. "Register the business" or "Once you have your NIT"), never a calendar reference like "Week 1".
 - Language: ${isEs ? "Salvadoran Spanish, use 'vos'" : "English"}.
-- cost: "Free" or exact amount. estimatedTime: realistic (e.g. "30 minutos en persona").
+- cost: "Free" or exact amount. estimatedTime: how long the step itself takes at the counter (e.g. "30 minutos en persona") — this describes the errand's duration, not when it happens on a calendar.
 - whatToSayWhenYouArrive: one specific sentence to say at the counter.
 - whatToDoIfProblems: one sentence naming a specific escalation contact.
 - Output ONLY JSON, no markdown, no explanation.${params.feedback ? `\n\nIMPORTANT: ${params.feedback}` : ""}`

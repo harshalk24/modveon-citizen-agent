@@ -10,7 +10,7 @@ export interface PlanStep {
   serviceNameEs: string
   agency: string
   agencyAddress?: string
-  week: number
+  phase: number
   documents: string[]
   documentsEs: string[]
   deadline?: string
@@ -48,6 +48,8 @@ export interface CitizenContextData {
     email?: string
     whatsappNumber?: string
     gender?: string
+    // Explicit-capture only (Task A) — see CitizenContext.municipality.
+    municipality?: string
   }
   // Slot-filling (Task S1) — decision-relevant facts gathered for the CURRENT
   // situation only (see lib/slots.ts). Not episodic history.

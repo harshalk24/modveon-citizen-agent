@@ -1,5 +1,6 @@
 import { Service } from "@/lib/kb"
 import { getLLM } from "@/lib/llm"
+import { buildKBFacts } from "@/lib/context-builder"
 
 export interface GroundingResult {
   grounded: boolean
@@ -14,16 +15,56 @@ export interface CitizenContextForGrounding {
 
 const LOW_CONFIDENCE_THRESHOLD = 0.8
 
-const HEDGE_KEYWORDS = [
-  "confirm", "verify", "unconfirmed", "may vary", "varies", "reported", "depend",
+// Single source (Fix B1 — same lesson as R1): lib/plan-verify.ts imports this
+// instead of keeping its own hand-copied list, so a hedge recognized here is
+// recognized there too — they can't drift apart again.
+// "depend" alone used to also catch "depends"/"depending" via substring —
+// now that matching is word-boundary (see containsHedgeKeyword below), those
+// real inflected hedge phrases need their own explicit entries. "dependent"
+// is deliberately NOT listed — that's an unrelated noun (e.g. "ISSS
+// dependent"), not a hedge on a figure.
+export const HEDGE_KEYWORDS = [
+  "confirm", "verify", "unconfirmed", "may vary", "varies", "reported", "depend", "depends", "depending",
   "not confirmed", "based on available", "check with", "unverified",
   "según la información", "confirmá", "verificá", "no confirmado", "puede variar", "varía", "depende",
 ]
 
+// Word-char class includes Spanish accented letters — plain \b treats accented
+// chars as non-word in JS, which would let a boundary match spuriously right
+// next to "á"/"í"/etc even mid-word. Defining our own class keeps "confirmá"/
+// "depende" matched only at their real word edges, not wherever an accented
+// letter happens to sit.
+const HEDGE_WORD_CHARS = "a-zA-Z0-9áéíóúÁÉÍÓÚñÑüÜ"
+
+// Word-boundary hedge match — a bare .includes(keyword) scan (the previous
+// implementation) matches a keyword as a SUBSTRING of an unrelated word, e.g.
+// "depend" inside "ISSS dependent" or "confirm" inside "confirmation". That
+// false match silently suppressed real unhedged-mismatch flags for any KB
+// entry whose own name/description happens to contain a hedge keyword as a
+// substring (found via sv-isss-dependent-enrollment during the KB fail-closed
+// task). This checks each keyword only at real word edges.
+export function containsHedgeKeyword(text: string): boolean {
+  const lower = text.toLowerCase()
+  return HEDGE_KEYWORDS.some(k => {
+    const escaped = k.toLowerCase().replace(/[.*+?^${}()|[\]\\]/g, "\\$&")
+    const re = new RegExp(`(?<![${HEDGE_WORD_CHARS}])${escaped}(?![${HEDGE_WORD_CHARS}])`)
+    return re.test(lower)
+  })
+}
+
 // Structural — accepts anything carrying these two fields (e.g. lib/plan-verify.ts's
 // DependencyNode, which only has a subset of Service's fields), not just a full Service.
+//
+// Default is fail-closed: only explicitly-approved (or confidence>=0.8) facts
+// are asserted without hedging. Unannotated = treat as unverified. (KB
+// fail-closed task: the previous default silently trusted any entry with
+// NEITHER reviewStatus nor confidence set — the audit found 21/25 KB entries
+// in that state, so silence was being read as "verified" for most of the KB.)
 export function isUnverified(s: { reviewStatus?: "needs_review" | "approved"; confidence?: number }): boolean {
-  return s.reviewStatus === "needs_review" || (typeof s.confidence === "number" && s.confidence < LOW_CONFIDENCE_THRESHOLD)
+  if (s.reviewStatus === "needs_review") return true
+  if (s.reviewStatus === "approved") return false
+  if (typeof s.confidence === "number") return s.confidence < LOW_CONFIDENCE_THRESHOLD
+  return true
 }
 
 // ── Stage 1 (deterministic, free) ───────────────────────────────────────
@@ -79,7 +120,7 @@ export function checkValues(reply: string, retrieved: Service[]): { ok: boolean;
       if (other.idx > idx) end = Math.min(end, other.idx)
     }
     const block = reply.slice(idx, end)
-    const hasHedge = HEDGE_KEYWORDS.some(k => block.toLowerCase().includes(k))
+    const hasHedge = containsHedgeKeyword(block)
     const unverified = isUnverified(s)
 
     if (s.deadlineDays) {
@@ -200,6 +241,136 @@ export function checkValues(reply: string, retrieved: Service[]): { ok: boolean;
   return { ok: problems.length === 0, problems }
 }
 
+// Shared by all three faithfulness sub-checks — parses the judge's JSON,
+// fails safe (UNSUPPORTED) on any parse/API error.
+//
+// Neither "verdict" nor "problems" is fully trustworthy alone — testing during
+// J1 found the model produces the IDENTICAL shape (verdict:"UNSUPPORTED",
+// problems:[]) for two opposite situations: a spurious non-issue (nothing to
+// name) AND a genuine miss (it knows there's a contradiction but fails to
+// write it down). Those can't be told apart after the fact — the fix has to
+// be upstream (clear prompting so the model doesn't produce that empty-body
+// shape at all), and until that's fully reliable, this fails safe on EITHER
+// signal of trouble: it takes BOTH verdict==="SUPPORTED" AND an empty
+// problems array to pass. Matches this system's own stated bias — a false
+// positive (wrongly approving) is the dangerous failure; a false negative
+// (over-cautious reject) costs a fallback reply, never a wrong one.
+async function runJudgeCall(prompt: string): Promise<{ ok: boolean; problems: string[] }> {
+  try {
+    const text = (await getLLM().complete(prompt, { temperature: 0.0, maxTokens: 300, json: true })).trim()
+    const parsed = JSON.parse(text.replace(/```json|```/g, "").trim())
+    const problems = Array.isArray(parsed.problems)
+      ? parsed.problems.filter((p: unknown): p is string => typeof p === "string" && p.trim().length > 0)
+      : []
+    if (parsed.verdict === "SUPPORTED" && problems.length === 0) return { ok: true, problems: [] }
+    return {
+      ok: false,
+      problems: problems.length > 0 ? problems : ["Faithfulness check returned UNSUPPORTED with no specific reason given"],
+    }
+  } catch (e) {
+    console.error("Faithfulness sub-check failed — failing safe as UNSUPPORTED:", e)
+    return { ok: false, problems: ["Faithfulness check could not be completed (parse/API error) — failing safe"] }
+  }
+}
+
+// Sub-check 1/3: contradiction only — small, fixed-size context (citizen
+// context is 2 fields), not affected by the payload-size failure mode below.
+async function checkContradiction(reply: string, ctx: CitizenContextForGrounding): Promise<{ ok: boolean; problems: string[] }> {
+  const prompt = `You are reviewing a draft reply from a government-benefits assistant before it reaches a citizen. Check ONLY ONE thing: does the reply CONTRADICT the citizen's own known context?
+
+CITIZEN CONTEXT: ${JSON.stringify({ lifeEvent: ctx.lifeEvent, employment: ctx.employment })}
+
+CANDIDATE REPLY:
+"""
+${reply}
+"""
+
+A contradiction means the reply ASSERTS something FALSE about the citizen's situation — e.g. opening with sympathy for a job loss when their actual life event is a new baby, or stating an eligibility rule that contradicts their known employment status.
+- Silence is always safe: the reply is NOT required to mention or acknowledge their life event/employment. Not mentioning it is never a contradiction — do not put a note about this in "problems" even as a minor caveat.
+- QUESTIONS ARE NEVER CONTRADICTIONS: if the reply ASKS the citizen something ("do you have a storefront or employees?", "what is the poder for?") instead of asserting it, that has no truth value to check.
+- "employment" (formal/informal/unemployed) describes how the citizen earns income personally — it says NOTHING about the size/structure/staffing of a business or situation they're asking about. A citizen with "informal" employment can still run a business with a storefront or employees; asking about that is not a contradiction.
+- A general, explicitly conditional rule ("you need X if your assets are $12,000 or more") is not an assertion about this specific citizen — only a contradiction if the reply drops the condition and asserts it applies to them without knowing that yet.
+
+CRITICAL: "problems" must be EMPTY unless the reply asserts something DEFINITELY, FACTUALLY FALSE about the citizen's situation. Never put a hedge, caveat, "may imply", "could suggest", or incompleteness note into "problems" — those are not contradictions, and this field must not contain anything that isn't an actual contradiction. If you cannot state a specific FALSE assertion the reply makes about the citizen, "problems" must be [] and verdict "SUPPORTED".
+
+Return ONLY this JSON: {"verdict": "SUPPORTED" or "UNSUPPORTED", "problems": ["<the contradiction, if any>"]}`
+  return runJudgeCall(prompt)
+}
+
+// Sub-check 2/3: a claim naming a government agency that isn't legitimately
+// in play for this turn at all — the one thing per-service checks (below)
+// can't catch, since each of those is deliberately scoped to ignore claims
+// unrelated to its own service.
+async function checkFabricatedAgency(reply: string, retrieved: Service[]): Promise<{ ok: boolean; problems: string[] }> {
+  const knownAgencies = Array.from(new Set(retrieved.map(s => s.agency)))
+  const knownServiceNames = Array.from(new Set(retrieved.flatMap(s => [s.name, s.nameEs])))
+  const prompt = `You are reviewing a draft reply from a government-benefits assistant before it reaches a citizen. Check ONLY ONE thing: does the reply tell the citizen they must deal with a government AGENCY/OFFICE that is NOT in this list of legitimately retrieved agencies for this turn?
+
+KNOWN LEGITIMATE AGENCIES FOR THIS TURN (who ADMINISTERS a benefit — e.g. "ISSS", "RNPN"): ${JSON.stringify(knownAgencies)}
+KNOWN SERVICE/BENEFIT NAMES FOR THIS TURN (what the citizen is APPLYING FOR — these are NOT agencies, do not flag them as agencies even if they sound official): ${JSON.stringify(knownServiceNames)}
+
+CANDIDATE REPLY:
+"""
+${reply}
+"""
+
+Flag ONLY a claim that names a SPECIFIC agency/office NOT in the agencies list above, presented as somewhere the citizen must additionally go/register/contact. A benefit or service NAME (from the second list, or any close variant of it) is never itself an agency — "you need the [Service Name]" is a claim about applying for that service, not a claim about a new agency, even if the service's name sounds institutional. Do NOT flag generic mentions ("your employer", "the office", "your consulate", "the agency") that don't name a specific NEW agency. Do NOT flag anything else — no cost, hedge, or eligibility checking here, that's handled elsewhere. Silence about agencies is always fine.
+
+DEFAULT TO SUPPORTED. Most replies name zero agencies outside the known list — that is the common, correct case. Only set verdict to "UNSUPPORTED" if you can name the exact fabricated agency (an actual office/institution, not a service name) in "problems". If "problems" would be empty, the verdict MUST be "SUPPORTED" — never return UNSUPPORTED with no claim named.
+
+Example: known agencies ["RNPN"], known service names ["Birth certificate — RNPN"]. Reply: "You need the birth certificate from RNPN, it costs about $3-5." → SUPPORTED, problems: []. No other agency was named.
+Example: known agencies ["RNPN"], known service names ["Test Sample Service"]. Reply: "You need the Test Sample Service. Please confirm the fee with the agency." → SUPPORTED, problems: []. "Test Sample Service" is the BENEFIT being applied for (it's in the known service names list), not a new agency — "the agency" here is a generic reference, not a new specific one.
+Example: known agencies ["RNPN"]. Reply: "You need the birth certificate from RNPN, and you must also register with the Ministry of Labor." → UNSUPPORTED, problems: ["Ministry of Labor — not a retrieved agency for this turn"].
+
+Return ONLY this JSON: {"verdict": "SUPPORTED" or "UNSUPPORTED", "problems": ["<the fabricated agency claim, if any>"]}`
+  return runJudgeCall(prompt)
+}
+
+// Sub-check 3/3 (run once per retrieved service): does the reply say
+// anything WRONG or UNSUPPORTED specifically about THIS service?
+//
+// Fix J1 (root cause, confirmed by direct experiment): the OLD single call
+// gave the judge ALL retrieved services' facts at once (up to 5+ dense JSON
+// objects). A controlled test proved the facts array SIZE — not prompt
+// wording — is what breaks the judge's recall: the exact same reply,
+// isolated with ONLY its own service's fact and a short prompt, correctly
+// returned SUPPORTED; the same reply against the full 5-service array,
+// even with heavy prompt tightening (mandatory self-check + matching
+// few-shot examples), returned byte-for-byte identical wrong verdicts. So
+// this checks ONE service's fact per call — small payload, matching what
+// the experiment showed the model can actually do reliably — and the
+// per-service scoping below (ignore claims about OTHER services) is what
+// keeps a multi-service reply from failing every single iteration.
+async function checkOneServiceSupport(
+  reply: string,
+  fact: ReturnType<typeof buildKBFacts>[number] & { unverified: boolean }
+): Promise<{ ok: boolean; problems: string[] }> {
+  const prompt = `You are reviewing a draft reply from a government-benefits assistant before it reaches a citizen. You are checking ONLY claims about ONE specific service: "${fact.name}" (${fact.agency}).
+
+RETRIEVED FACT FOR THIS ONE SERVICE (the only thing claims about "${fact.name}" are allowed to say): ${JSON.stringify(fact)}
+
+CANDIDATE REPLY (may discuss other services too — IGNORE anything not about "${fact.name}"):
+"""
+${reply}
+"""
+
+Scope: if the reply says nothing about "${fact.name}" specifically, or only discusses OTHER services/topics, return SUPPORTED — there is nothing to check here. Other services are checked separately, in their own pass; do not evaluate them here. A claim is only "about" "${fact.name}" if the reply names "${fact.name}" (or clearly refers back to it) at or near that claim — a generic-sounding claim (a document list, a number, a duration) that appears somewhere else in the reply, discussing a DIFFERENT named service, is NOT a claim about "${fact.name}" just because "${fact.name}" also happens to have a similar-shaped field (its own documents/deadline/amount). Do not compare an unrelated part of the reply against this fact's fields merely because both involve documents or numbers.
+Example: this service is "Paternity benefit", whose own documents are ["Father's DUI", "Baby's birth certificate", "Employer certification"]. The reply is entirely about a DIFFERENT service and says "you'll need: Your DUI, Hospital discharge certificate, ISSS referral form" without ever naming "Paternity benefit" nearby. → SUPPORTED. That document list belongs to the other service being discussed, not to Paternity benefit — do not flag it as an unsupported/mismatched document list for Paternity benefit just because Paternity benefit also has a "docs" field.
+
+This check is about INCORRECT or UNSUPPORTED claims, never about INCOMPLETENESS. A reply that omits part of this fact (a caveat, a tier, a nuance) is NOT a violation — silence is always safe. NEVER flag a claim for something the reply DOESN'T say; only for something it DOES say that is wrong or unbacked ABOUT THIS SPECIFIC SERVICE.
+
+Before flagging anything about "${fact.name}", re-read the fact's own "deadline" and "tip" strings above in full, word by word — claims are very often a close paraphrase of text already inside one of those strings, not a separate field. A number, day-count, or eligibility rule stated in the reply is SUPPORTED if it's a paraphrase, a near-verbatim match, or a reasonable specific instance of a general rule in "deadline"/"tip"/"amount"/"docs" (e.g. the tip says "if used in court, must be a lawyer" — a custody case IS a court matter, so that's covered).
+
+Hedge check: if "unverified" is true above, the reply may state an approximate figure as long as it is hedged in SOME way. Before saying "no hedge," scan the sentence for ANY of: confirm, verify, unconfirmed, may vary, varies, vary, varía, reported, depend, depends, depende, not confirmed, based on available, check with, unverified, según, puede variar, aproximadamente, alrededor de, approximately, around, about. If any appears anywhere in or near that sentence, hedge language IS present — it is SUPPORTED, do not flag it.
+
+Do not check for a fabricated agency name here (handled elsewhere) or for contradictions with the citizen's context (handled elsewhere) — only whether THIS service's own claims are backed by the fact given above.
+
+CRITICAL: "problems" must be EMPTY unless the reply asserts a NUMBER, ELIGIBILITY RULE, or DOCUMENT for "${fact.name}" that is DEFINITELY not backed by the fact above. Before adding anything to "problems", ask: "is my reason actually 'the reply doesn't mention/clarify/state a caveat'?" — if yes, DELETE it, that is incompleteness and this field must not contain it. If you cannot name a specific claim that is factually WRONG (not just less detailed than the source fact), "problems" must be [] and verdict "SUPPORTED".
+
+Return ONLY this JSON: {"verdict": "SUPPORTED" or "UNSUPPORTED", "problems": ["<the unsupported claim about ${fact.name}, if any>"]}`
+  return runJudgeCall(prompt)
+}
+
 // ── Stage 3 (LLM backstop) ───────────────────────────────────────────────
 // Catches distortions the deterministic stages miss: claims not backed by
 // the retrieved facts, or a reply that contradicts the citizen's own context
@@ -207,63 +378,29 @@ export function checkValues(reply: string, retrieved: Service[]): { ok: boolean;
 export async function checkFaithfulness(
   reply: string,
   retrieved: Service[],
-  ctx: CitizenContextForGrounding
+  ctx: CitizenContextForGrounding,
+  language: "en" | "es"
 ): Promise<{ ok: boolean; problems: string[] }> {
-  // Must mirror what the generation prompt was actually given (context-builder.ts's
-  // compactKB) — otherwise the judge flags accurate, tip/document-sourced facts as
-  // unsupported just because this payload didn't carry them.
-  const facts = retrieved.map(s => ({
-    name: s.name,
-    agency: s.agency,
-    amount: s.amount ?? null,
-    deadline: s.deadline ?? null,
-    employment: s.employment,
-    tip: s.universalTip ?? null,
-    documents: s.documents,
-    documentsEs: s.documentsEs,
-    unverified: isUnverified(s),
-  }))
+  const contradiction = await checkContradiction(reply, ctx)
+  if (!contradiction.ok) return contradiction
 
-  const prompt = `You are a strict fact-checker reviewing a draft reply from a government-benefits assistant before it reaches a citizen.
+  const fabricatedAgency = await checkFabricatedAgency(reply, retrieved)
+  if (!fabricatedAgency.ok) return fabricatedAgency
 
-CITIZEN CONTEXT: ${JSON.stringify({ lifeEvent: ctx.lifeEvent, employment: ctx.employment })}
-RETRIEVED FACTS (the ONLY things the reply is allowed to claim as fact): ${JSON.stringify(facts)}
-
-CANDIDATE REPLY:
-"""
-${reply}
-"""
-
-This check is about INCORRECT or UNSUPPORTED claims, never about INCOMPLETENESS or PHRASING. A reply that omits a fact (a deadline, an amount, an acknowledgment of the citizen's situation) is NOT a violation — silence is always safe. Only flag the reply for something it actually SAYS that is wrong or unbacked, never for something it fails to mention, and never for HOW it says something it's otherwise entitled to say.
-
-You are judging SUBSTANCE, not PHRASING. Do NOT flag: rewording, paraphrasing, summarizing, reasonable inference from the provided facts, differences in emphasis or level of detail, or tone/transition/empathy language. A reply does not need to restate a fact's full nuance (e.g. "varies by municipality") or use any particular hedge wording — if the substance of a claim is backed by RETRIEVED FACTS, it is SUPPORTED regardless of exact phrasing.
-
-Check TWO things:
-1. Every factual claim the reply DOES make — specifically an agency name, a number (cost/amount/deadline/day-count), or an eligibility/document requirement — must be supported by RETRIEVED FACTS above. Flag a claim only if it names an agency, states a number, or asserts an eligibility/document rule that is NOT present in or reasonably inferable from those facts. Do not flag a claim for being reworded, summarized, or missing extra caveats that were present in the source fact but aren't essential to the claim itself.
-2. The reply must not CONTRADICT the citizen's own context — e.g. opening with sympathy for a job loss when their actual life event is a new baby, or stating an eligibility rule that contradicts their known employment status. This means asserting something FALSE about their situation — it does NOT mean the reply is required to explicitly mention or acknowledge their life event/employment. A reply that is simply silent about their situation (no opener, no personalization) is NOT a contradiction. Tone, empathy, and personalization style are handled elsewhere and are out of scope for this check.
-
-QUESTIONS ARE NEVER CONTRADICTIONS. If the reply ASKS the citizen something ("do you have a storefront or employees?", "what is the poder for?") instead of asserting it, that question cannot contradict their context — a question has no truth value to check. Only flag rule 2 when the reply STATES something false about the citizen as fact. Also: "employment" (formal/informal/unemployed) describes how the citizen earns income personally — it says NOTHING about the size, structure, or staffing of a business or situation they're asking about. A citizen with "informal" employment can still run a business with a storefront or employees; asking about THAT is not a contradiction of THEIR employment status. Similarly, a general, explicitly conditional rule ("you need X if your assets are $12,000 or more") is not an assertion about this specific citizen's case — it's only a contradiction if the reply drops the condition and asserts the rule applies to them without knowing that yet.
-
-IMPORTANT exception to rule 1: when a fact's "unverified" field is true, the reply is ALLOWED to state an approximate figure AS LONG AS it is clearly hedged in SOME reasonable way (e.g. "about $X — please confirm with [agency]", "reported around N days, verify with the agency", "based on available info", "not confirmed"). ANY phrasing that signals the figure isn't certain counts — do not require a specific hedge template or a named agency inside the hedge itself. A properly hedged estimate for an unverified fact is SUPPORTED, not a violation — only flag it if the reply asserts the figure as certain/definite with NO hedge language at all, or if the stated figure isn't reasonably close to anything mentioned in that fact's own data (name/amount/deadline/tip).
-
-Examples of the SUPPORTED/UNSUPPORTED boundary:
-- Facts include {"amount": null, "deadline": "30 days after birth"} and the tip says "domestic use costs about $3-$5, varies by municipality." Reply: "You need the birth certificate. For domestic use it costs about $3 to $5, depending on the municipality." → SUPPORTED. This is a paraphrase of the tip, not a new claim — do not flag it for omitting other details from the tip (like the $20/abroad tier) that the reply didn't need to mention.
-- Facts include {"amount": null} with a tip mentioning "$3.50, but this is not confirmed." Reply: "Based on available info, the cost is about $3.50 — please confirm the exact fee with the agency." → SUPPORTED. The hedge doesn't need to match the tip's exact wording or name the specific agency to count as a hedge.
-- Facts include {"deadline": "30 days after birth"} and the reply states "you must register within 90 days." → UNSUPPORTED. This is a fabricated number not backed by the facts, not a phrasing difference.
-- Facts don't mention any agency named "Ministry of Labor" and the reply states the citizen must also go to the Ministry of Labor. → UNSUPPORTED. This is a fabricated agency/claim.
-
-Be strict and suspicious about claims with NO basis at all in the facts, and about contradictions — if a claim asserts a specific agency, number, or rule that has no reasonable basis in RETRIEVED FACTS, mark it UNSUPPORTED. But do not penalize a reply merely for how it phrases, hedges, or summarizes something that IS backed by the facts — that is correct, desired behavior, not a violation. Return ONLY this JSON, no other text:
-{"verdict": "SUPPORTED" or "UNSUPPORTED", "problems": ["<offending claim or contradiction, if any>"]}`
-
-  try {
-    const text = (await getLLM().complete(prompt, { temperature: 0.0, maxTokens: 300, json: true })).trim()
-    const parsed = JSON.parse(text.replace(/```json|```/g, "").trim())
-    if (parsed.verdict === "SUPPORTED") return { ok: true, problems: [] }
-    return { ok: false, problems: Array.isArray(parsed.problems) && parsed.problems.length > 0 ? parsed.problems : ["Faithfulness check returned UNSUPPORTED"] }
-  } catch (e) {
-    console.error("checkFaithfulness failed — failing safe as UNSUPPORTED:", e)
-    return { ok: false, problems: ["Faithfulness check could not be completed (parse/API error) — failing safe"] }
+  // Fix R1 principle preserved: each per-service fact still comes from the
+  // SAME buildKBFacts generation uses — just called with one service at a
+  // time instead of the whole array, so "the judge sees exactly what
+  // generation saw" for THAT service remains true by construction.
+  const problems: string[] = []
+  for (let i = 0; i < retrieved.length; i++) {
+    const [fact] = buildKBFacts([retrieved[i]], language)
+    const factWithMeta = { ...fact, unverified: isUnverified(retrieved[i]) }
+    const result = await checkOneServiceSupport(reply, factWithMeta)
+    if (!result.ok) problems.push(...result.problems)
   }
+
+  if (problems.length > 0) return { ok: false, problems }
+  return { ok: true, problems: [] }
 }
 
 // ── Orchestrator — deterministic stages first (cheapest first) ──────────
@@ -271,7 +408,8 @@ export async function check(
   reply: string,
   retrieved: Service[],
   fullKB: Service[],
-  ctx: CitizenContextForGrounding
+  ctx: CitizenContextForGrounding,
+  language: "en" | "es" = "en"
 ): Promise<GroundingResult> {
   const entity = checkEntities(reply, retrieved, fullKB)
   if (!entity.ok) return { grounded: false, stage: "entity", problems: entity.problems }
@@ -279,7 +417,9 @@ export async function check(
   const value = checkValues(reply, retrieved)
   if (!value.ok) return { grounded: false, stage: "value", problems: value.problems }
 
-  const faithfulness = await checkFaithfulness(reply, retrieved, ctx)
+  // Must be the SAME language generation actually used, or a Spanish reply's
+  // Spanish document names won't match the judge's (English) facts.
+  const faithfulness = await checkFaithfulness(reply, retrieved, ctx, language)
   if (!faithfulness.ok) return { grounded: false, stage: "faithfulness", problems: faithfulness.problems }
 
   return { grounded: true }

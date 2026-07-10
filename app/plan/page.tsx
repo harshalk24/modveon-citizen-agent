@@ -30,8 +30,8 @@ interface PlanStep {
   status: "not-started" | "in-progress" | "done"
 }
 
-interface PlanWeek {
-  week: number
+interface PlanPhase {
+  phase: number
   label: string
   steps: PlanStep[]
 }
@@ -49,10 +49,10 @@ export default function PlanPage() {
   const { citizen, refresh, isLoading: citizenLoading } = useCitizen()
   const tr = t(lang)
 
-  const [plan, setPlan] = useState<PlanWeek[]>([])
+  const [plan, setPlan] = useState<PlanPhase[]>([])
   const [loading, setLoading] = useState(true)
   const [planError, setPlanError] = useState<string | null>(null)
-  const [expandedWeeks, setExpandedWeeks] = useState<Set<number>>(new Set([1]))
+  const [expandedPhases, setExpandedPhases] = useState<Set<number>>(new Set([1]))
   const [completingStep, setCompletingStep] = useState<string | null>(null)
   const [expandedTips, setExpandedTips] = useState<Set<string>>(new Set())
   const [confirmDeleteStep, setConfirmDeleteStep] = useState<string | null>(null)
@@ -60,7 +60,7 @@ export default function PlanPage() {
   // Track whether we've done the initial mount refresh to avoid loops
   const didMountRefresh = useRef(false)
 
-  const allSteps = plan.flatMap(w => w.steps)
+  const allSteps = plan.flatMap(p => p.steps)
   const doneSteps = allSteps.filter(s => s.status === "done")
   const progress = allSteps.length > 0 ? Math.round((doneSteps.length / allSteps.length) * 100) : 0
   const urgentStep = allSteps.find(s => s.status !== "done" && s.deadline)
@@ -113,7 +113,7 @@ export default function PlanPage() {
     })
 
     if (planIsFresh) {
-      const grouped = groupStepsByWeek(currentCitizen!.planSteps as any)
+      const grouped = groupStepsByPhase(currentCitizen!.planSteps as any)
       setPlan(grouped)
       setLoading(false)
       return
@@ -168,20 +168,20 @@ export default function PlanPage() {
       }
 
       const data = await res.json()
-      if (!data.weeks || !Array.isArray(data.weeks)) {
+      if (!data.phases || !Array.isArray(data.phases)) {
         console.error("Plan API returned invalid structure:", data)
         setPlanError("api-error")
         setLoading(false)
         return
       }
 
-      const weeks: PlanWeek[] = data.weeks
-        .filter((w: any) => w.steps?.length > 0)
-        .map((w: any) => ({
-          ...w,
-          steps: w.steps.map((s: any) => ({ ...s, status: s.status || "not-started" })),
+      const phases: PlanPhase[] = data.phases
+        .filter((p: any) => p.steps?.length > 0)
+        .map((p: any) => ({
+          ...p,
+          steps: p.steps.map((s: any) => ({ ...s, status: s.status || "not-started" })),
         }))
-      setPlan(weeks)
+      setPlan(phases)
 
       // Refresh context so planSteps / planLifeEvent are up-to-date on next visit
       refresh().catch(() => {})
@@ -193,23 +193,23 @@ export default function PlanPage() {
     }
   }
 
-  const groupStepsByWeek = (steps: any[]): PlanWeek[] => {
-    const weekMap = new Map<number, PlanWeek>()
+  const groupStepsByPhase = (steps: any[]): PlanPhase[] => {
+    const phaseMap = new Map<number, PlanPhase>()
     steps.forEach(s => {
-      const wk = s.week || 1
-      if (!weekMap.has(wk)) {
-        weekMap.set(wk, { week: wk, label: `Phase ${wk}`, steps: [] })
+      const ph = s.phase || 1
+      if (!phaseMap.has(ph)) {
+        phaseMap.set(ph, { phase: ph, label: `Phase ${ph}`, steps: [] })
       }
-      weekMap.get(wk)!.steps.push(s)
+      phaseMap.get(ph)!.steps.push(s)
     })
-    return Array.from(weekMap.values()).sort((a, b) => a.week - b.week)
+    return Array.from(phaseMap.values()).sort((a, b) => a.phase - b.phase)
   }
 
-  const toggleWeek = (week: number) => {
-    setExpandedWeeks(prev => {
+  const togglePhase = (phase: number) => {
+    setExpandedPhases(prev => {
       const next = new Set(prev)
-      if (next.has(week)) next.delete(week)
-      else next.add(week)
+      if (next.has(phase)) next.delete(phase)
+      else next.add(phase)
       return next
     })
   }
@@ -223,15 +223,15 @@ export default function PlanPage() {
     })
   }
 
-  const toggleStep = async (step: PlanStep, weekNum: number) => {
+  const toggleStep = async (step: PlanStep, phaseNum: number) => {
     const newStatus = step.status === "done" ? "not-started" : "done"
     setCompletingStep(step.serviceId)
 
-    // Match by both serviceId AND week to avoid toggling duplicate serviceIds across phases
-    setPlan(prev => prev.map(w => ({
-      ...w,
-      steps: w.steps.map(s =>
-        s.serviceId === step.serviceId && w.week === weekNum
+    // Match by both serviceId AND phase to avoid toggling duplicate serviceIds across phases
+    setPlan(prev => prev.map(p => ({
+      ...p,
+      steps: p.steps.map(s =>
+        s.serviceId === step.serviceId && p.phase === phaseNum
           ? { ...s, status: newStatus } : s
       )
     })))
@@ -240,7 +240,7 @@ export default function PlanPage() {
       await fetch("/api/plan/step", {
         method: "PATCH",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ citizenId: citizen?.citizenId, serviceId: step.serviceId, week: weekNum, completed: newStatus === "done" }),
+        body: JSON.stringify({ citizenId: citizen?.citizenId, serviceId: step.serviceId, phase: phaseNum, completed: newStatus === "done" }),
       }).catch(() => {})
     }
     setCompletingStep(null)
@@ -250,10 +250,10 @@ export default function PlanPage() {
     setConfirmDeleteStep(null)
     setDeletingStep(step.serviceId)
 
-    // Optimistic update — remove step and empty weeks
+    // Optimistic update — remove step and empty phases
     setPlan(prev => prev
-      .map(w => ({ ...w, steps: w.steps.filter(s => s.serviceId !== step.serviceId) }))
-      .filter(w => w.steps.length > 0)
+      .map(p => ({ ...p, steps: p.steps.filter(s => s.serviceId !== step.serviceId) }))
+      .filter(p => p.steps.length > 0)
     )
 
     if (citizen?.citizenId) {
@@ -403,27 +403,27 @@ export default function PlanPage() {
         </div>
       )}
 
-      {/* Plan weeks */}
+      {/* Plan phases */}
       <div className="px-4 py-4 space-y-3">
-        {plan.map(week => {
-          const isExpanded = expandedWeeks.has(week.week)
-          const weekDone = week.steps.filter(s => s.status === "done").length
+        {plan.map(phase => {
+          const isExpanded = expandedPhases.has(phase.phase)
+          const phaseDone = phase.steps.filter(s => s.status === "done").length
           return (
-            <div key={week.week} className="bg-white rounded-xl border border-gray-100 overflow-hidden shadow-sm">
-              {/* Week header */}
+            <div key={phase.phase} className="bg-white rounded-xl border border-gray-100 overflow-hidden shadow-sm">
+              {/* Phase header */}
               <button
-                onClick={() => toggleWeek(week.week)}
+                onClick={() => togglePhase(phase.phase)}
                 className="w-full flex items-center justify-between px-4 py-3 bg-gray-50 hover:bg-gray-100 transition-colors"
               >
                 <div className="flex items-center gap-3">
                   <span className="text-xs font-semibold text-gray-500 uppercase tracking-wide">
-                    {week.week === 1
+                    {phase.phase === 1
                       ? (lang === "es" ? "FASE 1 — HACÉ ESTO PRIMERO" : "PHASE 1 — DO THESE FIRST")
-                      : (lang === "es" ? `FASE ${week.week}` : `PHASE ${week.week}`)}
+                      : (lang === "es" ? `FASE ${phase.phase}` : `PHASE ${phase.phase}`)}
                   </span>
-                  {weekDone > 0 && (
+                  {phaseDone > 0 && (
                     <span className="text-xs text-emerald-600 font-medium">
-                      {weekDone}/{week.steps.length}
+                      {phaseDone}/{phase.steps.length}
                     </span>
                   )}
                 </div>
@@ -440,11 +440,11 @@ export default function PlanPage() {
                     className="overflow-hidden"
                   >
                     <div className="divide-y divide-gray-50">
-                      {week.steps.map((step, idx) => {
+                      {phase.steps.map((step, idx) => {
                         const isDone = step.status === "done"
                         const isCompleting = completingStep === step.serviceId
                         const isDeleting = deletingStep === step.serviceId
-                        const isActive = !isDone && idx === week.steps.findIndex(s => s.status !== "done")
+                        const isActive = !isDone && idx === phase.steps.findIndex(s => s.status !== "done")
                         const sayKey = `say-${step.serviceId}`
                         const probKey = `prob-${step.serviceId}`
                         const showDeleteConfirm = confirmDeleteStep === step.serviceId
@@ -629,7 +629,7 @@ export default function PlanPage() {
                                 </span>
                               ) : (
                                 <button
-                                  onClick={() => toggleStep(step, week.week)}
+                                  onClick={() => toggleStep(step, phase.phase)}
                                   disabled={isCompleting || isDeleting}
                                   className="ml-auto flex items-center gap-1.5 text-xs font-medium px-3 py-1.5 rounded-lg bg-[#185FA5] text-white hover:bg-[#0C447C] transition-colors disabled:opacity-50"
                                 >

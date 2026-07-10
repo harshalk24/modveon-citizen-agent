@@ -32,6 +32,11 @@ model CitizenContext {
   lifeEvent           String?
   pendingLifeEvent    String?
   employment          String?
+  // Explicit-capture only (Task A) — set via the profile-save form, not
+  // inferred from chat, so it's ungated like lifeEvent/employment in that
+  // same explicit-save path. Used to personalize phrasing/location context,
+  // never to fabricate a per-municipality KB fact that doesn't exist.
+  municipality        String?
   entitlementsJson    String   @default("[]")
   conversationSummary String?
   // Slot-filling (Task S1) — decision-relevant facts for the CURRENT situation
@@ -111,6 +116,24 @@ model ResponseLog {
   createdAt   DateTime @default(now())
 
   citizen Citizen? @relation(fields: [citizenId], references: [id])
+}
+
+// Task M1 — measures the grounding fallback rate. Written only for turns that
+// did NOT pass grounding on the first attempt, so a human can hand-judge
+// legitimate-catch vs. over-strict-judge from real material. No FK relation to
+// Citizen (deliberately) — this is diagnostic/measurement data, not part of a
+// citizen's own record, and must never block a test citizen's cleanup deletion.
+model GroundingFallback {
+  id           String   @id @default(cuid())
+  citizenId    String?
+  sessionId    String?
+  query        String
+  // JSON array of {attempt, draft, stage, reasons, passed} — untruncated, one
+  // entry per generation attempt for this turn (1 or 2).
+  attemptsJson String
+  outcome      String   // "regenerated" | "fell-back"
+  finalReply   String
+  createdAt    DateTime @default(now())
 }
 
 model KBChangeLog {

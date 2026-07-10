@@ -22,7 +22,7 @@ function detectConversationState(messages: Message[]): ConversationState {
   if (c.includes("doc_info:") || (c.includes("document") && (c.includes("dui") || c.includes("certificate")))) {
     return "document-question"
   }
-  if (c.includes("week 1") || c.includes("action plan") || c.includes("semana 1") || c.includes("plan de acción")) {
+  if (c.includes("phase 1") || c.includes("week 1") || c.includes("action plan") || c.includes("fase 1") || c.includes("semana 1") || c.includes("plan de acción")) {
     return "plan-shown"
   }
   if (c.includes("apply_now:") || c.includes("rnpn") || c.includes("isss") || c.includes("maternity") || c.includes("maternidad")) {

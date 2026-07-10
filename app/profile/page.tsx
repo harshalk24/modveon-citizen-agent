@@ -65,6 +65,7 @@ export default function ProfilePage() {
   const [email,         setEmail]         = useState("")
   const [gender,        setGender]        = useState("")
   const [department,    setDepartment]    = useState("")
+  const [municipality,  setMunicipality]  = useState("")
   const [lifeEvent,     setLifeEvent]     = useState("")
   const [employment,    setEmployment]    = useState("")
   const [salaryRange,   setSalaryRange]   = useState("")
@@ -80,6 +81,7 @@ export default function ProfilePage() {
       setEmail(citizen.profile.email || "")
       setLifeEvent(citizen.profile.lifeEvent || "")
       setEmployment(citizen.profile.employment || "")
+      setMunicipality(citizen.profile.municipality || "")
       if (citizen.profile.gender) setGender(citizen.profile.gender)
     }
   }, [citizen])
@@ -99,7 +101,7 @@ export default function ProfilePage() {
         headers: { "Content-Type": "application/json", "x-citizen-id": citizenId },
         body: JSON.stringify({
           firstName, email, gender, language: lang,
-          lifeEvent, employment,
+          lifeEvent, employment, municipality,
           // Extended fields stored as metadata
           department, salaryRange, familyStatus, dependents, whatsapp,
         }),
@@ -143,6 +145,7 @@ export default function ProfilePage() {
           { key: "email",       label: "Email",         filled: !!citizen?.profile?.email || !!email, optional: true },
           { key: "gender",      label: "Gender",        filled: !!citizen?.profile?.gender || !!gender, optional: true },
           { key: "department",  label: "Department",    filled: !!department, optional: true },
+          { key: "municipality", label: "Municipality", filled: !!municipality, optional: true },
           { key: "whatsapp",    label: "WhatsApp",      filled: !!whatsapp, optional: true },
           { key: "salary",      label: "Salary range",  filled: !!salaryRange, optional: true },
           { key: "family",      label: "Family status", filled: !!familyStatus, optional: true },
@@ -253,6 +256,17 @@ export default function ProfilePage() {
             <ChevronDown size={13} className="absolute right-3 top-1/2 -translate-y-1/2 text-gray-400 pointer-events-none" />
           </div>
           <p className="text-xs text-gray-400 mt-1">Some benefits vary by municipality.</p>
+        </FormCard>
+
+        <FormCard>
+          <FieldLabel>Municipality <OptTag /></FieldLabel>
+          <input
+            value={municipality}
+            onChange={e => setMunicipality(e.target.value)}
+            placeholder="e.g. Santa Ana"
+            className={inputCls}
+          />
+          <p className="text-xs text-gray-400 mt-1">So the agent can speak to your specific location.</p>
         </FormCard>
 
         {/* ── SITUATION ──────────────────────────── */}

@@ -1,7 +1,8 @@
 import { test } from "node:test"
 import assert from "node:assert/strict"
 
-const { computeRanks, verifyPlanOrder, reorderPlan, buildSafeFallbackPlan, enforcePlanCosts } = await import("../lib/plan-verify")
+const { computeRanks, verifyPlanOrder, reorderPlan, buildSafeFallbackPlan, enforcePlanCosts, hedgePlanSteps } = await import("../lib/plan-verify")
+const { HEDGE_KEYWORDS } = await import("../lib/grounding")
 const { services: fullKB } = await import("../lib/kb")
 
 const birthCert = fullKB.find(s => s.id === "sv-rnpn-birth-registration")
@@ -14,7 +15,7 @@ if (!birthCert || !dependentEnrollment || !childSubsidy || !cnr || !nit || !lice
   throw new Error("Expected KB entries not found — did lib/kb.ts IDs change?")
 }
 
-const genericLabel = (week: number) => `Week ${week}`
+const genericLabel = (phase: number) => `Phase ${phase}`
 
 // ── computeRanks: the corrected topological batching ────────────────────
 test("computeRanks orders new-baby dependency chain correctly", () => {
@@ -49,9 +50,9 @@ test("computeRanks degrades gracefully on a genuine cycle instead of dropping se
 // ── verifyPlanOrder / reorderPlan ────────────────────────────────────────
 test("verifyPlanOrder passes a correctly-ordered plan", () => {
   const plan = {
-    weeks: [
-      { week: 1, label: "Week 1", steps: [{ serviceId: birthCert.id, title: birthCert.name }] },
-      { week: 2, label: "Week 2", steps: [
+    phases: [
+      { phase: 1, label: "Phase 1", steps: [{ serviceId: birthCert.id, title: birthCert.name }] },
+      { phase: 2, label: "Phase 2", steps: [
         { serviceId: dependentEnrollment.id, title: dependentEnrollment.name },
         { serviceId: childSubsidy.id, title: childSubsidy.name },
       ] },
@@ -62,11 +63,11 @@ test("verifyPlanOrder passes a correctly-ordered plan", () => {
 })
 
 test("verifyPlanOrder catches a dependent step scheduled BEFORE its dependency", () => {
-  // Violation: dependentEnrollment (week 1) needs birthCert (week 2) — backwards.
+  // Violation: dependentEnrollment (phase 1) needs birthCert (phase 2) — backwards.
   const plan = {
-    weeks: [
-      { week: 1, label: "Week 1", steps: [{ serviceId: dependentEnrollment.id, title: dependentEnrollment.name }] },
-      { week: 2, label: "Week 2", steps: [{ serviceId: birthCert.id, title: birthCert.name }] },
+    phases: [
+      { phase: 1, label: "Phase 1", steps: [{ serviceId: dependentEnrollment.id, title: dependentEnrollment.name }] },
+      { phase: 2, label: "Phase 2", steps: [{ serviceId: birthCert.id, title: birthCert.name }] },
     ],
   }
   const result = verifyPlanOrder(plan, [birthCert, dependentEnrollment])
@@ -76,17 +77,17 @@ test("verifyPlanOrder catches a dependent step scheduled BEFORE its dependency",
 
 test("reorderPlan fixes a violation while preserving each step's own content", () => {
   const plan = {
-    weeks: [
-      { week: 1, label: "Week 1", steps: [{ serviceId: dependentEnrollment.id, title: "Custom LLM title for dependent enrollment" }] },
-      { week: 2, label: "Week 2", steps: [{ serviceId: birthCert.id, title: "Custom LLM title for birth cert" }] },
+    phases: [
+      { phase: 1, label: "Phase 1", steps: [{ serviceId: dependentEnrollment.id, title: "Custom LLM title for dependent enrollment" }] },
+      { phase: 2, label: "Phase 2", steps: [{ serviceId: birthCert.id, title: "Custom LLM title for birth cert" }] },
     ],
   }
   const fixed = reorderPlan(plan, [birthCert, dependentEnrollment], genericLabel)
   const recheck = verifyPlanOrder(fixed, [birthCert, dependentEnrollment])
   assert.equal(recheck.ok, true, JSON.stringify(recheck.violations))
 
-  // Step content must be untouched — only week placement changes.
-  const allSteps = fixed.weeks.flatMap(w => w.steps)
+  // Step content must be untouched — only phase placement changes.
+  const allSteps = fixed.phases.flatMap(p => p.steps)
   const dep = allSteps.find(s => s.serviceId === dependentEnrollment.id)
   const cert = allSteps.find(s => s.serviceId === birthCert.id)
   assert.equal(dep?.title, "Custom LLM title for dependent enrollment")
@@ -95,10 +96,10 @@ test("reorderPlan fixes a violation while preserving each step's own content", (
 
 test("reorderPlan resolves the CNR -> NIT -> licence chain even if fully reversed", () => {
   const plan = {
-    weeks: [
-      { week: 1, label: "Week 1", steps: [{ serviceId: licence.id, title: licence.name }] },
-      { week: 2, label: "Week 2", steps: [{ serviceId: nit.id, title: nit.name }] },
-      { week: 3, label: "Week 3", steps: [{ serviceId: cnr.id, title: cnr.name }] },
+    phases: [
+      { phase: 1, label: "Phase 1", steps: [{ serviceId: licence.id, title: licence.name }] },
+      { phase: 2, label: "Phase 2", steps: [{ serviceId: nit.id, title: nit.name }] },
+      { phase: 3, label: "Phase 3", steps: [{ serviceId: cnr.id, title: cnr.name }] },
     ],
   }
   const fixed = reorderPlan(plan, [cnr, nit, licence], genericLabel)
@@ -114,7 +115,7 @@ test("buildSafeFallbackPlan never hardcodes Free or a fabricated duration", () =
     blocks: s.blocks, amount: s.amount, confidence: s.confidence, reviewStatus: s.reviewStatus,
   }))
   const fallback = buildSafeFallbackPlan(compact as any, "en")
-  const allSteps = fallback.weeks.flatMap(w => w.steps)
+  const allSteps = fallback.phases.flatMap(p => p.steps)
 
   for (const step of allSteps) {
     assert.notEqual(step.cost, "Free", `step for ${step.serviceId} must not hardcode "Free"`)
@@ -144,8 +145,20 @@ test("buildSafeFallbackPlan hedges cost for an unverified service with no confir
     blocks: cnr.blocks, amount: undefined, confidence: cnr.confidence, reviewStatus: cnr.reviewStatus,
   }]
   const fallback = buildSafeFallbackPlan(compact as any, "en")
-  const step = fallback.weeks[0].steps[0]
+  const step = fallback.phases[0].steps[0]
   assert.ok(step.cost.toLowerCase().includes("not confirmed") || step.cost.toLowerCase().includes("confirm"))
+})
+
+test("buildSafeFallbackPlan labels phases as 'Phase N', not a calendar week", () => {
+  const compact = [{
+    id: birthCert.id, name: birthCert.name, agency: birthCert.agency, agencyAddress: birthCert.sourceUrl,
+    documents: birthCert.documents, deadline: birthCert.deadline, dependsOn: birthCert.dependsOn,
+    blocks: birthCert.blocks, amount: birthCert.amount, confidence: birthCert.confidence, reviewStatus: birthCert.reviewStatus,
+  }]
+  const fallbackEn = buildSafeFallbackPlan(compact as any, "en")
+  const fallbackEs = buildSafeFallbackPlan(compact as any, "es")
+  assert.equal(fallbackEn.phases[0].label, "Phase 1")
+  assert.equal(fallbackEs.phases[0].label, "Fase 1")
 })
 
 // ── enforcePlanCosts: never let a fabricated/unbacked cost reach a plan step ─
@@ -158,31 +171,31 @@ const birthCertNode = {
 test("enforcePlanCosts corrects a fabricated 'Free' on an entry with a real (approved, costUncertain) amount", () => {
   // This is the exact birth-reg bug: LLM invents "Free" for a plan step even
   // though the entry is approved and has a real, tiered cost.
-  const plan = { weeks: [{ week: 1, label: "W1", steps: [{ serviceId: birthCert.id, title: birthCert.name, cost: "Free" }] }] }
+  const plan = { phases: [{ phase: 1, label: "P1", steps: [{ serviceId: birthCert.id, title: birthCert.name, cost: "Free" }] }] }
   const fixed = enforcePlanCosts(plan, [birthCertNode])
-  const cost = fixed.weeks[0].steps[0].cost as string
+  const cost = fixed.phases[0].steps[0].cost as string
   assert.notEqual(cost.toLowerCase(), "free")
   assert.ok(cost.includes("$3") || cost.toLowerCase().includes("varies"), cost)
 })
 
 test("enforcePlanCosts corrects a flat single figure on a costUncertain entry to include variance framing", () => {
-  const plan = { weeks: [{ week: 1, label: "W1", steps: [{ serviceId: birthCert.id, title: birthCert.name, cost: "$20" }] }] }
+  const plan = { phases: [{ phase: 1, label: "P1", steps: [{ serviceId: birthCert.id, title: birthCert.name, cost: "$20" }] }] }
   const fixed = enforcePlanCosts(plan, [birthCertNode])
-  const cost = fixed.weeks[0].steps[0].cost as string
+  const cost = fixed.phases[0].steps[0].cost as string
   assert.notEqual(cost, "$20")
 })
 
 test("enforcePlanCosts leaves an already-correct, variance-framed cost untouched", () => {
-  const plan = { weeks: [{ week: 1, label: "W1", steps: [{ serviceId: birthCert.id, title: birthCert.name, cost: birthCert.amount }] }] }
+  const plan = { phases: [{ phase: 1, label: "P1", steps: [{ serviceId: birthCert.id, title: birthCert.name, cost: birthCert.amount }] }] }
   const fixed = enforcePlanCosts(plan, [birthCertNode])
-  assert.equal(fixed.weeks[0].steps[0].cost, birthCert.amount)
+  assert.equal(fixed.phases[0].steps[0].cost, birthCert.amount)
 })
 
 test("enforcePlanCosts never lets a cost claim through for an entry with no structured amount at all", () => {
   const noAmountNode = { id: "test-no-amount", agency: "Test Agency" }
-  const plan = { weeks: [{ week: 1, label: "W1", steps: [{ serviceId: "test-no-amount", title: "Test service", cost: "Free" }] }] }
+  const plan = { phases: [{ phase: 1, label: "P1", steps: [{ serviceId: "test-no-amount", title: "Test service", cost: "Free" }] }] }
   const fixed = enforcePlanCosts(plan, [noAmountNode as any])
-  const cost = fixed.weeks[0].steps[0].cost as string
+  const cost = fixed.phases[0].steps[0].cost as string
   assert.notEqual(cost.toLowerCase(), "free")
   assert.ok(cost.toLowerCase().includes("not confirmed") || cost.toLowerCase().includes("confirm"), cost)
 })
@@ -191,7 +204,62 @@ test("enforcePlanCosts corrects a dollar figure that doesn't match the KB amount
   const compact = {
     id: cnr.id, agency: cnr.agency, amount: cnr.amount, confidence: cnr.confidence, reviewStatus: cnr.reviewStatus,
   }
-  const plan = { weeks: [{ week: 1, label: "W1", steps: [{ serviceId: cnr.id, title: cnr.name, cost: "$999" }] }] }
+  const plan = { phases: [{ phase: 1, label: "P1", steps: [{ serviceId: cnr.id, title: cnr.name, cost: "$999" }] }] }
   const fixed = enforcePlanCosts(plan, [compact as any])
-  assert.notEqual(fixed.weeks[0].steps[0].cost, "$999")
+  assert.notEqual(fixed.phases[0].steps[0].cost, "$999")
+})
+
+// ── Fix B1: shared hedge-term list (single source, same lesson as R1) ───
+// Before the fix, plan-verify.ts had its OWN thinner HEDGE_MARKERS missing
+// several Spanish terms grounding's HEDGE_KEYWORDS already had (e.g. "depende",
+// "puede variar") — so a plan step correctly hedged in Spanish could pass
+// grounding but get wrongly re-hedged/flagged by plan-verify. These tests use
+// terms that exist in HEDGE_KEYWORDS but were NEVER in the old HEDGE_MARKERS —
+// they'd fail against the pre-fix hand-copied list.
+const cnrNode = {
+  id: cnr.id, agency: cnr.agency, amount: cnr.amount,
+  confidence: cnr.confidence, reviewStatus: cnr.reviewStatus,
+}
+
+test("HEDGE_KEYWORDS (grounding) contains Spanish terms the old plan-verify HEDGE_MARKERS was missing", () => {
+  for (const term of ["depende", "puede variar", "según la información"]) {
+    assert.ok(HEDGE_KEYWORDS.includes(term), `HEDGE_KEYWORDS must include "${term}"`)
+  }
+})
+
+test("hedgePlanSteps recognizes a Spanish hedge term ('depende') it did NOT recognize before the shared list", () => {
+  const plan = { phases: [{ phase: 1, label: "P1", steps: [{
+    serviceId: cnr.id, title: cnr.name,
+    cost: `${cnr.amount} — depende de la oficina, confirmá el monto exacto`,
+  }] }] }
+  const fixed = hedgePlanSteps(plan, [cnrNode])
+  // Already hedged (per the SHARED list) — must be left untouched, not
+  // re-wrapped with an extra "(unconfirmed — verify with ...)" suffix.
+  assert.equal(fixed.phases[0].steps[0].cost, plan.phases[0].steps[0].cost)
+})
+
+test("hedgePlanSteps recognizes 'puede variar' as an already-hedged deadline", () => {
+  const plan = { phases: [{ phase: 1, label: "P1", steps: [{
+    serviceId: cnr.id, title: cnr.name, deadline: "puede variar según la oficina",
+  }] }] }
+  const fixed = hedgePlanSteps(plan, [cnrNode])
+  assert.equal(fixed.phases[0].steps[0].deadline, "puede variar según la oficina")
+})
+
+// ── VARIANCE_WORDS additions (Spanish) ───────────────────────────────────
+const birthCertNodeForVariance = {
+  id: birthCert.id, agency: birthCert.agency, amount: birthCert.amount,
+  confidence: birthCert.confidence, reviewStatus: birthCert.reviewStatus, costUncertain: birthCert.costUncertain,
+}
+
+test("enforcePlanCosts recognizes 'depende'/'aproximadamente'/'alrededor de' as Spanish variance language on a costUncertain entry", () => {
+  for (const phrase of [
+    "El costo depende del municipio",
+    "Cuesta aproximadamente $20",
+    "Alrededor de $20 dependiendo del lugar",
+  ]) {
+    const plan = { phases: [{ phase: 1, label: "P1", steps: [{ serviceId: birthCert.id, title: birthCert.name, cost: phrase }] }] }
+    const fixed = enforcePlanCosts(plan, [birthCertNodeForVariance])
+    assert.equal(fixed.phases[0].steps[0].cost, phrase, `"${phrase}" should be recognized as already variance-hedged`)
+  }
 })

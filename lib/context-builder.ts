@@ -150,15 +150,15 @@ Documents: [doc1] DOC_INFO:[slug1] · [doc2] DOC_INFO:[slug2]
 APPLY_NOW:[applyUrl]
 ---
 Do not use generic bullet points. Each service gets its own block separated by a divider.
-18. VISIT PREPARATION. When a citizen asks how to complete a step, go to an office, or use a government website, use the KB fields (hours, address, tip, siteNav) to give them a practical preparation summary. Format it as:
+18. VISIT PREPARATION. When a citizen asks how to complete a step, go to an office, or use a government website, use the KB fields (hours, address, tip, siteNav, verified) to give them a practical preparation summary. Format it as:
 
 **Before you go:**
 - Hours: [hours from KB]
-- Address: [address from KB — capital city only, tell them to search for their local office if outside San Salvador]
-- Navigation: [siteNav from KB — label it 'as of [date]']
+- Address: [address from KB]. If CITIZEN CONTEXT has "muni" (their known municipality): speak to their location naturally — e.g. "the address below is for the San Salvador office; since you're in [muni], you may have a closer municipal office — worth checking." If "muni" is NOT known: keep today's hedge — capital-city address only, tell them to search for their local office.
+- Navigation: [siteNav from KB]. State freshness using the KB's own "verified" field for that entry (e.g. "as of [verified date]") — NEVER repeat any "(as of ...)" date that might already appear inside the siteNav text itself; that date can be stale. "verified" is the only date you should say.
 - Tip: [tip from KB]
 
-If the service can be done online (tip mentions it), lead with that. Never invent addresses, window numbers, or specific staff. If you don't have the information, say 'Search [agency name] [their city] El Salvador for your nearest office.'
+If the service can be done online (tip mentions it), lead with that. Never invent addresses, window numbers, or specific staff. Never invent a municipality-specific cost or rule that isn't in the KB — if "muni" is known but the KB has no location-specific fact for this service, still hedge that figure ("varies by municipality — confirm locally") exactly as you would if "muni" were unknown; knowing their location personalizes PHRASING, not unverified facts. If you don't have office-location information at all, say 'Search [agency name] [their city] El Salvador for your nearest office.'
 19. HANDOFF HONESTY. When you give a citizen a link or direct them to a government website, acknowledge that government portals can be confusing and offer to help them navigate:
 
 After providing a link, always add:
@@ -210,15 +210,15 @@ Documentos: [doc1] DOC_INFO:[slug1] · [doc2] DOC_INFO:[slug2]
 APPLY_NOW:[applyUrl]
 ---
 No uses viñetas genéricas. Cada servicio tiene su propio bloque separado por un divisor.
-18. PREPARACIÓN PARA LA VISITA. Cuando un ciudadano pregunta cómo completar un paso, ir a una oficina, o usar un sitio del gobierno, usá los campos del KB (hours, address, tip, siteNav) para darles un resumen práctico. Formato:
+18. PREPARACIÓN PARA LA VISITA. Cuando un ciudadano pregunta cómo completar un paso, ir a una oficina, o usar un sitio del gobierno, usá los campos del KB (hours, address, tip, siteNav, verified) para darles un resumen práctico. Formato:
 
 **Antes de ir:**
 - Horarios: [hours del KB]
-- Dirección: [address del KB — solo ciudad capital, deciles que busquen su oficina local si están fuera de San Salvador]
-- Navegación web: [siteNav del KB — aclará 'a mayo 2026']
+- Dirección: [address del KB]. Si CONTEXTO DEL CIUDADANO tiene "muni" (su municipio conocido): hablale de su ubicación de forma natural — ej. "la dirección abajo es de la oficina de San Salvador; como estás en [muni], puede que tengas una oficina municipal más cerca — valdría la pena confirmarlo." Si "muni" NO se conoce: mantené el matiz de hoy — solo dirección de la ciudad capital, deciles que busquen su oficina local.
+- Navegación web: [siteNav del KB]. Indicá la vigencia usando el campo "verified" de esa entrada del KB (ej. "a fecha de [verified]") — NUNCA repitas ninguna fecha "(a mayo de...)" que pueda aparecer dentro del propio texto de siteNav; esa fecha puede estar desactualizada. "verified" es la única fecha que debés decir.
 - Consejo: [tip del KB]
 
-Si el servicio se puede hacer en línea (el tip lo menciona), empezá con eso. Nunca inventés direcciones, números de ventanilla, ni nombres de personal. Si no tenés la información, decí 'Buscá [nombre de agencia] [su ciudad] El Salvador para encontrar tu oficina más cercana.'
+Si el servicio se puede hacer en línea (el tip lo menciona), empezá con eso. Nunca inventés direcciones, números de ventanilla, ni nombres de personal. Nunca inventés un costo o regla específica del municipio que no esté en el KB — si se conoce "muni" pero el KB no tiene un dato específico de esa ubicación para este servicio, igual matizá esa cifra ("varía según el municipio — confirmá localmente") tal como harías si "muni" fuera desconocido; conocer su ubicación personaliza el LENGUAJE, no los datos sin verificar. Si no tenés información de ubicación de oficina, decí 'Buscá [nombre de agencia] [su ciudad] El Salvador para encontrar tu oficina más cercana.'
 19. HONESTIDAD EN EL TRASPASO. Cuando des un enlace o dirijas a un ciudadano a un sitio del gobierno, reconocé que los portales pueden ser confusos y ofrecé ayuda:
 
 Después de dar un enlace, siempre agregá:
@@ -241,26 +241,34 @@ MENSAJES RECIENTES: {recentMessages}
 Mostrá proactivamente a qué beneficios califica el ciudadano. No esperés que haga la pregunta correcta.
 `
 
-export function buildSystemPrompt(
-  ctx: CitizenContextData,
-  services: Service[],
-  recentMessages: string,
-  language: "en" | "es" = "en",
-  queryType: QueryType = "service-lookup",
-  slotToAsk?: SlotDef | null
-): string {
-  const compactCtx = JSON.stringify({
-    c:     ctx.profile.country,
-    ev:    ctx.profile.lifeEvent,
-    emp:   ctx.profile.employment,
-    lang:  ctx.profile.language,
-    name:  ctx.profile.firstName,
-    // Known decision-relevant facts for the current situation (Task S1) — an
-    // empty object is omitted so it doesn't add noise when nothing's known yet.
-    slots: (ctx.slots && Object.keys(ctx.slots).length > 0) ? ctx.slots : undefined,
-  })
+// Single source for the KB-facts payload (Fix R1). Generation (buildSystemPrompt)
+// and the faithfulness judge (checkFaithfulness) BOTH call this — so "the judge
+// sees exactly what generation saw" is true by construction, not by a human
+// remembering to keep two hand-maintained field lists in sync. This drifted
+// three times (Tasks 8, S1, A) before this fix; adding a field is now a
+// one-place change.
+export interface KBFact {
+  id: string
+  name: string
+  agency: string
+  amount?: string
+  deadline?: string
+  docs: string[]
+  applyUrl: string | null
+  infoUrl: string
+  hours?: string
+  address?: string
+  tip?: string
+  siteNav?: string
+  verified: string
+  dependsOn?: string[]
+  conf?: number
+  review?: "needs_review" | "approved"
+  costVaries?: boolean
+}
 
-  const compactKB = services.map(s => ({
+export function buildKBFacts(services: Service[], language: "en" | "es"): KBFact[] {
+  return services.map(s => ({
     id:        s.id,
     name:      language === "es" ? s.nameEs : s.name,
     agency:    s.agency,
@@ -284,6 +292,32 @@ export function buildSystemPrompt(
     review:    s.reviewStatus,
     costVaries: s.costUncertain || undefined,
   }))
+}
+
+export function buildSystemPrompt(
+  ctx: CitizenContextData,
+  services: Service[],
+  recentMessages: string,
+  language: "en" | "es" = "en",
+  queryType: QueryType = "service-lookup",
+  slotToAsk?: SlotDef | null
+): string {
+  const compactCtx = JSON.stringify({
+    c:     ctx.profile.country,
+    ev:    ctx.profile.lifeEvent,
+    emp:   ctx.profile.employment,
+    lang:  ctx.profile.language,
+    name:  ctx.profile.firstName,
+    // Explicit-capture only (Task A) — set via the profile form, never
+    // inferred from chat. Omitted when unknown so rule 18 falls back to the
+    // existing generic hedge.
+    muni:  ctx.profile.municipality || undefined,
+    // Known decision-relevant facts for the current situation (Task S1) — an
+    // empty object is omitted so it doesn't add noise when nothing's known yet.
+    slots: (ctx.slots && Object.keys(ctx.slots).length > 0) ? ctx.slots : undefined,
+  })
+
+  const compactKB = buildKBFacts(services, language)
 
   const modeBlock = getModeBlock(queryType, ctx, language)
   const template  = language === "es" ? SYSTEM_PROMPT_ES : SYSTEM_PROMPT_EN
