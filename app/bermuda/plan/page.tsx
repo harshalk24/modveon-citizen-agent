@@ -132,7 +132,7 @@ export default function BermudaPlanPage() {
       {browserUrl && (
         <div style={{ position: "fixed", inset: 0, zIndex: 200, display: "flex", flexDirection: "column", backgroundColor: "#fff" }}>
           {/* Address bar */}
-          <div style={{ display: "flex", alignItems: "center", gap: 8, padding: "8px 10px", backgroundColor: C.sidebar, flexShrink: 0 }}>
+          <div style={{ display: "flex", alignItems: "center", gap: 8, padding: "8px 10px", backgroundColor: C.ink, flexShrink: 0 }}>
             <button
               onClick={() => setBrowserUrl(null)}
               style={{ display: "flex", alignItems: "center", gap: 5, padding: "5px 10px", borderRadius: 8, backgroundColor: "rgba(255,255,255,0.12)", border: "none", color: "rgba(255,255,255,0.85)", fontSize: 12, fontWeight: 600, cursor: "pointer", fontFamily: "var(--ca-font-body)", flexShrink: 0 }}
@@ -313,7 +313,7 @@ export default function BermudaPlanPage() {
                                 style={{
                                   display: "inline-flex", alignItems: "center", gap: 5,
                                   padding: "9px 16px", fontSize: 13, fontWeight: 600,
-                                  borderRadius: 9, cursor: "pointer", border: "none",
+                                  borderRadius: 9, cursor: "pointer",
                                   fontFamily: "var(--ca-font-body)",
                                   ...(isDone
                                     ? { backgroundColor: C.okBg, color: C.okT, border: `1px solid ${C.okBd}` }
