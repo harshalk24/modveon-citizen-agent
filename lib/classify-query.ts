@@ -8,6 +8,7 @@ export type QueryType =
   | "diaspora-navigation" // poder, consulate, property from abroad
   | "open-ended"          // what else can I apply for (already has context)
   | "no-context-open"     // asking for benefits but no situation given yet
+  | "meta"                // asking about the assistant itself, or what it knows about them
 
 const VALID_TYPES: QueryType[] = [
   "out-of-scope",
@@ -17,6 +18,7 @@ const VALID_TYPES: QueryType[] = [
   "diaspora-navigation",
   "open-ended",
   "no-context-open",
+  "meta",
 ]
 
 export type LifeEvent = "new-baby" | "job-loss" | "start-business" | "diaspora"
@@ -77,13 +79,16 @@ Examples: "what else can I apply for?", "any other benefits?", "what am I missin
 "no-context-open" — citizen is asking about benefits or schemes in general but has NOT described their situation yet (hasLifeEvent=false and hasEntitlements=false).
 Examples: "what schemes am I eligible for?", "what benefits exist?", "what can I apply for?", "qué beneficios hay?"
 
+"meta" — the citizen is asking about YOU (the assistant) — who/what you are, what you can do — OR about what you already know about THEM (their own stored situation/profile). Not a benefit lookup and not out-of-scope.
+Examples: "who are you?", "what can you do?", "what is this?", "what do you know about me?", "what's my situation?", "what have I told you?", "¿quién sos?", "¿qué sabés de mí?"
+
 For "confidence": be calibrated, not reflexively high. Use 0.9+ only when the message clearly and unambiguously fits one type. Lower it (e.g. 0.3-0.6) when the message is vague, garbled, off-topic-but-contains-a-keyword, could plausibly fit more than one type, or is about a third party rather than the citizen themself.
 Example of a LOW-confidence case: message = "asdkj store baby ??? idk lol" → {"type": "out-of-scope", "confidence": 0.4} — because it's garbled and only loosely touches two different topics without clearly being about either.
 Example of a HIGH-confidence case: message = "I just had a baby" → {"type": "service-lookup", "confidence": 0.95} — clear and unambiguous.
 
 Also detect two more independent facets from the message, each with its own confidence:
 
-"lifeEvent" — does this message describe the CITIZEN THEMSELF experiencing one of these life events right now? One of: "new-baby" (they had/are having a baby), "job-loss" (they lost their job), "start-business" (they are starting/registering a business), "diaspora" (they are managing El Salvador affairs from abroad). Use null if the message doesn't describe the citizen having a new life event (e.g. it's a follow-up question, off-topic, or about a THIRD PARTY like "my sister" or "my cousin" rather than the citizen). Give it its own "lifeEventConfidence" (0 to 1) — use the same calibration rules as above: a message about a third party, or one that only loosely touches the topic, should get LOW lifeEventConfidence even if you still guess a slug.
+"lifeEvent" — does this message describe the CITIZEN THEMSELF experiencing one of these life events right now? One of: "new-baby" (they had/are having a baby), "job-loss" (they lost their job), "start-business" (they are starting/registering a business), "diaspora" (they are managing El Salvador affairs from abroad). Use null if the message doesn't describe the citizen having a new life event (e.g. it's a follow-up question, off-topic, or about a THIRD PARTY like "my sister" or "my cousin" rather than the citizen). Also use null when the message is a QUESTION about whether something is possible, allowed, or advisable, or a HYPOTHETICAL/CONDITIONAL — e.g. "can I…", "could I…", "should I…", "if I…", "what if…", "am I allowed to…", "¿puedo…?", "¿si yo…?". These are questions, not a declaration that the citizen is entering that situation. Only return a life-event slug when the citizen DECLARES an actual or imminent change ("I'm starting a business", "I lost my job", "I just had a baby"). Give it its own "lifeEventConfidence" (0 to 1) — use the same calibration rules as above: a message about a third party, or one that only loosely touches the topic, should get LOW lifeEventConfidence even if you still guess a slug.
 
 "employment" — the citizen's employment status, one of exactly: "formal" (a formal/contract job, an employer, ISSS/AFP contributions), "informal" (self-employed, freelance, street vendor, no contract), "unemployed" (no job, lost their job, out of work), or "unknown" (not stated in this message). Give it its own "employmentConfidence" (0 to 1) — use "unknown" with LOW confidence when the message says nothing about employment.
 
@@ -103,8 +108,10 @@ Examples: "I work formally", "I had a baby" (their situation changed), "I'm self
 
 The critical distinction is durable (a stable fact/situation) vs episodic (a completed event): "I had a baby" describes an ongoing new situation (durable); "I registered the birth" describes a completed action (episodic). When genuinely unsure between the two, pick the more likely one and lower memoryTypeConfidence accordingly.
 
+IMPORTANT — "type", "lifeEvent", "employment", and "memoryType" are four SEPARATE fields with four SEPARATE, NON-OVERLAPPING vocabularies. Never put a memoryType value (discard/session/episodic/durable), a lifeEvent slug, or an employment value into the "type" field — "type" must always be one of the eight message-type labels defined above, no exceptions. If a message is a plain statement with no clear request (e.g. "I have a formal job with a contract"), still choose the closest of the eight type labels (usually "no-context-open" or "depth-knowledge") and lower "confidence" accordingly — never substitute a value from another facet's vocabulary.
+
 Return ONLY this JSON with no other text:
-{"type": "<one of the seven types above>", "confidence": <0 to 1>, "lifeEvent": "<one of new-baby|job-loss|start-business|diaspora, or null>", "lifeEventConfidence": <0 to 1>, "employment": "<one of formal|informal|unemployed|unknown>", "employmentConfidence": <0 to 1>, "memoryType": "<one of discard|session|episodic|durable>", "memoryTypeConfidence": <0 to 1>}`
+{"type": "<one of the eight types above>", "confidence": <0 to 1>, "lifeEvent": "<one of new-baby|job-loss|start-business|diaspora, or null>", "lifeEventConfidence": <0 to 1>, "employment": "<one of formal|informal|unemployed|unknown>", "employmentConfidence": <0 to 1>, "memoryType": "<one of discard|session|episodic|durable>", "memoryTypeConfidence": <0 to 1>}`
 
   const failSafe = (type: QueryType): Classification => ({
     type, confidence: 0, lifeEvent: null, lifeEventConfidence: 0, employment: "unknown", employmentConfidence: 0,

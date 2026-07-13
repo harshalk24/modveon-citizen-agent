@@ -14,21 +14,39 @@ import { lookupServices, services as kbServices } from "@/lib/kb"
 import { extractLifeEvent, extractEmployment } from "@/lib/extract-intent"
 import { startRNPNDemoSequence, showFormPreview, showSubmissionFlow } from "@/lib/demo-sequence"
 
+// Maps the server's per-reply classification tag (the X-UI-State response
+// header, carried on the message as `uiState` — see app/api/chat/route.ts's
+// chatHeaders()) to which suggestion-chip set is relevant. Driven by the
+// actual classification computed for THAT reply (lib/classify-query.ts, plus
+// the confirming/out-of-scope branches in the route), not by re-guessing the
+// situation from the reply's prose — a scheme that covers every reply type
+// generically instead of hardcoding one phrase at a time.
+const UI_STATE_TO_CONVERSATION_STATE: Record<string, ConversationState> = {
+  "confirming":          "confirming",
+  "out-of-scope":        "empty",              // nudge back to describing a situation
+  "no-context-open":     "empty",              // hasn't described a situation yet
+  "meta":                "empty",              // often invites describing the situation
+  "service-lookup":      "results-shown",
+  "open-ended":          "results-shown",
+  "diaspora-navigation": "results-shown",
+  "depth-knowledge":     "results-shown",
+  "plan-clarification":  "plan-shown",
+}
+
 // Detect conversation state from the last agent message
 function detectConversationState(messages: Message[]): ConversationState {
+  const started = messages.filter(m => m.role === "user").length > 0
   const lastAgent = [...messages].reverse().find(m => m.role === "assistant" && m.content)
-  if (!lastAgent || messages.filter(m => m.role === "user").length === 0) return "empty"
-  const c = lastAgent.content.toLowerCase()
-  if (c.includes("doc_info:") || (c.includes("document") && (c.includes("dui") || c.includes("certificate")))) {
-    return "document-question"
+  if (!lastAgent || !started) return "empty"       // onboarding only
+  // DOC_INFO: is a literal structural marker the reply embeds for the "Learn
+  // more" button — a reliable signal, unlike guessing from prose wording.
+  if (lastAgent.content.includes("DOC_INFO:")) return "document-question"
+  if (lastAgent.uiState && UI_STATE_TO_CONVERSATION_STATE[lastAgent.uiState]) {
+    return UI_STATE_TO_CONVERSATION_STATE[lastAgent.uiState]
   }
-  if (c.includes("phase 1") || c.includes("week 1") || c.includes("action plan") || c.includes("fase 1") || c.includes("semana 1") || c.includes("plan de acción")) {
-    return "plan-shown"
-  }
-  if (c.includes("apply_now:") || c.includes("rnpn") || c.includes("isss") || c.includes("maternity") || c.includes("maternidad")) {
-    return "results-shown"
-  }
-  return "empty"
+  // No uiState tag (e.g. a message persisted before this change shipped) →
+  // safe generic default, same as the prior fallback behavior.
+  return "results-shown"
 }
 
 function generateId() {
@@ -711,6 +729,13 @@ function ChatContent() {
 
       if (!res.ok) throw new Error("Chat failed")
 
+      // Server already knows, per this exact reply, what kind of message this
+      // is (X-UI-State — the classification, or "confirming"/"out-of-scope")
+      // and whether services were retrieved (X-Has-Services) — read those
+      // instead of re-guessing from the reply text with keyword matching.
+      const uiState     = res.headers.get("X-UI-State") || undefined
+      const hasServices = res.headers.get("X-Has-Services") === "1"
+
       const reader = res.body!.getReader()
       const decoder = new TextDecoder()
       let fullText = ""
@@ -720,23 +745,11 @@ function ChatContent() {
         if (done) break
         fullText += decoder.decode(value, { stream: true })
         setMessages(prev =>
-          prev.map(m => m.id === assistantId ? { ...m, content: fullText } : m)
+          prev.map(m => m.id === assistantId ? { ...m, content: fullText, uiState, hasServices } : m)
         )
       }
 
-      // Show "Open plan" button whenever the agent surfaced any service.
-      // APPLY_NOW: is present in every benefit card response, plus catch
-      // plain-text mentions of common benefit/plan keywords.
-      const lower = fullText.toLowerCase()
-      const hasServices =
-        lower.includes("apply_now:") ||
-        lower.includes("plan") ||
-        lower.includes("benefit") ||
-        lower.includes("benefici") ||
-        lower.includes("subsidy") ||
-        lower.includes("prestaci") ||
-        lower.includes("registro") ||
-        lower.includes("registration")
+      // Show "Open plan" button whenever the server says services were retrieved.
       if (hasServices) {
         setMessages(prev =>
           prev.map(m => m.id === assistantId ? {
@@ -812,7 +825,7 @@ function ChatContent() {
 
         {/* Message list — dot-grid wallpaper in Sivar yellow */}
         <div
-          className="flex-1 overflow-y-auto px-4 py-4 space-y-4"
+          className="relative flex-1 overflow-y-auto px-4 py-4 space-y-4"
           style={{
             backgroundColor: "#F5F7FA",
             backgroundImage:
@@ -865,18 +878,27 @@ function ChatContent() {
           )}
 
           <div ref={bottomRef} />
+
+          {/* Generating plan overlay — centered over the message area */}
+          {generatingPlan && (
+            <div className="absolute inset-0 z-20 flex items-center justify-center bg-white/70 backdrop-blur-sm">
+              <div className="flex flex-col items-center gap-3 rounded-2xl border border-[#FFC400] bg-white px-8 py-6 shadow-lg">
+                <Sparkles size={28} className="animate-pulse text-[#1B3A8C]" />
+                <p className="text-base font-semibold text-[#1B3A8C]">
+                  {lang === "es" ? "Generando tu plan…" : "Generating your plan…"}
+                </p>
+                <div className="flex gap-1">
+                  <span className="w-2 h-2 bg-[#FFC400] rounded-full animate-bounce [animation-delay:0ms]" />
+                  <span className="w-2 h-2 bg-[#FFC400] rounded-full animate-bounce [animation-delay:150ms]" />
+                  <span className="w-2 h-2 bg-[#FFC400] rounded-full animate-bounce [animation-delay:300ms]" />
+                </div>
+              </div>
+            </div>
+          )}
         </div>
 
         {/* Input area */}
         <div className="bg-white border-t border-gray-100">
-          {/* Generating plan banner */}
-          {generatingPlan && (
-            <div className="flex items-center justify-center gap-2 py-2 text-xs text-[#1B3A8C]">
-              <Sparkles size={12} className="animate-pulse" />
-              {lang === "es" ? "Generando tu plan..." : "Generating your plan..."}
-            </div>
-          )}
-
           <div data-tour="input-bar" className="flex items-end gap-2 px-4 pt-3 pb-1">
             <textarea
               ref={textareaRef}

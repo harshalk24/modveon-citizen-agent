@@ -22,6 +22,20 @@ const LIFE_EVENT_LABELS: Record<string, { en: string; es: string }> = {
   "diaspora":       { en: "you're managing things from abroad", es: "estás gestionando trámites desde el exterior" },
 }
 
+// Tags every reply with WHY it looks the way it does, so the client can pick
+// relevant follow-up suggestions from the actual server-side classification
+// instead of re-guessing from the reply text (fragile keyword sniffing).
+// "confirming" covers both pendingLifeEvent branches — hasServices is true
+// there because, by construction, that branch only fires when an existing
+// lifeEvent/plan already exists (the message literally protects it).
+function chatHeaders(uiState: string, hasServices: boolean): Record<string, string> {
+  return {
+    "Content-Type": "text/plain; charset=utf-8",
+    "X-UI-State": uiState,
+    "X-Has-Services": hasServices ? "1" : "0",
+  }
+}
+
 export async function POST(req: Request) {
   // Default language to "es" — El Salvador is Spanish-first
   const { messages, citizenId, contextData, sessionId, language = "es" } = await req.json()
@@ -204,7 +218,7 @@ export async function POST(req: Request) {
         : (isEs
             ? "¿Confirmás que querés empezar un plan nuevo? Tu plan actual se mantiene hasta que confirmes."
             : "Can you confirm you'd like to start a new plan? Your current plan will be kept until you confirm.")
-      return new Response(msg, { headers: { "Content-Type": "text/plain; charset=utf-8" } })
+      return new Response(msg, { headers: chatHeaders("confirming", true) })
     }
   } else if (detectedEvent && detectedEvent !== ctx.profile.lifeEvent) {
     if (isRealCitizen) {
@@ -224,7 +238,7 @@ export async function POST(req: Request) {
         const msg = isEs
           ? `Parece que tu situación cambió: ${label?.es || "algo cambió"}. ¿Querés que empiece un plan nuevo? Tu plan actual se mantiene hasta que confirmes.`
           : `It sounds like your situation changed — ${label?.en || "something changed"}. Should I start a new plan? Your current plan will be kept until you confirm.`
-        return new Response(msg, { headers: { "Content-Type": "text/plain; charset=utf-8" } })
+        return new Response(msg, { headers: chatHeaders("confirming", true) })
       }
     } else {
       // Anonymous citizens have no persisted plan/deadlines to protect — just use
@@ -314,9 +328,7 @@ export async function POST(req: Request) {
     const msg = isEs
       ? "Solo puedo ayudarte con trámites y beneficios del gobierno de El Salvador. ¿Hay algo relacionado con eso en lo que pueda ayudarte?"
       : "I can only help with El Salvador government services and benefits. Is there something related I can help you with?"
-    return new Response(msg, {
-      headers: { "Content-Type": "text/plain; charset=utf-8" },
-    })
+    return new Response(msg, { headers: chatHeaders("out-of-scope", false) })
   }
 
   // ── System prompt ──────────────────────────────────────────────────
@@ -375,7 +387,7 @@ export async function POST(req: Request) {
 
     // Nothing concrete to fact-check when no services were retrieved (e.g.
     // pure onboarding conversation) — skip the extra LLM round-trip.
-    if (services.length > 0) {
+    if (services.length > 0 && classification.type !== "meta") {
       lastResult = await checkGrounding(generated.text, services, fullKB, citizenCtxForGrounding, language)
       attempts.push({ attempt: 1, draft: generated.text, stage: lastResult.stage, reasons: lastResult.problems, passed: lastResult.grounded })
 
@@ -439,7 +451,7 @@ export async function POST(req: Request) {
 
     return new Response(readable, {
       headers: {
-        "Content-Type":      "text/plain; charset=utf-8",
+        ...chatHeaders(classification.type, services.length > 0),
         "Transfer-Encoding": "chunked",
       },
     })

@@ -15,6 +15,11 @@ export interface Message {
   role: "user" | "assistant"
   content: string
   type?: "user" | "assistant" | "activity" | "form-preview" | "doc-request" | "doc-retrieved" | "confirmation" | "status-update"
+  // Server-computed classification tag for this reply (e.g. "confirming", "meta",
+  // "service-lookup") — drives which follow-up suggestion chips are relevant.
+  // Undefined for client-only messages (onboarding steps never call /api/chat).
+  uiState?: string
+  hasServices?: boolean
   activities?:       import("./AgentActivityCard").AgentActivity[]
   formData?:         import("./FormPreviewCard").FormPreviewData
   docRequest?:       import("./DocRequestCard").DocRequestData
@@ -65,6 +70,7 @@ function AgentMarkdown({ text, onKnowMore, lang }: { text: string; onKnowMore: (
   const lines = text.split("\n")
   const nodes: React.ReactNode[] = []
   let i = 0
+  let olNum = 0  // running counter — survives interleaved bullets / blank lines
   while (i < lines.length) {
     const line = lines[i]
     // Skip horizontal rules from LLM output (--- renders as text otherwise)
@@ -76,9 +82,15 @@ function AgentMarkdown({ text, onKnowMore, lang }: { text: string; onKnowMore: (
       continue
     }
     if (/^\d+\.\s+/.test(line)) {
-      const items: string[] = []
-      while (i < lines.length && /^\d+\.\s+/.test(lines[i])) { items.push(lines[i].replace(/^\d+\.\s+/, "")); i++ }
-      nodes.push(<ol key={`ol-${i}`} className="list-decimal pl-4 space-y-1 my-1">{items.map((x, j) => <li key={j}>{renderInline(x, onKnowMore, lang)}</li>)}</ol>)
+      olNum++
+      const content = line.replace(/^\d+\.\s+/, "")
+      nodes.push(
+        <div key={`ol-${i}`} className="flex gap-2 my-1">
+          <span className="font-medium tabular-nums shrink-0">{olNum}.</span>
+          <span>{renderInline(content, onKnowMore, lang)}</span>
+        </div>
+      )
+      i++
       continue
     }
     if (line.trim() === "") { nodes.push(<div key={`br-${i}`} className="h-1" />); i++; continue }
