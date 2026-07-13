@@ -121,21 +121,24 @@ export const services: Service[] = [
   {
     id: "sv-child-subsidy",
     country: "SV", lifeEvents: ["new-baby"], employment: ["any"],
-    name: "Child subsidy",
-    nameEs: "Bono por hijo",
-    agency: "Government", agencyFull: "Gobierno de El Salvador",
-    description: "Monthly subsidy auto-enrolled after birth registration.",
-    descriptionEs: "Subsidio mensual. Se tramita automáticamente con el registro de nacimiento.",
-    amount: "$50/mo", priority: 4, phaseToApply: 2,
+    name: "Newborn benefits — canastilla & lactancia (ISSS)",
+    nameEs: "Beneficios por recién nacido — canastilla y lactancia (ISSS)",
+    agency: "ISSS", agencyFull: "Instituto Salvadoreño del Seguro Social",
+    description: "ISSS's benefits for a new baby are in-kind, not cash: the canastilla maternal (a kit of clothing and utensils for the newborn) and ayuda de lactancia (breastfeeding assistance), the latter only when an ISSS doctor certifies the mother is unable to breastfeed. ISSS does NOT provide a monthly cash child subsidy. Request through ISSS social work (Trabajo Social) at your assigned health centre — confirm current contents, eligibility, and timeframe with ISSS.",
+    descriptionEs: "Los beneficios del ISSS por un recién nacido son en especie, no en efectivo: la canastilla maternal (ropa y utensilios para el bebé) y la ayuda de lactancia (apoyo para la alimentación), esta última solo cuando un médico del ISSS certifica que la madre no puede amamantar. El ISSS NO otorga un subsidio mensual en efectivo por hijo. Se solicita en Trabajo Social del centro de adscripción — confirmá el contenido, los requisitos y el plazo vigente con el ISSS.",
+    amount: "In-kind (canastilla + lactancia); no cash subsidy — confirm with ISSS.", priority: 4, phaseToApply: 2,
     documents: ["Baby's birth certificate"],
     documentsEs: ["Partida de nacimiento del bebé"],
-    sourceUrl: "https://www.presidencia.gob.sv", lastVerified: "2026-05-10",
+    sourceUrl: "https://www.isss.gob.sv/preguntas-frecuentes", lastVerified: "2026-05-10",
     officeHours: "Monday–Friday, 8:00am–4:00pm",
-    universalTip: "This benefit is auto-processed after RNPN registration in most cases. If not received within 30 days, visit your nearest alcaldía.",
+    universalTip: "Request the canastilla maternal and, if applicable, ayuda de lactancia through Trabajo Social at your assigned ISSS health centre — this is not an automatic cash payment, so confirm the process and timeframe with ISSS directly.",
     dependsOn: ["sv-rnpn-birth-registration"],
-    // KB annotation audit: unannotated, carries a cost + auto-enrollment claim
-    // — added to the human-review worklist.
+    // KB annotation audit (rewritten — KB_ENRICH_FSV_CHILDSUBSIDY): removed a
+    // fabricated $50/mo cash-subsidy claim (ISSS provides in-kind newborn
+    // benefits only) — scope confirmed against ISSS FAQ, figures/ES phrasing
+    // and exact canastilla contents/timeframe still unconfirmed, stays needs_review.
     reviewStatus: "needs_review",
+    confidence: 0.5,
   },
   {
     id: "sv-isss-paternity-benefit",
@@ -574,8 +577,9 @@ export const services: Service[] = [
     name: "FSV housing loan (Fondo Social para la Vivienda)",
     nameEs: "Préstamo habitacional FSV",
     agency: "FSV", agencyFull: "Fondo Social para la Vivienda",
-    description: "Check your FSV housing loan balance, payment history, and pay online. FSV offers low-interest housing loans to formal workers through employer deductions.",
-    descriptionEs: "Consultá el saldo de tu préstamo FSV, historial de pagos y pagá en línea. El FSV ofrece préstamos habitacionales a trabajadores formales con descuento de planilla.",
+    description: "Apply for a home-acquisition mortgage loan from FSV (Fondo Social para la Vivienda). Covers buying a new or used home, purchasing a lot, individual construction, repair/expansion/improvement (RAM), and transferring a mortgage from another lender — it is NOT rent assistance or a housing subsidy. Open to formally-employed workers (minimum 6 months of pension-system contributions) and independent workers (about 2+ years of economic activity), aged 18–69, with provable income, payment capacity, and good credit. Since November 2025, applicants must not already own a property, and only one loan is allowed per family group. Salvadorans living abroad can apply through the Vivienda Cercana program and pay installments with remittances. Rates, maximum amounts, and terms vary by income and home price — confirm current figures with FSV.",
+    descriptionEs: "Solicitá un crédito hipotecario para adquirir vivienda del FSV (Fondo Social para la Vivienda). Cubre compra de vivienda nueva o usada, compra de lote, construcción individual, reparación/ampliación/mejora (RAM) y traslado de deuda de otra institución — NO es ayuda para el alquiler ni un subsidio. Dirigido a trabajadores del sector formal (mínimo 6 meses de cotizaciones al sistema de pensiones) y trabajadores independientes (unos 2+ años de actividad económica), de 18 a 69 años, con ingresos comprobables, capacidad de pago y buen récord crediticio. Desde noviembre de 2025, el solicitante no debe poseer vivienda y solo se permite un crédito por grupo familiar. Los salvadoreños en el exterior pueden aplicar mediante el programa Vivienda Cercana y pagar las cuotas con remesas. Las tasas, montos y plazos varían según ingresos y precio de la vivienda — confirmá las cifras vigentes con el FSV.",
+    amount: "Varies by income and home price; interest-social tier and rates set by FSV — confirm current figures.",
     priority: 1, phaseToApply: 1,
     steps: [
       "Log in to simple.sv with your ClaveÚnica account",
@@ -588,6 +592,17 @@ export const services: Service[] = [
     sourceUrl: "https://simple.sv/tramite/consulta-y-pago-de-prestamos-fsv/persona-natural",
     lastVerified: "2026-05-25",
     universalTip: "FSV loans are available to workers who contribute to the AFP/ISSS. Ask your employer about FSV affiliation if you're looking to buy or build a home.",
+    // KB annotation audit (KB_ENRICH_FSV_CHILDSUBSIDY): description/descriptionEs
+    // rewritten to scope this as a NEW mortgage-loan application (was wrongly
+    // scoped as an existing-borrower balance/payment tool, causing retrieval
+    // collisions with rent/becas queries) — scope confirmed against the FSV
+    // portal, figures unconfirmed, stays needs_review. NOTE: `steps`/`documents`/
+    // `sourceUrl` below still describe the OLD balance-check flow (simple.sv
+    // loan consultation for existing borrowers) and now contradict the new
+    // application-focused description — flagged for a follow-up pass, not
+    // fixed here (no verified application steps/documents to substitute).
+    reviewStatus: "needs_review",
+    confidence: 0.5,
   },
 ]
 

@@ -121,9 +121,10 @@ test("buildSafeFallbackPlan never hardcodes Free or a fabricated duration", () =
     assert.notEqual(step.cost, "Free", `step for ${step.serviceId} must not hardcode "Free"`)
     assert.ok(!String(step.estimatedTime).includes("30 minutes"), `step for ${step.serviceId} must not fabricate a "30 minutes" duration`)
   }
-  // childSubsidy has a real amount ($50/mo) — it should be used, not discarded.
+  // childSubsidy has a real KB amount — it should be used, not discarded or fabricated
+  // (a hedge suffix may still be appended since this entry is needs_review).
   const subsidyStep = allSteps.find(s => s.serviceId === childSubsidy.id)
-  assert.ok(subsidyStep?.cost.includes("$50"), "should use the real KB amount when present")
+  assert.ok(subsidyStep?.cost.includes(childSubsidy.amount!), "should use the real KB amount when present, not discard it")
 })
 
 test("buildSafeFallbackPlan still respects dependency order", () => {
