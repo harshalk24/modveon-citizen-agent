@@ -20,10 +20,34 @@ model Citizen {
 
   sessions   Session[]
   context    CitizenContext?
+  situations Situation[]
   deadlines  Deadline[]
   actionPlan ActionPlan?
   feedbacks  Feedback[]
   logs       ResponseLog[]
+}
+
+// Task 2b-C1 — per-situation state, one row per concurrently-active
+// situation (Phase 2a's `activeLifeEvents` moves here). `CitizenContext`
+// keeps the per-citizen fields (employment, municipality, conversationSummary,
+// and `lifeEvent` as the compat "primary = most-recently-added" pointer) —
+// see lib/situation-store.ts for the read/write funnel. `status` distinguishes
+// "active" from a later resolved state; a removed situation's row is DELETED
+// outright (see lib/situations.ts's removeSituation semantics), never just
+// marked — there's nothing to keep once a situation is dropped.
+model Situation {
+  id               String   @id @default(cuid())
+  citizenId        String
+  lifeEvent        String
+  slotsJson        String   @default("{}")
+  entitlementsJson String   @default("[]")
+  pendingSlot      String?
+  status           String   @default("active") // active | resolved; removed = row DELETED
+  addedAt          DateTime @default(now())
+  updatedAt        DateTime @updatedAt
+  citizen          Citizen  @relation(fields: [citizenId], references: [id])
+
+  @@unique([citizenId, lifeEvent])
 }
 
 model CitizenContext {

@@ -4,7 +4,8 @@ import { buildSystemPrompt } from "@/lib/context-builder"
 import { situationLabel } from "@/lib/situation-labels"
 import { services as fullKB } from "@/lib/kb"
 import { retrieveServices } from "@/lib/semantic-search"
-import { addSituation, removeSituation, getActiveSituations } from "@/lib/situations"
+import { getActiveSituations, addSituation, removeSituation } from "@/lib/situations"
+import { ensureSituationRows, addSituationRow, removeSituationRow, primaryRow, slugsOfRows, updatePrimarySlots, updatePrimaryEntitlements } from "@/lib/situation-store"
 import { looksHypothetical, extractRemoveSituation } from "@/lib/extract-intent"
 import { getSession, incrementTurn, shouldSummarise, getRecentMessages, checkRateLimit } from "@/lib/session"
 import { logResponse } from "@/lib/audit"
@@ -57,6 +58,12 @@ export async function POST(req: Request) {
   // Reading from DB ensures we have the latest lifeEvent/employment even if
   // the client's React state is stale (e.g. first message after onboarding).
   let ctx: any = null
+  // Task 2b-C1: the primary situation's Situation row, once ctx is built from
+  // DB — guaranteed non-null whenever ctx.profile.lifeEvent is set (via
+  // ensureSituationRows' lazy backfill below), so the slot-filling/
+  // entitlements persistence later in this function never needs a fallback
+  // branch. Stays null for anonymous/contextData-only requests.
+  let primarySituation: ReturnType<typeof primaryRow> = null
   if (citizenId && citizenId !== "anonymous") {
     try {
       const dbCtx = await prisma.citizenContext.findUnique({
@@ -64,6 +71,19 @@ export async function POST(req: Request) {
         include: { citizen: true },
       })
       if (dbCtx) {
+        // Situation table (Task 2b-C1) is now the source of truth for
+        // concurrent situations — activeLifeEvents/slotsJson/entitlementsJson/
+        // pendingSlot on CitizenContext are left in place but unused (reversible
+        // migration; see prisma/schema.prisma). Lazily backfills a row for any
+        // citizen whose only situation predates row-backing (onboarding/
+        // profile-edit paths still write CitizenContext.lifeEvent directly).
+        const situationRows = await ensureSituationRows(citizenId, {
+          lifeEvent: dbCtx.lifeEvent,
+          slotsJson: dbCtx.slotsJson,
+          entitlementsJson: dbCtx.entitlementsJson,
+          pendingSlot: dbCtx.pendingSlot,
+        })
+        primarySituation = primaryRow(situationRows)
         ctx = {
           citizenId,
           profile: {
@@ -73,14 +93,15 @@ export async function POST(req: Request) {
             lifeEvent:  dbCtx.lifeEvent        || contextData?.profile?.lifeEvent  || "",
             // Phase 2a: source of truth for concurrent situations — read
             // through getActiveSituations() everywhere, never parsed ad hoc.
-            activeLifeEvents: dbCtx.activeLifeEvents || "[]",
+            // Phase 2b-C1: derived from Situation rows, not the DB column.
+            activeLifeEvents: JSON.stringify(slugsOfRows(situationRows)),
             pendingLifeEvent: dbCtx.pendingLifeEvent || undefined,
             language:   dbCtx.citizen?.language || contextData?.profile?.language  || language,
             municipality: dbCtx.municipality || contextData?.profile?.municipality || undefined,
           },
-          slots:               JSON.parse((dbCtx.slotsJson as string) || "{}"),
-          pendingSlot:         dbCtx.pendingSlot || undefined,
-          entitlements:        JSON.parse((dbCtx.entitlementsJson as string) || "[]"),
+          slots:               JSON.parse(primarySituation?.slotsJson || "{}"),
+          pendingSlot:         primarySituation?.pendingSlot || undefined,
+          entitlements:        JSON.parse(primarySituation?.entitlementsJson || "[]"),
           planSteps:           [],
           deadlines:           [],
           conversationSummary: dbCtx.conversationSummary || undefined,
@@ -112,6 +133,16 @@ export async function POST(req: Request) {
   // actual situation names, not just the collapsed hasLifeEvent boolean; see
   // its own comment for why. Reused unchanged by the situation-change flow below.
   const activeSituations = getActiveSituations(ctx.profile)
+
+  // Task 2b-C1: current compat state for addSituationRow/removeSituationRow's
+  // own ensureSituationRows call — built from ctx (already resolved from the
+  // primary Situation row, or the compat fallback, during ctx-building above).
+  const compatCtx = {
+    lifeEvent:        ctx.profile.lifeEvent || null,
+    slotsJson:        JSON.stringify(ctx.slots || {}),
+    entitlementsJson: JSON.stringify(ctx.entitlements || []),
+    pendingSlot:      ctx.pendingSlot || null,
+  }
 
   // ── Classify query type + life event + employment, each with its own
   // confidence — computed once, used both to gate durable writes below and
@@ -195,19 +226,16 @@ export async function POST(req: Request) {
   // read through getActiveSituations(ctx.profile), same funnel as the add path.
   const removalSlug = extractRemoveSituation(userMessage, activeSituations)
   if (removalSlug) {
-    const next = removeSituation(
-      { activeLifeEvents: activeSituations, lifeEvent: ctx.profile.lifeEvent || null },
-      removalSlug
-    )
+    // Task 2b-C1: real citizens persist through the Situation-row funnel
+    // (deletes the row); anonymous sessions have nothing to delete, so they
+    // still use the pure in-memory transform for this request's reply only.
+    const next = isRealCitizen
+      ? await removeSituationRow(citizenId, removalSlug, compatCtx)
+      : removeSituation({ activeLifeEvents: activeSituations, lifeEvent: ctx.profile.lifeEvent || null }, removalSlug)
     ctx.profile.lifeEvent = next.lifeEvent || ""
     ctx.profile.activeLifeEvents = JSON.stringify(next.activeLifeEvents)
     if (isRealCitizen) {
       console.log("Durable profile write (situation removed):", removalSlug, "— still active:", next.activeLifeEvents)
-      await prisma.citizenContext.upsert({
-        where: { citizenId },
-        create: { citizenId, lifeEvent: next.lifeEvent, activeLifeEvents: JSON.stringify(next.activeLifeEvents), updatedAt: new Date() },
-        update: { lifeEvent: next.lifeEvent, activeLifeEvents: JSON.stringify(next.activeLifeEvents) },
-      })
     }
     const removedLabel = situationLabel(removalSlug, isEs ? "es" : "en")
     const remainingLabels = next.activeLifeEvents.map(s => situationLabel(s, isEs ? "es" : "en"))
@@ -233,10 +261,13 @@ export async function POST(req: Request) {
       // Low-confidence turn — reply normally, do not even add yet.
       console.log("Situation add skipped — lifeEventConfidence below threshold:", classification.lifeEventConfidence)
     } else {
-      const next = addSituation(
-        { activeLifeEvents: activeSituations, lifeEvent: ctx.profile.lifeEvent || null },
-        detectedEvent
-      )
+      // Task 2b-C1: real citizens persist through the Situation-row funnel
+      // (upserts a new active row, lazy-backfilling any pre-row-backing
+      // situation alongside it); anonymous sessions have nothing to persist,
+      // so they still use the pure in-memory transform for this reply only.
+      const next = isRealCitizen
+        ? await addSituationRow(citizenId, detectedEvent, compatCtx)
+        : addSituation({ activeLifeEvents: activeSituations, lifeEvent: ctx.profile.lifeEvent || null }, detectedEvent)
       ctx.profile.lifeEvent = next.lifeEvent || ""
       ctx.profile.activeLifeEvents = JSON.stringify(next.activeLifeEvents)
       // Deliberately NOT touching ctx.entitlements/ctx.slots/ctx.pendingSlot or
@@ -246,11 +277,6 @@ export async function POST(req: Request) {
       // the next "Open plan" regenerates the merged plan (Step 5).
       if (isRealCitizen) {
         console.log("Durable profile write (situation added):", detectedEvent, "— now active:", next.activeLifeEvents)
-        await prisma.citizenContext.upsert({
-          where: { citizenId },
-          create: { citizenId, lifeEvent: next.lifeEvent, activeLifeEvents: JSON.stringify(next.activeLifeEvents), updatedAt: new Date() },
-          update: { lifeEvent: next.lifeEvent, activeLifeEvents: JSON.stringify(next.activeLifeEvents) },
-        })
       }
       const addedLabel = LIFE_EVENT_LABELS[detectedEvent]
       const allLabels = next.activeLifeEvents.map(s => situationLabel(s, isEs ? "es" : "en"))
@@ -302,13 +328,12 @@ export async function POST(req: Request) {
   // system prompt gets no slot instruction and asks nothing (test #6).
   const slotToAsk = ctx.profile.lifeEvent ? nextMissingSlot(ctx.profile.lifeEvent, ctx.slots) : null
   const newPendingSlot = slotToAsk?.key
-  if (isRealCitizen && (slotWritten || newPendingSlot !== ctx.pendingSlot)) {
+  if (isRealCitizen && primarySituation && (slotWritten || newPendingSlot !== ctx.pendingSlot)) {
     ctx.pendingSlot = newPendingSlot
-    await prisma.citizenContext.upsert({
-      where: { citizenId },
-      create: { citizenId, slotsJson: JSON.stringify(ctx.slots), pendingSlot: newPendingSlot || null, updatedAt: new Date() },
-      update: { slotsJson: JSON.stringify(ctx.slots), pendingSlot: newPendingSlot || null },
-    })
+    // Task 2b-C1: slots persist to the PRIMARY situation's row now, not the
+    // shared CitizenContext fields — primarySituation is guaranteed non-null
+    // here whenever ctx.profile.lifeEvent is set (ensureSituationRows above).
+    await updatePrimarySlots(citizenId, primarySituation.lifeEvent, JSON.stringify(ctx.slots), newPendingSlot || null)
   } else {
     ctx.pendingSlot = newPendingSlot
   }
@@ -320,28 +345,19 @@ export async function POST(req: Request) {
   // silently promoted into a standing entitlement, so it's excluded here even
   // though it's included in `services` for answering/grounding this turn.
   const entitlementServices = services.filter(s => s._source !== "foreground")
-  if (entitlementServices.length > 0 && citizenId && citizenId !== "anonymous") {
+  if (entitlementServices.length > 0 && isRealCitizen && primarySituation) {
     const entitlements = entitlementServices.map(s => ({
       serviceId: s.id,
       status:    "new",
       savedAt:   new Date().toISOString(),
     }))
     ctx.entitlements = entitlements
-    await prisma.citizenContext.upsert({
-      where: { citizenId },
-      create: {
-        citizenId,
-        lifeEvent:        ctx.profile.lifeEvent,
-        employment:       ctx.profile.employment,
-        entitlementsJson: JSON.stringify(entitlements),
-        updatedAt:        new Date(),
-      },
-      update: {
-        entitlementsJson: JSON.stringify(entitlements),
-        lifeEvent:        ctx.profile.lifeEvent,
-        employment:       ctx.profile.employment,
-      },
-    })
+    // Task 2b-C1: entitlements persist to the PRIMARY situation's row now,
+    // not the shared CitizenContext field — lifeEvent/employment are already
+    // kept current by their own dedicated write paths above (addSituationRow/
+    // removeSituationRow, and the employment-write block), so this spot only
+    // ever needs to touch entitlementsJson.
+    await updatePrimaryEntitlements(citizenId, primarySituation.lifeEvent, JSON.stringify(entitlements))
   }
 
   // ── Out-of-scope guard — return immediately, no LLM call ───────────

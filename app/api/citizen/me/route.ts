@@ -2,6 +2,7 @@ import { NextResponse } from "next/server"
 import { prisma } from "@/lib/prisma"
 import { CitizenContextData, normalizeEmployment } from "@/types/context"
 import { flattenPlanSteps } from "@/lib/plan-shape"
+import { loadActiveSituationRows, resolveSituations } from "@/lib/situation-store"
 
 export async function GET(req: Request) {
   const citizenId = req.headers.get("x-citizen-id")
@@ -22,6 +23,17 @@ export async function GET(req: Request) {
   const ctx = citizen.context
   const plan = citizen.actionPlan
 
+  // Task 2b-C1: read-only, so no lazy backfill here (unlike the chat/plan
+  // routes, which write anyway) — resolveSituations falls back to the compat
+  // CitizenContext fields when there are no rows yet, same shape as before.
+  const situationRows = await loadActiveSituationRows(citizen.id)
+  const resolved = resolveSituations(situationRows, {
+    lifeEvent: ctx?.lifeEvent ?? null,
+    slotsJson: ctx?.slotsJson,
+    entitlementsJson: ctx?.entitlementsJson,
+    pendingSlot: ctx?.pendingSlot,
+  })
+
   const data: CitizenContextData = {
     citizenId: citizen.id,
     profile: {
@@ -29,13 +41,13 @@ export async function GET(req: Request) {
       country: citizen.country,
       employment: normalizeEmployment(ctx?.employment),
       lifeEvent: ctx?.lifeEvent || "",
-      activeLifeEvents: ctx?.activeLifeEvents || "[]",
+      activeLifeEvents: JSON.stringify(resolved.activeLifeEvents),
       language: (citizen.language as "en" | "es") || "es",
       email: citizen.email || undefined,
       gender: citizen.gender || undefined,
       municipality: ctx?.municipality || undefined,
     },
-    entitlements: ctx?.entitlementsJson ? JSON.parse(ctx.entitlementsJson) : [],
+    entitlements: resolved.primary?.entitlementsJson ? JSON.parse(resolved.primary.entitlementsJson) : [],
     // planJson may be stored as a flat array (oldest), { weeks: [...] }
     // (pre-S2), or { phases: [...] } (current) — flattenPlanSteps normalizes
     // all three into a flat, `phase`-tagged array for the plan page.

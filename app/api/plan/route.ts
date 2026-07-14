@@ -3,7 +3,8 @@ import { generatePlan } from "@/lib/ai"
 import { validatePlanJSON } from "@/lib/validator"
 import { verifyPlanOrder, reorderPlan, hedgePlanSteps, enforcePlanCosts, buildSafeFallbackPlan, Plan } from "@/lib/plan-verify"
 import { prisma } from "@/lib/prisma"
-import { getActiveSituations, unionServicesForSituations } from "@/lib/situations"
+import { unionServicesForSituations } from "@/lib/situations"
+import { ensureSituationRows, slugsOfRows, primaryRow } from "@/lib/situation-store"
 import { normalizeEmployment } from "@/types/context"
 
 async function savePlanToDB(
@@ -69,9 +70,19 @@ export async function POST(req: Request) {
       return NextResponse.json({ error: "no context for citizen" }, { status: 400 })
     }
     const ctx = citizen.context
-    const situations = getActiveSituations(ctx)
+    // Task 2b-C1: situations/slots now come from Situation rows, not the
+    // (now-unused) CitizenContext.activeLifeEvents/slotsJson columns — same
+    // lazy-backfill self-healing as the chat route for a citizen whose
+    // situation predates row-backing.
+    const situationRows = await ensureSituationRows(citizenId, {
+      lifeEvent: ctx.lifeEvent,
+      slotsJson: ctx.slotsJson,
+      entitlementsJson: ctx.entitlementsJson,
+      pendingSlot: ctx.pendingSlot,
+    })
+    const situations = slugsOfRows(situationRows)
     const employment = normalizeEmployment(ctx.employment)
-    const slots = JSON.parse((ctx.slotsJson as string) || "{}")
+    const slots = JSON.parse(primaryRow(situationRows)?.slotsJson || "{}")
     services = unionServicesForSituations({ country: citizen.country, situations, employment, slots })
     profile = {
       firstName:  citizen.firstName || "there",
