@@ -3,6 +3,7 @@ import { Service } from "@/lib/kb"
 import { QueryType } from "@/lib/classify-query"
 import { SlotDef } from "@/lib/slots"
 import { situationLabel } from "@/lib/situation-labels"
+import { getActiveSituations } from "@/lib/situations"
 
 // ── Dynamic mode blocks (need ctx for personalisation) ──────────────
 
@@ -408,6 +409,20 @@ export function buildSystemPrompt(
       language === "es"
         ? "Ninguna entrada del KB coincide con lo específico que preguntó el ciudadano. Decí con claridad que no tenés información sobre ese tema específico. NO sustituyas ni listés los beneficios de su situación como si fueran la respuesta."
         : "No KB entry matches the specific thing the citizen asked about. Say plainly you don't have information on that specific topic. Do NOT substitute or list their situation benefits as if they were the answer."
+    )
+  }
+  // Task 2b-4: cross-situation reasoning — confirmed live that the model was
+  // reciting an employment-based benefit's condition as a BARE hypothetical
+  // ("if you were employed...") to a citizen it already knows is unemployed,
+  // instead of applying what it already knows. Reasoning across the
+  // citizen's OWN situations isn't emergent from just seeing them grouped —
+  // it has to be instructed. Scoped to citizens with more than one active
+  // situation only; a single-situation citizen must see no change here.
+  if (getActiveSituations(ctx.profile).length > 1) {
+    retrievalNoteParts.push(
+      language === "es"
+        ? "Este ciudadano tiene más de una situación activa: razoná cómo interactúan entre sí — no presentes los beneficios de cada situación de forma aislada. Si la elegibilidad de un beneficio depende de algo que otra de sus situaciones afecta, decilo con claridad usando lo que el ciudadano ya te contó, en lugar de plantear una hipótesis vacía. Por ejemplo, si mostrás un beneficio que depende de estar empleado formalmente y el ciudadano te dijo que perdió su trabajo, no digas \"si estuvieras empleado…\" — nombrá la interacción (\"como perdiste tu trabajo hace poco…\") y explicá qué significa eso para su elegibilidad. IMPORTANTE: no te excedas en ninguna dirección. No digas categóricamente que no califica (podría calificar igual por cotizaciones previas u otros motivos), y no ignorés el conflicto. Cuando el resultado sea genuinamente incierto, decí de qué depende y decile que confirme con la agencia. Igual mencioná el beneficio — no lo omitas en silencio."
+        : "This citizen has more than one active situation: reason about how they interact — don't present each situation's benefits in isolation. If a benefit's eligibility depends on something another of the citizen's situations bears on, say so plainly using what the citizen has told you, instead of stating a bare hypothetical. For example, if an employment-based benefit is shown and the citizen has told you they lost their job, don't say \"if you were employed…\" — name the interaction (\"since you recently lost your job…\") and explain what it means for eligibility. IMPORTANT: do not over-claim in either direction. Do not flatly say they don't qualify (they may still qualify on prior contributions or other grounds), and do not ignore the conflict. When the outcome is genuinely uncertain, say what it depends on and tell them to confirm with the agency. Still mention the benefit — don't silently drop it."
     )
   }
   const retrievalNote = retrievalNoteParts.length > 0
