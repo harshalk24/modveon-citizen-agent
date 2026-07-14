@@ -411,7 +411,11 @@ export async function POST(req: Request) {
     console.log("[DIAG] situation-gathering branch fired | lifeEvent(singular) =", ctx.profile.lifeEvent, "| active =", getActiveSituations(ctx.profile), "| type =", classification.type)
   }
   const recentMsgs   = getRecentMessages(messages, 4)
-  const systemPrompt = buildSystemPrompt(ctx, services, JSON.stringify(recentMsgs), language, classification.type, slotToAsk, retrieval.isHonestMiss)
+  // Task 2b structural grouping: askTargetSlug (already computed above for
+  // the slot-filling ASK decision) also orders the KB payload's directAnswer/
+  // situations — the same "which situation is this turn about" answer drives
+  // both what gets asked and what leads the reply.
+  const systemPrompt = buildSystemPrompt(ctx, services, JSON.stringify(recentMsgs), language, classification.type, slotToAsk, retrieval.isHonestMiss, askTargetSlug)
 
   // Format for Gemini — strip leading model turns
   const formattedMessages = messages

@@ -141,7 +141,7 @@ const SYSTEM_PROMPT_EN = `
 You are Citizen Agent — a knowledgeable friend who knows every government process in El Salvador.
 
 CRITICAL RULES:
-0. ABSOLUTE CONSTRAINT: You have access to a KNOWLEDGE BASE section below. It contains the COMPLETE list of government services this citizen qualifies for. You MUST NOT list any service, benefit, program, or scheme that is not explicitly in that KNOWLEDGE BASE. Not AFP. Not severance pay. Not PROCOMES. Not any other program. ONLY what is in the KNOWLEDGE BASE JSON array.
+0. ABSOLUTE CONSTRAINT: You have access to a KNOWLEDGE BASE section below. It contains the COMPLETE list of government services this citizen qualifies for, organized into "directAnswer" (what they just asked about) and "situations" (their other active situations, grouped). Together those two fields are the entire KNOWLEDGE BASE — you MUST NOT list any service, benefit, program, or scheme that isn't in EITHER of them. Not AFP. Not severance pay. Not PROCOMES. Not any other program.
 1. ASSUME FIRST. Never ask for information you can reasonably assume. State assumption, show results, let citizen correct.
 2. ONE QUESTION MAX per response, and only ask if NONE of the KB services can answer the question AND the answer genuinely changes which services to show. If the citizen asks "what are my entitlements" or "what can I apply for" — answer immediately from the KB services already loaded in context.
 2a. ISSS ASSUMPTION. If employment is "formal", always assume the citizen contributes to ISSS. Immediately surface maternity benefit, paternity leave, and dependent enrollment without asking.
@@ -154,7 +154,7 @@ CRITICAL RULES:
 - Health issue → "I hope you're doing okay — here's what support is available."
 - Starting business → "Exciting — here's what you need to get started."
 Keep it short (1 sentence). Then immediately go into the benefits. Never skip this for the citizen's first message describing their situation.
-3b. KNOWLEDGE BASE IS THE ONLY SOURCE FOR SERVICES. You MUST ONLY list services that appear in the KNOWLEDGE BASE section of this prompt. If a service is not in the JSON array under KNOWLEDGE BASE, it does not exist — do not mention it, do not invent it, do not supplement with training data. The KNOWLEDGE BASE contains EXACTLY the services this citizen qualifies for. List them. No more, no less. For factual questions about documents, processes, or how things work: you may answer from general knowledge. For the list of services/benefits/schemes: KNOWLEDGE BASE ONLY.
+3b. KNOWLEDGE BASE IS THE ONLY SOURCE FOR SERVICES. You MUST ONLY list services that appear somewhere in the KNOWLEDGE BASE section of this prompt — in "directAnswer" or under any situation inside "situations". If a service isn't in either, it does not exist — do not mention it, do not invent it, do not supplement with training data. The KNOWLEDGE BASE contains EXACTLY the services this citizen qualifies for, across BOTH fields combined. List them. No more, no less. For factual questions about documents, processes, or how things work: you may answer from general knowledge. For the list of services/benefits/schemes: KNOWLEDGE BASE ONLY.
 4. BEFORE answering a service query, verify it exists in the KNOWLEDGE BASE. If not there, do not invent it.
 5. SPEAK CLEARLY IN ENGLISH. Short sentences. Active voice.
 6. AMOUNTS IN REAL MONEY. "$400 per week for 12 weeks" not bureaucratic formulae.
@@ -208,14 +208,14 @@ const SYSTEM_PROMPT_ES = `
 Sos Citizen Agent — un amigo que conoce todos los trámites del gobierno de El Salvador.
 
 REGLAS CRÍTICAS:
-0. RESTRICCIÓN ABSOLUTA: Tenés acceso a una sección BASE DE CONOCIMIENTO abajo. Contiene la lista COMPLETA de servicios del gobierno para los que califica este ciudadano. NO PODÉS listar ningún servicio, beneficio, programa o esquema que no esté explícitamente en esa BASE DE CONOCIMIENTO. No AFP. No liquidación. No PROCOMES. No ningún otro programa. SOLO lo que está en el array JSON de la BASE DE CONOCIMIENTO.
+0. RESTRICCIÓN ABSOLUTA: Tenés acceso a una sección BASE DE CONOCIMIENTO abajo. Contiene la lista COMPLETA de servicios del gobierno para los que califica este ciudadano, organizada en "directAnswer" (lo que acaba de preguntar) y "situations" (sus otras situaciones activas, agrupadas). Juntos, esos dos campos son TODA la BASE DE CONOCIMIENTO — NO PODÉS listar ningún servicio, beneficio, programa o esquema que no esté en NINGUNO de los dos. No AFP. No liquidación. No PROCOMES. No ningún otro programa.
 1. ASUMIR PRIMERO. Nunca pedás información que podés asumir razonablemente. Mostrá resultados, dejá que el ciudadano corrija.
 2. UNA PREGUNTA MÁXIMO por respuesta. Si el ciudadano pregunta "¿a qué tengo derecho?" respondé de inmediato desde el KB.
 2a. SUPUESTO ISSS. Si empleo="formal", asumí que cotiza al ISSS. Mostrá de inmediato maternidad, paternidad e inscripción de dependientes.
 2b. SITUACIÓN SOBRE PERFIL. Mostrá primero servicios universales, luego específicos por empleo.
 2c. LISTAS DE DOCUMENTOS. Usá: [nombre doc] DOC_INFO:[slug] por línea.
 2d. NUNCA PREGUNTES EMPLEO DE NUEVO. Si empleo ya está en CONTEXTO DEL CIUDADANO (algo distinto de "unknown"), no lo preguntes en ningún mensaje de seguimiento. Usalo en silencio como dato confirmado.
-3. LA BASE DE CONOCIMIENTO ES LA ÚNICA FUENTE DE SERVICIOS. SOLO podés listar servicios que aparecen en la sección BASE DE CONOCIMIENTO de este prompt. Si un servicio no está en el array JSON, no existe — no lo mencionés, no lo inventés, no suplementés con conocimiento de entrenamiento. La BASE DE CONOCIMIENTO contiene EXACTAMENTE los servicios para los que califica este ciudadano. Listalós. Ni más ni menos. Para preguntas factuales sobre documentos y procesos: podés responder desde conocimiento general. Para la lista de servicios/beneficios/esquemas: SOLO BASE DE CONOCIMIENTO.
+3. LA BASE DE CONOCIMIENTO ES LA ÚNICA FUENTE DE SERVICIOS. SOLO podés listar servicios que aparecen en algún lugar de la sección BASE DE CONOCIMIENTO de este prompt — en "directAnswer" o dentro de alguna situación en "situations". Si un servicio no está en ninguno de los dos, no existe — no lo mencionés, no lo inventés, no suplementés con conocimiento de entrenamiento. La BASE DE CONOCIMIENTO contiene EXACTAMENTE los servicios para los que califica este ciudadano, entre AMBOS campos combinados. Listalós. Ni más ni menos. Para preguntas factuales sobre documentos y procesos: podés responder desde conocimiento general. Para la lista de servicios/beneficios/esquemas: SOLO BASE DE CONOCIMIENTO.
 4. ANTES de responder una consulta de servicio, verificá que exista en la BASE DE CONOCIMIENTO. Si no está, no lo inventés.
 5. HABLÁ EN ESPAÑOL SALVADOREÑO. Usá "vos". Oraciones cortas. Voz activa.
 6. MONTOS EN DINERO REAL. "$400 por semana durante 12 semanas" no fórmulas burocráticas.
@@ -332,6 +332,61 @@ type SourceTaggedService = Service & {
   _situations?: string[]
 }
 
+// Task 2b structural grouping: what buildSystemPrompt hands the model instead
+// of a flat array + a prose "please group these IDs yourself" instruction.
+// The model READS the grouping rather than COMPUTING it — a join over a long
+// flat list is exactly the kind of structural requirement that collapses
+// under length when only expressed as prose (same lesson as the classifier/
+// cross-situation-reasoning work this session).
+export interface NestedKBPayload {
+  directAnswer: KBFact[]
+  // Keyed by situation LABEL (not slug) — target situation's key is inserted
+  // first so it reads first in JSON.stringify's key order too, though the
+  // model is told explicitly rather than relying on that alone.
+  situations: Record<string, KBFact[]>
+}
+
+export function buildNestedKBPayload(
+  services: SourceTaggedService[],
+  language: "en" | "es",
+  targetSituation: string | null
+): NestedKBPayload {
+  // directAnswer = foreground/both entries (the turn's actual question) —
+  // target-situation entries first, then any other foreground entry
+  // (including one with no situation at all, e.g. FSV for a home-loan query
+  // — it's still the answer and leads regardless).
+  const foregroundServices = services.filter(s => s._source === "foreground" || s._source === "both")
+  const orderedForeground = [
+    ...foregroundServices.filter(s => targetSituation && s._situations?.includes(targetSituation)),
+    ...foregroundServices.filter(s => !(targetSituation && s._situations?.includes(targetSituation))),
+  ]
+  const directAnswer = buildKBFacts(orderedForeground, language)
+  const directAnswerIds = new Set(orderedForeground.map(s => s.id))
+
+  // situations = ALL active situations' backdrop entries, in full (per the
+  // locked "include all, don't condense" decision) — grouped by situation,
+  // target situation's group first. An entry already placed in directAnswer
+  // is not repeated here (dedup).
+  const bySlug = new Map<string, Service[]>()
+  for (const s of services) {
+    if (directAnswerIds.has(s.id)) continue
+    for (const situ of s._situations || []) {
+      if (!bySlug.has(situ)) bySlug.set(situ, [])
+      bySlug.get(situ)!.push(s)
+    }
+  }
+  const orderedSlugs = [
+    ...(targetSituation && bySlug.has(targetSituation) ? [targetSituation] : []),
+    ...[...bySlug.keys()].filter(slug => slug !== targetSituation),
+  ]
+  const situations: Record<string, KBFact[]> = {}
+  for (const slug of orderedSlugs) {
+    situations[situationLabel(slug, language)] = buildKBFacts(bySlug.get(slug)!, language)
+  }
+
+  return { directAnswer, situations }
+}
+
 export function buildSystemPrompt(
   ctx: CitizenContextData,
   services: SourceTaggedService[],
@@ -339,7 +394,12 @@ export function buildSystemPrompt(
   language: "en" | "es" = "en",
   queryType: QueryType = "service-lookup",
   slotToAsk?: SlotDef | null,
-  isHonestMiss = false
+  isHonestMiss = false,
+  // Task 2b-C2's query-relevant target, surfaced at this layer so the KB
+  // payload can order directAnswer/situations around it (Task 2b structural
+  // grouping). null for a generic/unmapped turn — payload still builds fine,
+  // just with no situation prioritized first.
+  targetSituation: string | null = null
 ): string {
   const compactCtx = JSON.stringify({
     c:     ctx.profile.country,
@@ -356,7 +416,16 @@ export function buildSystemPrompt(
     slots: (ctx.slots && Object.keys(ctx.slots).length > 0) ? ctx.slots : undefined,
   })
 
-  const compactKB = buildKBFacts(services, language)
+  const hasSourceTags = services.some(s => s._source !== undefined)
+  // Task 2b structural grouping: nested when the retrieval layer tagged
+  // entries (the normal chat flow); untagged callers (e.g. the WhatsApp
+  // webhook, still on plain lookupServices) get everything in directAnswer
+  // and an empty situations map — same flat list they always saw, just
+  // wrapped in the same JSON shape so the model only ever has one shape to
+  // parse regardless of caller.
+  const nestedKB: NestedKBPayload = hasSourceTags
+    ? buildNestedKBPayload(services, language, targetSituation)
+    : { directAnswer: buildKBFacts(services, language), situations: {} }
 
   const modeBlock = getModeBlock(queryType, ctx, language)
   const template  = language === "es" ? SYSTEM_PROMPT_ES : SYSTEM_PROMPT_EN
@@ -367,47 +436,19 @@ export function buildSystemPrompt(
         : `SLOT GUIDANCE (${slotToAsk.critical ? "CRITICAL" : "REFINING"}): ${slotToAsk.ask.en}${slotToAsk.note ? ` ${slotToAsk.note.en}` : ""}`)
     : ""
 
-  // Semantic-search labeling (Phase 1): tell the model which entries answer
-  // THIS question vs. which are just standing context, so it leads with the
-  // direct answer instead of the situation backdrop. Only emitted when the
-  // retrieval layer actually tagged entries — plain lookupServices callers
-  // (no _source at all) get no note, same prompt as before this feature.
-  const foregroundIds = services.filter(s => s._source === "foreground" || s._source === "both").map(s => s.id)
-  const hasSourceTags = services.some(s => s._source !== undefined)
-
-  // Phase 2a: a citizen can hold N concurrent situations, so the backdrop is
-  // a UNION across all of them — presenting it as one flat list is the
-  // "grab-bag" the multi-context Colab check flagged (a reply blurring which
-  // benefit belongs to which situation). Group by _situations instead, so
-  // the model can present "for your new baby / for your job loss" rather
-  // than a merged dump. An entry already surfaced via foreground/"both" is
-  // excluded here — it's already covered by the note above.
-  const situationGroups = new Map<string, string[]>()
-  for (const s of services) {
-    if (s._source !== "backdrop") continue
-    for (const situ of s._situations || []) {
-      if (!situationGroups.has(situ)) situationGroups.set(situ, [])
-      situationGroups.get(situ)!.push(s.id)
-    }
-  }
-
   const retrievalNoteParts: string[] = []
-  if (hasSourceTags && foregroundIds.length > 0) {
-    retrievalNoteParts.push(
-      language === "es"
-        ? `Directamente relevante a lo que preguntó: ${JSON.stringify(foregroundIds)}. Empezá tu respuesta con esto.`
-        : `Directly relevant to what they just asked: ${JSON.stringify(foregroundIds)}. Lead your answer with these.`
-    )
-  }
-  if (hasSourceTags && situationGroups.size > 0) {
-    const groupText = [...situationGroups.entries()]
-      .map(([slug, ids]) => `**${situationLabel(slug, language)}** — ${JSON.stringify(ids)}`)
-      .join("; ")
-    retrievalNoteParts.push(
-      language === "es"
-        ? `Sus situaciones (contexto — mencioná solo si es relevante, y cuando las menciones agrupá los beneficios por situación, no como un solo listado mezclado): ${groupText}.`
-        : `Their situations (context — mention only if relevant, and when you do, group benefits by situation rather than one merged list): ${groupText}.`
-    )
+  // Task 2b structural grouping: the note now explains the SHAPE instead of
+  // asking the model to join IDs across two parts of the prompt itself.
+  if (hasSourceTags) {
+    const hasDirectAnswer = nestedKB.directAnswer.length > 0
+    const hasSituations = Object.keys(nestedKB.situations).length > 0
+    if (hasDirectAnswer || hasSituations) {
+      retrievalNoteParts.push(
+        language === "es"
+          ? `La BASE DE CONOCIMIENTO está organizada para vos. "directAnswer" es lo que el ciudadano preguntó — empezá tu respuesta con eso.${hasDirectAnswer ? "" : " Está vacío este turno — no hay una pregunta puntual que responder, empezá desde \"situations\" en su lugar."} "situations" contiene sus otras situaciones activas, ya agrupadas — cuando las menciones, mantené cada una bajo su propio encabezado de situación; nunca las mezclés en un solo listado.`
+          : `The KNOWLEDGE BASE is organized for you. "directAnswer" is what the citizen asked about — lead your reply with it.${hasDirectAnswer ? "" : " It's empty this turn — there's no specific question to lead with, start from \"situations\" instead."} "situations" holds their other active situations, already grouped — when you mention them, keep each under its own situation heading; never merge everything into one list.`
+      )
+    }
   }
   if (isHonestMiss) {
     retrievalNoteParts.push(
@@ -436,7 +477,7 @@ export function buildSystemPrompt(
 
   return template
     .replace("{citizenContext}", compactCtx)
-    .replace("{knowledgeBase}", JSON.stringify(compactKB))
+    .replace("{knowledgeBase}", JSON.stringify(nestedKB))
     .replace("{conversationSummary}", ctx.conversationSummary || (language === "es" ? "Primera sesión." : "First session."))
     .replace("{recentMessages}", recentMessages)
     .replace("{retrievalNote}", retrievalNote)
