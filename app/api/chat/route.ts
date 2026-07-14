@@ -5,7 +5,7 @@ import { situationLabel } from "@/lib/situation-labels"
 import { services as fullKB } from "@/lib/kb"
 import { retrieveServices } from "@/lib/semantic-search"
 import { getActiveSituations, addSituation, removeSituation } from "@/lib/situations"
-import { ensureSituationRows, addSituationRow, removeSituationRow, primaryRow, slugsOfRows, updatePrimarySlots, updatePrimaryEntitlements } from "@/lib/situation-store"
+import { ensureSituationRows, addSituationRow, removeSituationRow, primaryRow, slugsOfRows, updateSituationSlots, updatePrimaryEntitlements, SituationRow } from "@/lib/situation-store"
 import { looksHypothetical, extractRemoveSituation } from "@/lib/extract-intent"
 import { getSession, incrementTurn, shouldSummarise, getRecentMessages, checkRateLimit } from "@/lib/session"
 import { logResponse } from "@/lib/audit"
@@ -64,6 +64,10 @@ export async function POST(req: Request) {
   // entitlements persistence later in this function never needs a fallback
   // branch. Stays null for anonymous/contextData-only requests.
   let primarySituation: ReturnType<typeof primaryRow> = null
+  // Task 2b-C2: every active situation's row, kept in scope for the rest of
+  // this function — query-relevant slot targeting needs to read/write
+  // whichever situation the CURRENT turn is about, not always primary.
+  let allSituationRows: SituationRow[] = []
   if (citizenId && citizenId !== "anonymous") {
     try {
       const dbCtx = await prisma.citizenContext.findUnique({
@@ -83,6 +87,7 @@ export async function POST(req: Request) {
           entitlementsJson: dbCtx.entitlementsJson,
           pendingSlot: dbCtx.pendingSlot,
         })
+        allSituationRows = situationRows
         primarySituation = primaryRow(situationRows)
         ctx = {
           citizenId,
@@ -287,27 +292,43 @@ export async function POST(req: Request) {
     }
   }
 
-  // ── Slot-filling (Task S1) ───────────────────────────────────────────
-  // Decision-relevant facts for the CURRENT situation only (not episodic
-  // history — see lib/slots.ts). If the last turn asked about a specific
-  // slot, try to parse this turn's message as its answer FIRST — a
-  // deterministic keyword match is the gate; no match leaves the slot open,
-  // nothing invented.
-  ctx.slots = ctx.slots || {}
-  let slotWritten = false
-  if (ctx.profile.lifeEvent && ctx.pendingSlot) {
-    const pendingDef = (SLOT_DEFS[ctx.profile.lifeEvent] || [])
-      .find((d) => d.key === ctx.pendingSlot)
+  // ── Slot-filling: FILL (Task 2b-C2 — query-relevant target) ──────────
+  // Decision-relevant facts, now per-situation (Task 2b-C1's rows) — a
+  // citizen can have more than one open pendingSlot at once (one per
+  // situation), so this tries EVERY active situation's open pendingSlot,
+  // not just a single shared one. Target-mapping rule 1 (classifier-
+  // detected life event, gated by the same confidence threshold as the
+  // situation-add decision) is available before retrieval and used here
+  // only to ORDER which situation's extract() is tried first — extract()
+  // is slot-specific and returns null for a non-matching message, so trying
+  // the "wrong" situation first is harmless (it just fails to parse, same
+  // as an unrelated message always has). Rule 2 (retrieval-based) is a
+  // fallback that needs retrieval's result, so it's only used for the ASK
+  // decision below, after retrieveServices runs.
+  const classifierTargetSlug = (detectedEvent && activeSituations.includes(detectedEvent) && canWriteLifeEvent(classification))
+    ? detectedEvent
+    : null
+  const fillOrder = [
+    ...allSituationRows.filter(r => r.lifeEvent === classifierTargetSlug),
+    ...allSituationRows.filter(r => r.lifeEvent !== classifierTargetSlug),
+  ]
+  for (const row of fillOrder) {
+    if (!row.pendingSlot) continue
+    const pendingDef = (SLOT_DEFS[row.lifeEvent] || []).find(d => d.key === row.pendingSlot)
     const answer = pendingDef?.extract(userMessage) ?? null
-    if (answer !== null) {
-      ctx.slots[ctx.pendingSlot] = answer
-      ctx.pendingSlot = undefined
-      slotWritten = true
+    if (answer === null) continue // doesn't parse as THIS situation's answer — leave it open, try the next
+    const filled = applySlotInferences(row.lifeEvent, { ...JSON.parse(row.slotsJson || "{}"), [row.pendingSlot]: answer })
+    row.slotsJson = JSON.stringify(filled)
+    row.pendingSlot = null
+    if (isRealCitizen) {
+      await updateSituationSlots(citizenId, row.lifeEvent, row.slotsJson, null)
     }
   }
-  if (ctx.profile.lifeEvent) {
-    ctx.slots = applySlotInferences(ctx.profile.lifeEvent, ctx.slots)
-  }
+  // Merged view across every active situation, for retrieval/the system
+  // prompt — slot KEYS are namespaced per lifeEvent by SLOT_DEFS convention
+  // (e.g. "businessSizeTier" only exists under start-business), so merging
+  // never collides across situations.
+  ctx.slots = allSituationRows.reduce((acc, row) => ({ ...acc, ...JSON.parse(row.slotsJson || "{}") }), {} as Record<string, string>)
 
   // ── KB lookup (query-scoped semantic retrieval, augmenting the situation
   // lookup rather than replacing it — see lib/semantic-search.ts) ─────────
@@ -323,19 +344,36 @@ export async function POST(req: Request) {
   const services = retrieval.services
   console.log("[DIAG] retrieval:", JSON.stringify({ fg: retrieval.foregroundCount, miss: retrieval.isHonestMiss, services: retrieval.services.map(s => ({ id: s.id, src: s._source })) }))
 
-  // Decide the single most-decisive missing slot for THIS turn (rule 3: one
-  // question at a time, never batch) — null when nothing's missing, so the
-  // system prompt gets no slot instruction and asks nothing (test #6).
-  const slotToAsk = ctx.profile.lifeEvent ? nextMissingSlot(ctx.profile.lifeEvent, ctx.slots) : null
-  const newPendingSlot = slotToAsk?.key
-  if (isRealCitizen && primarySituation && (slotWritten || newPendingSlot !== ctx.pendingSlot)) {
-    ctx.pendingSlot = newPendingSlot
-    // Task 2b-C1: slots persist to the PRIMARY situation's row now, not the
-    // shared CitizenContext fields — primarySituation is guaranteed non-null
-    // here whenever ctx.profile.lifeEvent is set (ensureSituationRows above).
-    await updatePrimarySlots(citizenId, primarySituation.lifeEvent, JSON.stringify(ctx.slots), newPendingSlot || null)
-  } else {
-    ctx.pendingSlot = newPendingSlot
+  // ── Slot-filling: ASK (Task 2b-C2 — query-relevant target) ───────────
+  // Which situation is THIS turn about, for the purpose of deciding what to
+  // ASK? Rule 1 reuses the classifier target computed above (FILL's
+  // ordering hint doubles as this rule). Rule 2, only reached when rule 1
+  // didn't resolve a target (e.g. an ordinary follow-up about an existing
+  // situation, not a new declaration): the retrieval foreground's top match
+  // — the KB entry this turn's semantic match actually surfaced — carries
+  // which situation(s) it belongs to; if that intersects an active
+  // situation, target = that situation. No match on either rule → no
+  // target (a generic/unmapped turn) — per Decision 1, ask NOTHING rather
+  // than pester about some unrelated situation's slot; do not fall back to
+  // asking on the primary or any other situation just because one exists.
+  let askTargetSlug: string | null = classifierTargetSlug
+  if (!askTargetSlug) {
+    const topForeground = services.find(s => s._source === "foreground" || s._source === "both")
+    askTargetSlug = topForeground?._situations?.find(s => activeSituations.includes(s)) || null
+  }
+  const targetRow = askTargetSlug ? allSituationRows.find(r => r.lifeEvent === askTargetSlug) || null : null
+
+  // Decide the single most-decisive missing slot for THIS turn, scoped to
+  // the target situation only (rule 3: one question at a time, never batch,
+  // never about a situation the turn isn't even about) — null when there's
+  // no target or the target has nothing missing, so the system prompt gets
+  // no slot instruction and asks nothing (test #6).
+  const slotToAsk = targetRow ? nextMissingSlot(targetRow.lifeEvent, JSON.parse(targetRow.slotsJson || "{}")) : null
+  if (isRealCitizen && targetRow) {
+    const newPendingSlot = slotToAsk?.key || null
+    if (newPendingSlot !== targetRow.pendingSlot) {
+      await updateSituationSlots(citizenId, targetRow.lifeEvent, targetRow.slotsJson, newPendingSlot)
+    }
   }
 
   // ── Persist entitlements (awaited — ensures Dashboard reads fresh data) ─

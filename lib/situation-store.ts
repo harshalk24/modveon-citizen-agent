@@ -175,13 +175,15 @@ export async function removeSituationRow(citizenId: string, slug: string, compat
   return next
 }
 
-// Persists slot-filling state to the PRIMARY situation's row. Callers only
-// ever reach this when ctx.profile.lifeEvent is set, which (via
-// ensureSituationRows) guarantees a real primary row exists — no fallback
-// branch needed here.
-export async function updatePrimarySlots(citizenId: string, primaryLifeEvent: string, slotsJson: string, pendingSlot: string | null): Promise<void> {
+// Persists slot-filling state to a specific situation's row. Task 2b-C2:
+// the target is whichever situation THIS turn is about (query-relevant),
+// not always the primary — see route.ts's target-mapping. Callers only ever
+// reach this for a situation that's actually in allSituationRows (a real,
+// persisted row via ensureSituationRows during ctx-building), so there's no
+// fallback branch to worry about here.
+export async function updateSituationSlots(citizenId: string, lifeEvent: string, slotsJson: string, pendingSlot: string | null): Promise<void> {
   await prisma.situation.update({
-    where: { citizenId_lifeEvent: { citizenId, lifeEvent: primaryLifeEvent } },
+    where: { citizenId_lifeEvent: { citizenId, lifeEvent } },
     data: { slotsJson, pendingSlot },
   })
 }
