@@ -40,6 +40,21 @@ export interface Service {
   // citizen has confirmed they're a solo/below-threshold vendor. Deterministic
   // input-side filtering; never touches grounding/plan-verify logic itself.
   suppressWhenSlot?: { key: string; matches: string[] }
+  // Task 2b eligibility notes: a verifiable eligibility FACT the faithfulness
+  // judge can check cross-situation reasoning against (see lib/grounding.ts's
+  // checkOneServiceSupport) — without this, an honest hedged eligibility
+  // interaction ("may still qualify on prior contributions") gets rejected as
+  // unbacked, since no other field states an eligibility rule. Only a few
+  // entries whose eligibility is genuinely nuanced (employment-contingent)
+  // carry this; most entries have none.
+  eligibility?: {
+    // Machine key for the later filter work (Situation-table task) — defined
+    // now so the type is ready, but deliberately left unset by this task; no
+    // filter logic reads it yet.
+    requires?: string
+    note: string
+    noteEs: string
+  }
 }
 
 export const services: Service[] = [
@@ -93,7 +108,15 @@ export const services: Service[] = [
     downloadUrl: "https://www.isss.gob.sv/formularios/solicitud-prestacion-maternidad.pdf",
     confidence: 0.9,
     reviewStatus: "approved",
-    dependsOn: []
+    dependsOn: [],
+    // Task 2b eligibility notes — a verifiable fact the faithfulness judge
+    // can check cross-situation reasoning against (e.g. "citizen lost their
+    // job, does maternity still apply?"). Hedged, not a hard denial — prior
+    // contributions can still qualify a citizen who is no longer employed.
+    eligibility: {
+      note: "The ISSS maternity subsidy requires having contributed to ISSS as a formal worker. If you recently lost your job, you may still qualify based on your prior contributions — confirm your eligibility with ISSS.",
+      noteEs: "El subsidio por maternidad del ISSS requiere haber cotizado al ISSS como trabajadora formal. Si perdiste tu empleo recientemente, podrías calificar según tus cotizaciones anteriores — confirmá con el ISSS.",
+    },
   },
   {
     id: "sv-isss-dependent-enrollment",
@@ -157,6 +180,11 @@ export const services: Service[] = [
     // KB annotation audit: unannotated, carries a specific day-count benefit
     // claim — added to the human-review worklist.
     reviewStatus: "needs_review",
+    // Task 2b eligibility notes — see sv-isss-maternity-benefit's comment.
+    eligibility: {
+      note: "Paternity leave is for fathers currently employed and contributing to ISSS. If you are not currently employed, this benefit likely does not apply — confirm with ISSS.",
+      noteEs: "La licencia de paternidad es para padres actualmente empleados que cotizan al ISSS. Si no estás empleado actualmente, es probable que este beneficio no aplique — confirmá con el ISSS.",
+    },
   },
 
   // ── EL SALVADOR — JOB LOSS ─────────────────────────────
@@ -179,6 +207,15 @@ export const services: Service[] = [
     // KB annotation audit: unannotated, carries an eligibility rule + deadline
     // claim — added to the human-review worklist.
     reviewStatus: "needs_review",
+    // Task 2b eligibility notes — see sv-isss-maternity-benefit's comment.
+    // Note is correct now, but this entry is still filter-suppressed from
+    // retrieval for unemployed citizens (a separate, later filter-change fix
+    // rides with the Situation-table work) — so this note won't actually be
+    // exercised by the judge until that filter change lands. Expected.
+    eligibility: {
+      note: "This is continuation of ISSS health coverage for people who were formal contributors and recently lost their job — it depends on prior formal contributions, not current employment.",
+      noteEs: "Es la continuación de la cobertura de salud del ISSS para personas que fueron cotizantes formales y perdieron su empleo — depende de las cotizaciones formales anteriores, no de un empleo actual.",
+    },
   },
   {
     id: "sv-insaforp-training",
@@ -624,6 +661,11 @@ export const services: Service[] = [
     // unconfirmed → stays needs_review.
     reviewStatus: "needs_review",
     confidence: 0.5,
+    // Task 2b eligibility notes — see sv-isss-maternity-benefit's comment.
+    eligibility: {
+      note: "An FSV housing loan requires provable income and payment capacity — as a formal worker (6+ months of contributions) or an independent worker (about 2+ years of activity). If you have no current income, you likely won't qualify right now — confirm with FSV.",
+      noteEs: "Un crédito de vivienda del FSV requiere ingresos comprobables y capacidad de pago — como trabajador formal (6+ meses de cotizaciones) o independiente (unos 2+ años de actividad). Si no tenés ingresos actualmente, es probable que no califiques por ahora — confirmá con el FSV.",
+    },
   },
 ]
 

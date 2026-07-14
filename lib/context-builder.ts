@@ -289,6 +289,10 @@ export interface KBFact {
   conf?: number
   review?: "needs_review" | "approved"
   costVaries?: boolean
+  // Task 2b eligibility notes — a verifiable eligibility fact the faithfulness
+  // judge can check cross-situation reasoning against (lib/grounding.ts's
+  // checkOneServiceSupport). Undefined for the ~22 entries without one.
+  eligibility?: string
 }
 
 export function buildKBFacts(services: Service[], language: "en" | "es"): KBFact[] {
@@ -315,6 +319,7 @@ export function buildKBFacts(services: Service[], language: "en" | "es"): KBFact
     conf:      s.confidence,
     review:    s.reviewStatus,
     costVaries: s.costUncertain || undefined,
+    eligibility: language === "es" ? s.eligibility?.noteEs : s.eligibility?.note,
   }))
 }
 
