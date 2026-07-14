@@ -597,47 +597,36 @@ function ChatContent() {
         const fresh = await refresh()
         const ctx = fresh || citizen
 
-        // For lifeEvent/employment: prefer DB values, fall back to localStorage signals
+        // For lifeEvent: prefer DB values, fall back to localStorage signals
         // captured from the chat messages (works for anonymous/new users too)
         const lifeEvent  = ctx?.profile.lifeEvent  || localStorage.getItem("ca_detected_life_event")  || ""
-        const employment = ctx?.profile.employment  || localStorage.getItem("ca_detected_employment")  || "unknown"
-        const country    = ctx?.profile.country     || "SV"
         const citizenId  = ctx?.citizenId
-        // Phase 2a: the merged plan covers the UNION of every active
-        // situation, not just the compat-primary lifeEvent.
-        const situations = ctx ? getActiveSituations(ctx.profile) : (lifeEvent ? [lifeEvent] : [])
 
-        console.log("Open plan → situations:", situations, "employment:", employment, "citizenId:", citizenId)
+        console.log("Open plan → citizenId:", citizenId, "lifeEvent:", lifeEvent)
 
         // Regenerate plan if: no steps yet, OR plan is stale (life event changed)
         const planIsStale = !!(ctx?.planLifeEvent && ctx.planLifeEvent !== lifeEvent)
         const needsPlan = lifeEvent && citizenId && (!ctx?.planSteps?.length || planIsStale)
 
         if (needsPlan) {
-          const svcs = unionServicesForSituations({ country, situations, employment })
-          console.log("Services found:", svcs.length)
-          if (svcs.length > 0) {
-            // Always inject the resolved lifeEvent/employment so the plan is
-            // saved with the correct life event even if DB hasn't been updated yet
-            const profile = {
-              firstName: ctx?.profile?.firstName || "there",
-              country,
-              lifeEvent,       // resolved value, not raw DB value (which may be "")
-              employment,
-              language: (ctx?.profile?.language || lang) as "en" | "es",
-            }
-            const res = await fetch("/api/plan", {
-              method: "POST",
-              headers: { "Content-Type": "application/json" },
-              body: JSON.stringify({ citizenId, services: svcs, profile, language: lang }),
-            })
-            if (!res.ok) {
-              console.error("Plan generation failed:", res.status, await res.text())
-            } else {
-              // Refresh citizen AFTER plan is saved so the plan page sees planSteps
-              // and uses the cached plan instead of re-generating
-              await refresh()
-            }
+          // Task 2b-3: the server derives services/profile from the citizen's
+          // stored situations (getActiveSituations + unionServicesForSituations,
+          // same 2a helpers) — the client no longer computes/sends them, so a
+          // caller here can never forget to union (the straggler bug class).
+          // Safe as long as the situation write already resolved before this
+          // click, which it does — the add-flow's chat POST is awaited before
+          // the "Open plan" button even renders.
+          const res = await fetch("/api/plan", {
+            method: "POST",
+            headers: { "Content-Type": "application/json" },
+            body: JSON.stringify({ citizenId, language: lang }),
+          })
+          if (!res.ok) {
+            console.error("Plan generation failed:", res.status, await res.text())
+          } else {
+            // Refresh citizen AFTER plan is saved so the plan page sees planSteps
+            // and uses the cached plan instead of re-generating
+            await refresh()
           }
         }
       } catch (e) {

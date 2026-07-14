@@ -3,6 +3,8 @@ import { generatePlan } from "@/lib/ai"
 import { validatePlanJSON } from "@/lib/validator"
 import { verifyPlanOrder, reorderPlan, hedgePlanSteps, enforcePlanCosts, buildSafeFallbackPlan, Plan } from "@/lib/plan-verify"
 import { prisma } from "@/lib/prisma"
+import { getActiveSituations, unionServicesForSituations } from "@/lib/situations"
+import { normalizeEmployment } from "@/types/context"
 
 async function savePlanToDB(
   citizenId: string,
@@ -45,15 +47,46 @@ async function savePlanToDB(
 }
 
 export async function POST(req: Request) {
-  const { citizenId, services, profile, language = "es" } = await req.json()
-
-  if (!services || !profile) {
-    return NextResponse.json({ error: "Missing services or profile" }, { status: 400 })
-  }
+  const { citizenId, services: bodyServices, profile: bodyProfile, language = "es" } = await req.json()
 
   // Don't generate plans for anonymous sessions — no place to save them
   if (!citizenId || citizenId === "anonymous") {
     return NextResponse.json({ error: "citizenId required to generate plan" }, { status: 400 })
+  }
+
+  // Task 2b-3: the server derives services/profile from the citizen's stored
+  // situations — the SAME 2a helpers the client used to call itself
+  // (getActiveSituations + unionServicesForSituations) — so a caller can no
+  // longer forget to union and silently narrow a multi-situation plan (the
+  // straggler bug class from TASK_MULTICONTEXT_STRAGGLERS). Body services/
+  // profile are still accepted as a transitional fallback so this can't break
+  // a caller not yet migrated to the minimal { citizenId, language } POST.
+  let services = bodyServices
+  let profile  = bodyProfile
+  if (!services || !profile) {
+    const citizen = await prisma.citizen.findUnique({ where: { id: citizenId }, include: { context: true } })
+    if (!citizen?.context) {
+      return NextResponse.json({ error: "no context for citizen" }, { status: 400 })
+    }
+    const ctx = citizen.context
+    const situations = getActiveSituations(ctx)
+    const employment = normalizeEmployment(ctx.employment)
+    const slots = JSON.parse((ctx.slotsJson as string) || "{}")
+    services = unionServicesForSituations({ country: citizen.country, situations, employment, slots })
+    profile = {
+      firstName:  citizen.firstName || "there",
+      country:    citizen.country,
+      employment,
+      // Primary (compat) lifeEvent — same "most-recently-added" value 2a
+      // already writes; falls back to the last active situation if the
+      // column is somehow behind the array.
+      lifeEvent:  ctx.lifeEvent || (situations[situations.length - 1] ?? null),
+      language,
+    }
+  }
+
+  if (!services || !profile) {
+    return NextResponse.json({ error: "Missing services or profile" }, { status: 400 })
   }
 
   // Compact services before sending to the LLM — full KB objects are large and

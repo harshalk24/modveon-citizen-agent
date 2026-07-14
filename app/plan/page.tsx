@@ -7,7 +7,7 @@ import { useLang } from "@/contexts/LanguageContext"
 import { useCitizen } from "@/contexts/CitizenContext"
 import { t } from "@/lib/i18n"
 import { lookupServices, services as kbServices } from "@/lib/kb"
-import { getActiveSituations, unionServicesForSituations } from "@/lib/situations"
+import { getActiveSituations } from "@/lib/situations"
 import {
   CheckCircle2, AlertCircle, ChevronDown, ChevronUp,
   Loader2, HelpCircle, ExternalLink, MessageSquare,
@@ -91,8 +91,6 @@ export default function PlanPage() {
     // Resolve lifeEvent: prefer DB citizen, fall back to localStorage signals
     // set by the chat page when the user typed their situation
     const lifeEvent  = currentCitizen?.profile?.lifeEvent  || (typeof window !== "undefined" ? localStorage.getItem("ca_detected_life_event")  : "") || ""
-    const employment = currentCitizen?.profile?.employment  || (typeof window !== "undefined" ? localStorage.getItem("ca_detected_employment")  : "") || "unknown"
-    const country    = currentCitizen?.profile?.country     || "SV"
     const citizenId  = currentCitizen?.citizenId
 
     setPlanError(null)
@@ -137,32 +135,17 @@ export default function PlanPage() {
     // No fresh stored plan — generate via Gemini
     setLoading(true)
     try {
-      // Phase 2a: the merged plan covers the UNION of every active
-      // situation, not just the compat-primary lifeEvent.
-      const situations = currentCitizen ? getActiveSituations(currentCitizen.profile) : [lifeEvent]
-      const services = unionServicesForSituations({ country, situations, employment })
-      console.log("Plan page generating plan:", situations, "→", services.length, "services")
-
-      if (services.length === 0) {
-        console.warn("No services found for", lifeEvent, employment)
-        setLoading(false)
-        setPlanError("no-services")
-        return
-      }
-
-      // Always inject the resolved lifeEvent so savePlanToDB stores the right value
-      const profile = {
-        firstName: currentCitizen?.profile?.firstName || "there",
-        country,
-        lifeEvent,     // resolved (not raw DB value which may be "")
-        employment,
-        language: (currentCitizen?.profile?.language || lang) as "en" | "es",
-      }
-
+      // Task 2b-3: the server derives services/profile from the citizen's
+      // stored situations (getActiveSituations + unionServicesForSituations,
+      // same 2a helpers) — this client no longer computes/sends them, so it
+      // can never forget to union (the straggler bug class). The old
+      // client-side "no services found" precheck is gone too: it rendered
+      // the exact same UI text as a generic api-error, so a non-ok response
+      // below covers it identically.
       const res = await fetch("/api/plan", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ citizenId, services, profile, language: lang }),
+        body: JSON.stringify({ citizenId, language: lang }),
       })
 
       if (!res.ok) {
