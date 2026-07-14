@@ -6,7 +6,8 @@ import { motion } from "framer-motion"
 import { useLang } from "@/contexts/LanguageContext"
 import { useCitizen } from "@/contexts/CitizenContext"
 import { t } from "@/lib/i18n"
-import { lookupServices, services as kbServices } from "@/lib/kb"
+import { services as kbServices } from "@/lib/kb"
+import { getActiveSituations, unionServicesForSituations } from "@/lib/situations"
 import { Gift, ListChecks, Calendar, MessageSquare, AlertCircle, ChevronRight, Loader2, Sparkles } from "lucide-react"
 
 function getDaysLeft(dueDate: string) {
@@ -55,9 +56,13 @@ export default function DashboardPage() {
     return <EmptyDashboard tr={tr} lang={lang} router={router} firstName={citizen?.profile.firstName} hour={hour} />
   }
 
-  const contextServices = lookupServices({
+  // Union over every active situation (Phase 2a stragglers, Group 2) — a
+  // multi-situation citizen's entitlement/claimed counts must reflect all of
+  // them, not just the compat-primary lifeEvent.
+  const situations = citizen ? getActiveSituations(citizen.profile) : (resolvedLifeEvent ? [resolvedLifeEvent] : [])
+  const contextServices = unionServicesForSituations({
     country: resolvedCountry,
-    lifeEvent: resolvedLifeEvent,
+    situations,
     employment: resolvedEmployment,
   })
 

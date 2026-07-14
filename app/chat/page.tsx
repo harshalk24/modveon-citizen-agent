@@ -10,7 +10,7 @@ import ChatMessage, { Message } from "@/components/chat/ChatMessage"
 import MessageTemplates, { ConversationState } from "@/components/chat/MessageTemplates"
 import ContextPills from "@/components/chat/ContextPills"
 import ChatTour from "@/components/chat/ChatTour"
-import { lookupServices, services as kbServices } from "@/lib/kb"
+import { services as kbServices } from "@/lib/kb"
 import { extractLifeEvent, extractEmployment } from "@/lib/extract-intent"
 import { getActiveSituations, unionServicesForSituations } from "@/lib/situations"
 import { startRNPNDemoSequence, showFormPreview, showSubmissionFlow } from "@/lib/demo-sequence"
@@ -167,7 +167,14 @@ function ChatContent() {
 
     // ── Returning citizen with life event ────────────────────────────
     if (citizen?.profile.lifeEvent) {
-      const svcs = lookupServices({ country: citizen.profile.country, lifeEvent: citizen.profile.lifeEvent, employment: citizen.profile.employment || "unknown" })
+      // Count/list must reflect the UNION of every active situation (Phase 2a
+      // stragglers, Group 2) — the empathy opener below still uses the single
+      // primary lifeEvent, which is fine for a one-situation greeting message.
+      const svcs = unionServicesForSituations({
+        country: citizen.profile.country,
+        situations: getActiveSituations(citizen.profile),
+        employment: citizen.profile.employment || "unknown",
+      })
       setEntitlementCount(svcs.length)
       if (svcs.length > 0) {
         // Only surface the urgency clause for a verified deadline — an
@@ -456,9 +463,13 @@ function ChatContent() {
 
       // Append benefits message directly so the onboarding conversation stays visible
       if (fresh?.profile.lifeEvent) {
-        const svcs = lookupServices({
+        // Union over active situations (Phase 2a stragglers, Group 2) — at
+        // onboarding there's only ever one situation so far, but this keeps
+        // the count correct if a second situation is ever added before this
+        // message renders, and matches every other count site in the app.
+        const svcs = unionServicesForSituations({
           country: fresh.profile.country || "SV",
-          lifeEvent: fresh.profile.lifeEvent,
+          situations: getActiveSituations(fresh.profile),
           employment: fresh.profile.employment || "unknown",
         })
         setEntitlementCount(svcs.length)
