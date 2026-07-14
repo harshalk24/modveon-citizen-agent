@@ -46,11 +46,21 @@ export async function classifyQuery(params: {
   hasLifeEvent: boolean
   hasEntitlements: boolean
   conversationHistory: string
+  // Phase 2a/2b: the citizen's actual active situation slugs (e.g.
+  // ["new-baby","job-loss"]), not just the collapsed hasLifeEvent boolean.
+  // Without this, a query about a topic unrelated to any known situation
+  // (e.g. "what loans can I get for a house?" for a new-baby+job-loss
+  // citizen) can pattern-match the "no-context-open" examples on surface
+  // form alone, ignoring hasLifeEvent=true — giving the model the actual
+  // names lets it reason "they already told me X and Y; this is a NEW
+  // topic, so it's open-ended, not no-context" instead of just trusting a
+  // bare boolean it has weaker reason to weigh against strong lexical pull.
+  activeSituations?: string[]
 }): Promise<Classification> {
   const prompt = `You are classifying a citizen's message to a government services assistant for El Salvador.
 
 Citizen context:
-- Has described a life situation already: ${params.hasLifeEvent}
+- Has described a life situation already: ${params.hasLifeEvent}${params.activeSituations && params.activeSituations.length > 0 ? ` — specifically: ${params.activeSituations.join(", ")}` : ""}
 - Has seen benefit results already: ${params.hasEntitlements}
 - Recent conversation: ${params.conversationHistory || "none"}
 
@@ -73,11 +83,11 @@ Examples: "I don't understand step 2", "what do I do at RNPN?", "explain this st
 "diaspora-navigation" — citizen needs help with consular services, poder notarial, or managing El Salvador affairs from abroad.
 Examples: "I need a poder from the US", "my parents want to sell the house", "I'm in Los Angeles and need to...", "apostille", "consulate"
 
-"open-ended" — citizen already has context/results (hasLifeEvent=true or hasEntitlements=true) and wants to know what else they qualify for.
-Examples: "what else can I apply for?", "any other benefits?", "what am I missing?", "what other schemes exist?"
+"open-ended" — citizen already has context/results (hasLifeEvent=true or hasEntitlements=true) and wants to know what else they qualify for. This is ALSO the correct type when hasLifeEvent=true and the message asks generically about benefits/schemes for a NEW topic unrelated to their known situation(s) — e.g. a citizen who already told you about new-baby and job-loss now asking "what loans can I get for a house?" is still open-ended, NOT no-context-open, because they are not a first-time, context-free citizen. Never choose "no-context-open" when hasLifeEvent=true, no matter how closely the message's wording resembles the no-context-open examples below.
+Examples: "what else can I apply for?", "any other benefits?", "what am I missing?", "what other schemes exist?", "what government loans can I get to buy a house?" (when hasLifeEvent=true)
 
-"no-context-open" — citizen is asking about benefits or schemes in general but has NOT described their situation yet (hasLifeEvent=false and hasEntitlements=false).
-Examples: "what schemes am I eligible for?", "what benefits exist?", "what can I apply for?", "qué beneficios hay?"
+"no-context-open" — citizen is asking about benefits or schemes in general but has NOT described ANY situation yet (hasLifeEvent=false and hasEntitlements=false). This type is ONLY valid when hasLifeEvent=false — if hasLifeEvent=true, use "open-ended" instead even for a generic "what can I get" phrasing about a topic they haven't mentioned before.
+Examples (hasLifeEvent=false only): "what schemes am I eligible for?", "what benefits exist?", "what can I apply for?", "qué beneficios hay?"
 
 "meta" — the citizen is asking about YOU (the assistant) — who/what you are, what you can do — OR about what you already know about THEM (their own stored situation/profile). Not a benefit lookup and not out-of-scope.
 Examples: "who are you?", "what can you do?", "what is this?", "what do you know about me?", "what's my situation?", "what have I told you?", "¿quién sos?", "¿qué sabés de mí?"
@@ -135,8 +145,21 @@ Return ONLY this JSON with no other text:
     const memoryType = memoryTypeValid ? (parsed.memoryType as MemoryType) : "discard"
 
     if (VALID_TYPES.includes(parsed.type)) {
+      // Deterministic hard guard — never trust the prompt's prose condition
+      // alone (same reasoning as looksHypothetical's backstop for the
+      // situation-add gate): "no-context-open" means the citizen hasn't
+      // described ANY situation, which is factually false whenever
+      // hasLifeEvent=true. Confirmed live: the model returned
+      // no-context-open at 0.95 confidence for a citizen with two known
+      // situations asking about an unrelated topic (home loans) — the
+      // prompt instruction alone isn't reliable enough to skip this.
+      let type = parsed.type as QueryType
+      if (type === "no-context-open" && params.hasLifeEvent) {
+        console.log("classifyQuery: overriding no-context-open → open-ended (hasLifeEvent=true)")
+        type = "open-ended"
+      }
       return {
-        type: parsed.type as QueryType, confidence,
+        type, confidence,
         lifeEvent, lifeEventConfidence,
         employment, employmentConfidence,
         memoryType, memoryTypeConfidence: memoryTypeValid ? memoryTypeConfidence : 0,

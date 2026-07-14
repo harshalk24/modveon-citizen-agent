@@ -108,6 +108,11 @@ export async function POST(req: Request) {
 
   const isRealCitizen = !!(citizenId && citizenId !== "anonymous")
 
+  // Hoisted above the classifier call (Phase 2a/2b) — classifyQuery needs the
+  // actual situation names, not just the collapsed hasLifeEvent boolean; see
+  // its own comment for why. Reused unchanged by the situation-change flow below.
+  const activeSituations = getActiveSituations(ctx.profile)
+
   // ── Classify query type + life event + employment, each with its own
   // confidence — computed once, used both to gate durable writes below and
   // (later) to pick the reply's system-prompt mode. The classifier is the
@@ -124,9 +129,11 @@ export async function POST(req: Request) {
     hasLifeEvent:        !!ctx.profile.lifeEvent,
     hasEntitlements:     (ctx.entitlements?.length || 0) > 0,
     conversationHistory: recentTurns,
+    activeSituations,
   })
   const detectedEvent      = classification.lifeEvent
   const detectedEmployment = classification.employment !== "unknown" ? classification.employment : null
+  console.log("[DIAG] classify:", JSON.stringify({ type: classification.type, lifeEvent: classification.lifeEvent, detected: detectedEvent }))
   console.log(
     "Query classified as:", classification.type, `(confidence ${classification.confidence})`,
     "| lifeEvent:", detectedEvent, `(confidence ${classification.lifeEventConfidence})`,
@@ -177,7 +184,7 @@ export async function POST(req: Request) {
   // declarations (classify-query.ts's #10 hypothetical carve-out nulls it
   // for "what if…"/"can I…" phrasing), so reaching here means the citizen
   // genuinely stated a new situation. See lib/situations.ts.
-  const activeSituations = getActiveSituations(ctx.profile)
+  // (activeSituations was already computed above, before the classifier call.)
 
   // ── Situation-REMOVE safety valve (Phase 2a Step 6) ─────────────────
   // Deliberately a rough, functional-only affordance (per the task doc) —
@@ -288,6 +295,7 @@ export async function POST(req: Request) {
     lang:       language as "en" | "es",
   })
   const services = retrieval.services
+  console.log("[DIAG] retrieval:", JSON.stringify({ fg: retrieval.foregroundCount, miss: retrieval.isHonestMiss, services: retrieval.services.map(s => ({ id: s.id, src: s._source })) }))
 
   // Decide the single most-decisive missing slot for THIS turn (rule 3: one
   // question at a time, never batch) — null when nothing's missing, so the
@@ -345,6 +353,9 @@ export async function POST(req: Request) {
   }
 
   // ── System prompt ──────────────────────────────────────────────────
+  if (classification.type === "no-context-open") {
+    console.log("[DIAG] situation-gathering branch fired | lifeEvent(singular) =", ctx.profile.lifeEvent, "| active =", getActiveSituations(ctx.profile), "| type =", classification.type)
+  }
   const recentMsgs   = getRecentMessages(messages, 4)
   const systemPrompt = buildSystemPrompt(ctx, services, JSON.stringify(recentMsgs), language, classification.type, slotToAsk, retrieval.isHonestMiss)
 

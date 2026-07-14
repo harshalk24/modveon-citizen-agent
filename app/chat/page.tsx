@@ -38,8 +38,14 @@ const UI_STATE_TO_CONVERSATION_STATE: Record<string, ConversationState> = {
   "plan-clarification":  "plan-shown",
 }
 
-// Detect conversation state from the last agent message
-function detectConversationState(messages: Message[]): ConversationState {
+// Detect conversation state from the last agent message. `hasActiveSituations`
+// is defense-in-depth (not the primary fix — that's the classifier no longer
+// returning no-context-open when hasLifeEvent=true, see lib/classify-query.ts):
+// even a correctly-behaving classifier can legitimately tag a single reply
+// out-of-scope/no-context-open/meta, and a citizen who's already told us
+// their situation(s) should never be dropped back into the "describe your
+// situation" chip set just because of one reply's per-message classification.
+function detectConversationState(messages: Message[], hasActiveSituations: boolean): ConversationState {
   const started = messages.filter(m => m.role === "user").length > 0
   const lastAgent = [...messages].reverse().find(m => m.role === "assistant" && m.content)
   if (!lastAgent || !started) return "empty"       // onboarding only
@@ -47,7 +53,9 @@ function detectConversationState(messages: Message[]): ConversationState {
   // more" button — a reliable signal, unlike guessing from prose wording.
   if (lastAgent.content.includes("DOC_INFO:")) return "document-question"
   if (lastAgent.uiState && UI_STATE_TO_CONVERSATION_STATE[lastAgent.uiState]) {
-    return UI_STATE_TO_CONVERSATION_STATE[lastAgent.uiState]
+    const mapped = UI_STATE_TO_CONVERSATION_STATE[lastAgent.uiState]
+    if (mapped === "empty" && hasActiveSituations) return "results-shown"
+    return mapped
   }
   // No uiState tag (e.g. a message persisted before this change shipped) →
   // safe generic default, same as the prior fallback behavior.
@@ -826,7 +834,7 @@ function ChatContent() {
     }
   }
 
-  const conversationState = detectConversationState(messages)
+  const conversationState = detectConversationState(messages, (citizen ? getActiveSituations(citizen.profile) : []).length > 0)
   // Area 5C: verify state transitions are firing correctly
   if (typeof window !== "undefined") console.log("[chat] conversationState:", conversationState)
 
