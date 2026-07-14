@@ -2,7 +2,7 @@
 
 import { useEffect, useState } from "react"
 
-export type ConversationState = "empty" | "results-shown" | "plan-shown" | "document-question" | "confirming"
+export type ConversationState = "empty" | "results-shown" | "plan-shown" | "document-question"
 
 const TEMPLATES = {
   en: {
@@ -30,10 +30,6 @@ const TEMPLATES = {
       "How long does it take?",
       "Can someone else pick it up for me?",
     ],
-    "confirming": [
-      "Yes, start a new plan",
-      "No, keep my current plan",
-    ],
   },
   es: {
     "empty": [
@@ -59,10 +55,6 @@ const TEMPLATES = {
       "¿Cuánto cuesta?",
       "¿Cuánto tarda?",
       "¿Puede retirarlo otra persona?",
-    ],
-    "confirming": [
-      "Sí, iniciá un plan nuevo",
-      "No, mantené mi plan actual",
     ],
   },
 }

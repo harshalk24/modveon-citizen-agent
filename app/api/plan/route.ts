@@ -73,21 +73,49 @@ export async function POST(req: Request) {
     confidence:   s.confidence,
     reviewStatus: s.reviewStatus,
     costUncertain: s.costUncertain,
+    // Phase 2a: which active situation(s) this service belongs to, if the
+    // caller sent a union (lib/situations.ts's unionServicesForSituations).
+    // Absent for single-situation callers — attachStepSituations falls back
+    // to the primary lifeEvent in that case.
+    situations:   s._situations || undefined,
   }))
 
+  // Phase 2a: tag each step with its situation, deterministically — never
+  // asked of the plan-generating LLM, which has no reason to know about
+  // situation bookkeeping. Falls back to the primary lifeEvent when a
+  // service's situations are ambiguous or absent (single-situation citizens).
+  function attachStepSituations(p: Plan): Plan {
+    return {
+      phases: p.phases.map(phase => ({
+        ...phase,
+        steps: phase.steps.map(step => {
+          const svc = compactServices.find((s: any) => s.id === step.serviceId)
+          const situation = svc?.situations?.[0] || profile?.lifeEvent || undefined
+          return { ...step, situation }
+        }),
+      })),
+    }
+  }
+
   const genericLabel = (phase: number) => language === "es" ? `Fase ${phase}` : `Phase ${phase}`
+
+  // Phase 2a: the union of every situation actually represented in the
+  // retrieved services (not just profile.lifeEvent, the compat primary) —
+  // told to generatePlan so it builds ONE plan covering all of them.
+  const allSituations = Array.from(new Set(compactServices.flatMap((s: any) => s.situations || [])))
+  const planSituations = allSituations.length > 0 ? allSituations : (profile?.lifeEvent ? [profile.lifeEvent] : [])
 
   try {
     let plan: Plan | null = null
 
-    const result = await generatePlan({ services: compactServices, profile, language })
+    const result = await generatePlan({ services: compactServices, profile, language, situations: planSituations })
     console.log("Plan generated, validating...")
     const validation = validatePlanJSON(JSON.stringify(result))
     console.log("Plan validation:", validation.valid ? "OK" : validation.error)
 
     if (!validation.valid) {
       console.log("Plan invalid, retrying...")
-      const retry = await generatePlan({ services: compactServices, profile, language })
+      const retry = await generatePlan({ services: compactServices, profile, language, situations: planSituations })
       const retryValidation = validatePlanJSON(JSON.stringify(retry))
       console.log("Plan retry validation:", retryValidation.valid ? "OK" : retryValidation.error)
 
@@ -100,9 +128,42 @@ export async function POST(req: Request) {
       // Both JSON-validity attempts failed — safe, ordered, non-fabricated fallback.
       console.warn("Plan generation failed JSON validation twice — using safe fallback")
       const fallback = buildSafeFallbackPlan(compactServices, language as "en" | "es")
-      const hedged = hedgePlanSteps(enforcePlanCosts(fallback, compactServices), compactServices)
+      const hedged = attachStepSituations(hedgePlanSteps(enforcePlanCosts(fallback, compactServices), compactServices))
       await savePlanToDB(citizenId, hedged, compactServices, profile?.lifeEvent)
       return NextResponse.json(hedged)
+    }
+
+    // Phase 2a completeness check — never trusted to the model just because
+    // the prompt said to cover every situation. With several concurrent
+    // situations (many services at once), the model has been observed to
+    // quietly build a plan around only one of them and drop the rest, even
+    // though every service was in its input. Verify deterministically and
+    // regenerate once with the gap named, same "Task-6 pattern" as the
+    // dependency-order check below; fall back to the always-complete
+    // deterministic builder if it's still incomplete after that.
+    const missingIds = (ids: string[]) => {
+      const covered = new Set(plan!.phases.flatMap(p => p.steps.map(s => s.serviceId)))
+      return ids.filter(id => !covered.has(id))
+    }
+    let missing = missingIds(compactServices.map((s: any) => s.id))
+    if (missing.length > 0) {
+      console.warn("Plan dropped services despite receiving them:", missing, "— regenerating once")
+      const regen = await generatePlan({
+        services: compactServices,
+        profile,
+        language,
+        situations: planSituations,
+        feedback: `Your previous plan completely omitted these service IDs even though they were provided: ${JSON.stringify(missing)}. Every service in "Services" must appear as a step somewhere in the plan — add steps for these missing ones (in whichever phase fits their dependencies) without removing any of the steps you already included.`,
+      })
+      const regenValidation = validatePlanJSON(JSON.stringify(regen))
+      if (regenValidation.valid) {
+        plan = regenValidation.parsed as Plan
+        missing = missingIds(compactServices.map((s: any) => s.id))
+      }
+      if (missing.length > 0) {
+        console.warn("Plan still incomplete after regeneration — using safe fallback")
+        plan = buildSafeFallbackPlan(compactServices, language as "en" | "es")
+      }
     }
 
     // Dependency order is deterministically enforced — never trusted to the
@@ -124,6 +185,7 @@ export async function POST(req: Request) {
           services: compactServices,
           profile,
           language,
+          situations: planSituations,
           feedback: `Your previous plan violated these dependencies: ${JSON.stringify(orderCheck.violations)}. Reorder the steps so every dependency appears in an earlier (or same, earlier-listed) phase than the step that depends on it.`,
         })
         const regenValidation = validatePlanJSON(JSON.stringify(regen))
@@ -143,7 +205,7 @@ export async function POST(req: Request) {
     // path produced the final plan — order-correctness, cost-backing, and
     // fact-hedging are orthogonal checks. Cost enforcement runs first so its
     // corrected values are what hedging (deadline hedging, mainly) sees.
-    plan = hedgePlanSteps(enforcePlanCosts(plan, compactServices), compactServices)
+    plan = attachStepSituations(hedgePlanSteps(enforcePlanCosts(plan, compactServices), compactServices))
 
     await savePlanToDB(citizenId, plan, compactServices, profile?.lifeEvent)
     return NextResponse.json(plan)

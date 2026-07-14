@@ -29,14 +29,22 @@ export async function generatePlan(params: {
   profile: any
   language?: "en" | "es"
   feedback?: string
+  // Phase 2a: every situation currently active for this citizen. Without
+  // this, a citizen with e.g. new-baby AND job-loss active gets a plan built
+  // around only ONE of them — the model has no reason to know `services`
+  // spans more than one situation just because it received a longer list.
+  situations?: string[]
 }): Promise<any> {
   const isEs = params.language === "es"
+  const multiSituationNote = params.situations && params.situations.length > 1
+    ? `\nIMPORTANT: this citizen has MULTIPLE concurrent situations at once: ${JSON.stringify(params.situations)} — these are simultaneous, not alternatives. Build ONE merged plan that covers services for EVERY one of these situations, not just one of them. Every entry in "Services" below belongs to one of these situations and must be represented by a step somewhere in the plan — do not drop any of them.\n`
+    : ""
   const prompt = `Generate a phased action plan for this citizen. Phases are NOT calendar time —
 each phase number is a dependency rank: phase 1 must be doable now, phase 2 depends on
 something in phase 1 being done first, and so on. Do not imply a calendar schedule
 ("this week", "next week") anywhere — only mention timing where a step genuinely has a
 real deadline or duration.
-Profile: ${JSON.stringify(params.profile)}
+${multiSituationNote}Profile: ${JSON.stringify(params.profile)}
 Services: ${JSON.stringify(params.services)}
 
 Return ONLY this JSON structure:

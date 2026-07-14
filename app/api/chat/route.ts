@@ -1,11 +1,14 @@
 import { NextResponse } from "next/server"
 import { streamChat, summariseConversation } from "@/lib/ai"
 import { buildSystemPrompt } from "@/lib/context-builder"
-import { lookupServices, services as fullKB } from "@/lib/kb"
+import { situationLabel } from "@/lib/situation-labels"
+import { services as fullKB } from "@/lib/kb"
+import { retrieveServices } from "@/lib/semantic-search"
+import { addSituation, removeSituation, getActiveSituations } from "@/lib/situations"
+import { looksHypothetical, extractRemoveSituation } from "@/lib/extract-intent"
 import { getSession, incrementTurn, shouldSummarise, getRecentMessages, checkRateLimit } from "@/lib/session"
 import { logResponse } from "@/lib/audit"
 import { extractCitedServiceIds } from "@/lib/validator"
-import { extractConfirmation } from "@/lib/extract-intent"
 import { normalizeEmployment } from "@/types/context"
 import { classifyQuery } from "@/lib/classify-query"
 import { canWriteLifeEvent, canWriteEmployment, canWriteMemoryType } from "@/lib/confidence"
@@ -14,7 +17,8 @@ import { logGroundingFallback, GroundingAttempt } from "@/lib/grounding-log"
 import { applySlotInferences, nextMissingSlot, SLOT_DEFS } from "@/lib/slots"
 import { prisma } from "@/lib/prisma"
 
-// Human-readable labels for the confirmation prompt — keys match classifyQuery's lifeEvent output.
+// Human-readable labels for the "situation added" acknowledgment — keys
+// match classifyQuery's lifeEvent output.
 const LIFE_EVENT_LABELS: Record<string, { en: string; es: string }> = {
   "new-baby":       { en: "you had a new baby",        es: "tuviste un bebé" },
   "job-loss":       { en: "you lost your job",         es: "perdiste tu trabajo" },
@@ -25,9 +29,6 @@ const LIFE_EVENT_LABELS: Record<string, { en: string; es: string }> = {
 // Tags every reply with WHY it looks the way it does, so the client can pick
 // relevant follow-up suggestions from the actual server-side classification
 // instead of re-guessing from the reply text (fragile keyword sniffing).
-// "confirming" covers both pendingLifeEvent branches — hasServices is true
-// there because, by construction, that branch only fires when an existing
-// lifeEvent/plan already exists (the message literally protects it).
 function chatHeaders(uiState: string, hasServices: boolean): Record<string, string> {
   return {
     "Content-Type": "text/plain; charset=utf-8",
@@ -70,6 +71,9 @@ export async function POST(req: Request) {
             country:    dbCtx.citizen?.country || contextData?.profile?.country || "SV",
             employment: normalizeEmployment(dbCtx.employment || contextData?.profile?.employment),
             lifeEvent:  dbCtx.lifeEvent        || contextData?.profile?.lifeEvent  || "",
+            // Phase 2a: source of truth for concurrent situations — read
+            // through getActiveSituations() everywhere, never parsed ad hoc.
+            activeLifeEvents: dbCtx.activeLifeEvents || "[]",
             pendingLifeEvent: dbCtx.pendingLifeEvent || undefined,
             language:   dbCtx.citizen?.language || contextData?.profile?.language  || language,
             municipality: dbCtx.municipality || contextData?.profile?.municipality || undefined,
@@ -106,9 +110,11 @@ export async function POST(req: Request) {
 
   // ── Classify query type + life event + employment, each with its own
   // confidence — computed once, used both to gate durable writes below and
-  // (later) to pick the reply's system-prompt mode. The classifier is now the
+  // (later) to pick the reply's system-prompt mode. The classifier is the
   // source of truth for detection; extract-intent.ts's keyword matchers are
-  // only used client-side (no server round-trip available there).
+  // otherwise only used client-side (no server round-trip available there) —
+  // looksHypothetical below is the one exception, a deterministic backstop
+  // for the situation-add decision specifically.
   const recentTurns = messages
     .slice(-4)
     .map((m: any) => `${m.role}: ${(m.content as string).slice(0, 120)}`)
@@ -164,88 +170,87 @@ export async function POST(req: Request) {
     }
   }
 
-  if (isRealCitizen && ctx.profile.pendingLifeEvent) {
-    // A candidate life-event change is awaiting citizen confirmation.
-    const pending   = ctx.profile.pendingLifeEvent
-    const confirmed = extractConfirmation(userMessage)
+  // ── Situation-change flow: ALWAYS-ADD, never propose/wipe (Phase 2a) ────
+  // A newly-detected situation is appended to the citizen's active list
+  // immediately — never proposed-and-confirmed, never a reason to reset
+  // slots/entitlements/deadlines. detectedEvent is already gated to real
+  // declarations (classify-query.ts's #10 hypothetical carve-out nulls it
+  // for "what if…"/"can I…" phrasing), so reaching here means the citizen
+  // genuinely stated a new situation. See lib/situations.ts.
+  const activeSituations = getActiveSituations(ctx.profile)
 
-    if (confirmed === "yes") {
-      // Only now — with explicit confirmation — perform the destructive reset.
-      // ActionPlan is left alone; /api/plan overwrites it (upsert) once the new
-      // plan is generated, so we never delete it before a replacement exists.
-      ctx.profile.lifeEvent        = pending
-      ctx.profile.pendingLifeEvent = undefined
-      ctx.entitlements = []
-      // New situation, clean slate — slots gathered for the OLD situation
-      // don't apply to the new one (Task S1: slots are per-current-situation,
-      // not episodic history).
-      ctx.slots = {}
-      ctx.pendingSlot = undefined
-      await prisma.deadline.deleteMany({ where: { citizenId, completed: false } })
-      await prisma.citizenContext.upsert({
-        where: { citizenId },
-        create: { citizenId, lifeEvent: pending, pendingLifeEvent: null, entitlementsJson: "[]", slotsJson: "{}", pendingSlot: null, updatedAt: new Date() },
-        update: { lifeEvent: pending, pendingLifeEvent: null, entitlementsJson: "[]", conversationSummary: null, slotsJson: "{}", pendingSlot: null },
-      })
-    } else if (confirmed === "no") {
-      ctx.profile.pendingLifeEvent = undefined
-      await prisma.citizenContext.upsert({
-        where: { citizenId },
-        create: { citizenId, pendingLifeEvent: null, updatedAt: new Date() },
-        update: { pendingLifeEvent: null },
-      })
-    } else {
-      // Ambiguous reply — re-ask instead of guessing either way. If the citizen
-      // mentioned yet another different situation, update the pending candidate
-      // instead of silently holding onto the stale one — but only on a
-      // confident classification; a low-confidence turn must not overwrite it.
-      const newCandidate = detectedEvent && detectedEvent !== pending && canWriteLifeEvent(classification)
-        ? detectedEvent
-        : pending
-      if (newCandidate !== pending) {
-        ctx.profile.pendingLifeEvent = newCandidate
-        await prisma.citizenContext.upsert({
-          where: { citizenId },
-          create: { citizenId, pendingLifeEvent: newCandidate, updatedAt: new Date() },
-          update: { pendingLifeEvent: newCandidate },
-        })
-      }
-      const newLabel = LIFE_EVENT_LABELS[newCandidate]
-      const msg = newLabel
-        ? (isEs
-            ? `Todavía no confirmaste: ¿${newLabel.es} y querés que empiece un plan nuevo? Tu plan actual se mantiene hasta que confirmes.`
-            : `I still need to confirm: should I start a new plan because ${newLabel.en}? Your current plan will be kept until you confirm.`)
-        : (isEs
-            ? "¿Confirmás que querés empezar un plan nuevo? Tu plan actual se mantiene hasta que confirmes."
-            : "Can you confirm you'd like to start a new plan? Your current plan will be kept until you confirm.")
-      return new Response(msg, { headers: chatHeaders("confirming", true) })
-    }
-  } else if (detectedEvent && detectedEvent !== ctx.profile.lifeEvent) {
+  // ── Situation-REMOVE safety valve (Phase 2a Step 6) ─────────────────
+  // Deliberately a rough, functional-only affordance (per the task doc) —
+  // an explicit removal verb naming one of the citizen's actually-active
+  // situations, not real NLU. Checked before the add flow below so a
+  // removal command is never also misread as declaring a new situation.
+  // Re-narrows retrieval/plan automatically on the next turn since both
+  // read through getActiveSituations(ctx.profile), same funnel as the add path.
+  const removalSlug = extractRemoveSituation(userMessage, activeSituations)
+  if (removalSlug) {
+    const next = removeSituation(
+      { activeLifeEvents: activeSituations, lifeEvent: ctx.profile.lifeEvent || null },
+      removalSlug
+    )
+    ctx.profile.lifeEvent = next.lifeEvent || ""
+    ctx.profile.activeLifeEvents = JSON.stringify(next.activeLifeEvents)
     if (isRealCitizen) {
-      if (!canWriteLifeEvent(classification)) {
-        // Low-confidence turn — reply normally, but do not even propose a reset.
-        console.log("Reset proposal skipped — lifeEventConfidence below threshold:", classification.lifeEventConfidence)
-      } else {
-        // Do NOT reset anything on detection alone — stage it and ask for confirmation.
-        console.log("Durable profile write (pendingLifeEvent proposal) — memoryType:", classification.memoryType, classification.memoryTypeConfidence)
-        ctx.profile.pendingLifeEvent = detectedEvent
+      console.log("Durable profile write (situation removed):", removalSlug, "— still active:", next.activeLifeEvents)
+      await prisma.citizenContext.upsert({
+        where: { citizenId },
+        create: { citizenId, lifeEvent: next.lifeEvent, activeLifeEvents: JSON.stringify(next.activeLifeEvents), updatedAt: new Date() },
+        update: { lifeEvent: next.lifeEvent, activeLifeEvents: JSON.stringify(next.activeLifeEvents) },
+      })
+    }
+    const removedLabel = situationLabel(removalSlug, isEs ? "es" : "en")
+    const remainingLabels = next.activeLifeEvents.map(s => situationLabel(s, isEs ? "es" : "en"))
+    const msg = isEs
+      ? `Listo, quité ${removedLabel}.${remainingLabels.length ? ` Todavía tenés ${remainingLabels.join(" y ")}.` : ""}`
+      : `Removed ${removedLabel}.${remainingLabels.length ? ` You still have ${remainingLabels.join(" and ")}.` : ""}`
+    return new Response(msg, { headers: chatHeaders("situation-removed", true) })
+  }
+
+  // Deterministic backstop: the classifier's hypothetical carve-out is
+  // reliable in isolation but has been observed to misfire once ANY prior
+  // conversation history exists (confirmed live — "What if I lost my job?"
+  // can come back as a real job-loss declaration mid-conversation even
+  // though the same message with no history correctly nulls out). An added
+  // situation is a durable write, so veto it here regardless of what the
+  // classifier said — see lib/extract-intent.ts's looksHypothetical.
+  const isHypotheticalPhrasing = looksHypothetical(userMessage)
+  if (detectedEvent && isHypotheticalPhrasing) {
+    console.log("Situation add skipped — message reads as hypothetical despite classifier lifeEvent:", detectedEvent)
+  }
+  if (detectedEvent && !isHypotheticalPhrasing && !activeSituations.includes(detectedEvent)) {
+    if (!canWriteLifeEvent(classification)) {
+      // Low-confidence turn — reply normally, do not even add yet.
+      console.log("Situation add skipped — lifeEventConfidence below threshold:", classification.lifeEventConfidence)
+    } else {
+      const next = addSituation(
+        { activeLifeEvents: activeSituations, lifeEvent: ctx.profile.lifeEvent || null },
+        detectedEvent
+      )
+      ctx.profile.lifeEvent = next.lifeEvent || ""
+      ctx.profile.activeLifeEvents = JSON.stringify(next.activeLifeEvents)
+      // Deliberately NOT touching ctx.entitlements/ctx.slots/ctx.pendingSlot or
+      // deleting deadlines — an add is additive. Entitlements become the union
+      // once services are recomputed below (retrieveServices unions across
+      // every active situation); the existing plan/deadlines stay valid until
+      // the next "Open plan" regenerates the merged plan (Step 5).
+      if (isRealCitizen) {
+        console.log("Durable profile write (situation added):", detectedEvent, "— now active:", next.activeLifeEvents)
         await prisma.citizenContext.upsert({
           where: { citizenId },
-          create: { citizenId, pendingLifeEvent: detectedEvent, updatedAt: new Date() },
-          update: { pendingLifeEvent: detectedEvent },
+          create: { citizenId, lifeEvent: next.lifeEvent, activeLifeEvents: JSON.stringify(next.activeLifeEvents), updatedAt: new Date() },
+          update: { lifeEvent: next.lifeEvent, activeLifeEvents: JSON.stringify(next.activeLifeEvents) },
         })
-        const label = LIFE_EVENT_LABELS[detectedEvent]
-        const msg = isEs
-          ? `Parece que tu situación cambió: ${label?.es || "algo cambió"}. ¿Querés que empiece un plan nuevo? Tu plan actual se mantiene hasta que confirmes.`
-          : `It sounds like your situation changed — ${label?.en || "something changed"}. Should I start a new plan? Your current plan will be kept until you confirm.`
-        return new Response(msg, { headers: chatHeaders("confirming", true) })
       }
-    } else {
-      // Anonymous citizens have no persisted plan/deadlines to protect — just use
-      // the detected event for this turn's KB lookup, nothing to confirm or destroy.
-      ctx.profile.lifeEvent = detectedEvent
-      ctx.slots = {}
-      ctx.pendingSlot = undefined
+      const addedLabel = LIFE_EVENT_LABELS[detectedEvent]
+      const allLabels = next.activeLifeEvents.map(s => situationLabel(s, isEs ? "es" : "en"))
+      const msg = isEs
+        ? `Agregado: ${addedLabel?.es || "tu nueva situación"} — ahora tenés ${allLabels.join(" y ")}.`
+        : `Added ${addedLabel?.en || "your new situation"} — you now have ${allLabels.join(" and ")}.`
+      return new Response(msg, { headers: chatHeaders("situation-added", true) })
     }
   }
 
@@ -253,9 +258,8 @@ export async function POST(req: Request) {
   // Decision-relevant facts for the CURRENT situation only (not episodic
   // history — see lib/slots.ts). If the last turn asked about a specific
   // slot, try to parse this turn's message as its answer FIRST — a
-  // deterministic keyword match is the gate (same reliability tier the
-  // codebase already trusts extractConfirmation for a destructive
-  // pendingLifeEvent commit); no match leaves the slot open, nothing invented.
+  // deterministic keyword match is the gate; no match leaves the slot open,
+  // nothing invented.
   ctx.slots = ctx.slots || {}
   let slotWritten = false
   if (ctx.profile.lifeEvent && ctx.pendingSlot) {
@@ -272,15 +276,18 @@ export async function POST(req: Request) {
     ctx.slots = applySlotInferences(ctx.profile.lifeEvent, ctx.slots)
   }
 
-  // ── KB lookup ──────────────────────────────────────────────────────
-  const services = ctx.profile.lifeEvent
-    ? lookupServices({
-        country:    ctx.profile.country    || "SV",
-        lifeEvent:  ctx.profile.lifeEvent,
-        employment: ctx.profile.employment || "unknown",
-        slots:      ctx.slots,
-      })
-    : []
+  // ── KB lookup (query-scoped semantic retrieval, augmenting the situation
+  // lookup rather than replacing it — see lib/semantic-search.ts) ─────────
+  const retrieval = await retrieveServices({
+    country:    ctx.profile.country    || "SV",
+    lifeEvents: getActiveSituations(ctx.profile),
+    employment: ctx.profile.employment || "unknown",
+    slots:      ctx.slots,
+    query:      userMessage,
+    queryType:  classification.type,
+    lang:       language as "en" | "es",
+  })
+  const services = retrieval.services
 
   // Decide the single most-decisive missing slot for THIS turn (rule 3: one
   // question at a time, never batch) — null when nothing's missing, so the
@@ -299,8 +306,14 @@ export async function POST(req: Request) {
   }
 
   // ── Persist entitlements (awaited — ensures Dashboard reads fresh data) ─
-  if (services.length > 0 && citizenId && citizenId !== "anonymous") {
-    const entitlements = services.map(s => ({
+  // Entitlements are the citizen's ONGOING SITUATION benefits (the Dashboard's
+  // concept) — a one-off topical match (_source "foreground" only, e.g. asking
+  // about a home loan with no housing situation established) must not get
+  // silently promoted into a standing entitlement, so it's excluded here even
+  // though it's included in `services` for answering/grounding this turn.
+  const entitlementServices = services.filter(s => s._source !== "foreground")
+  if (entitlementServices.length > 0 && citizenId && citizenId !== "anonymous") {
+    const entitlements = entitlementServices.map(s => ({
       serviceId: s.id,
       status:    "new",
       savedAt:   new Date().toISOString(),
@@ -333,7 +346,7 @@ export async function POST(req: Request) {
 
   // ── System prompt ──────────────────────────────────────────────────
   const recentMsgs   = getRecentMessages(messages, 4)
-  const systemPrompt = buildSystemPrompt(ctx, services, JSON.stringify(recentMsgs), language, classification.type, slotToAsk)
+  const systemPrompt = buildSystemPrompt(ctx, services, JSON.stringify(recentMsgs), language, classification.type, slotToAsk, retrieval.isHonestMiss)
 
   // Format for Gemini — strip leading model turns
   const formattedMessages = messages
@@ -372,7 +385,7 @@ export async function POST(req: Request) {
     return { text: chunks.join(""), chunks }
   }
 
-  const citizenCtxForGrounding = { lifeEvent: ctx.profile.lifeEvent, employment: ctx.profile.employment }
+  const citizenCtxForGrounding = { lifeEvents: getActiveSituations(ctx.profile), employment: ctx.profile.employment }
 
   try {
     let generated = await generateFull(systemPrompt)
@@ -451,7 +464,10 @@ export async function POST(req: Request) {
 
     return new Response(readable, {
       headers: {
-        ...chatHeaders(classification.type, services.length > 0),
+        // hasServices reflects situation-worthy material (same set used for
+        // entitlements), not raw foreground hits — a one-off topical match
+        // with no established situation has nothing for "Open plan" to open.
+        ...chatHeaders(classification.type, entitlementServices.length > 0),
         "Transfer-Encoding": "chunked",
       },
     })

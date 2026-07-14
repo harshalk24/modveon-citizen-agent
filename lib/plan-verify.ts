@@ -18,6 +18,10 @@ export interface PlanStep {
   serviceId: string
   cost?: string
   deadline?: string | null
+  // Phase 2a: which active situation this step belongs to — attached
+  // deterministically in app/api/plan/route.ts from the retrieved service's
+  // _situations tag, never asked of the plan-generating LLM.
+  situation?: string
   [key: string]: unknown
 }
 

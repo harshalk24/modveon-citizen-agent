@@ -2,6 +2,7 @@ import { CitizenContextData } from "@/types/context"
 import { Service } from "@/lib/kb"
 import { QueryType } from "@/lib/classify-query"
 import { SlotDef } from "@/lib/slots"
+import { situationLabel } from "@/lib/situation-labels"
 
 // ── Dynamic mode blocks (need ctx for personalisation) ──────────────
 
@@ -186,7 +187,7 @@ After providing a link, always add:
 
 Never pretend you can see what the citizen sees on the government website. Be honest that your guidance ends at the door — but you are available for follow-up.
 
-20. UNVERIFIED FACTS. Each KB entry may have a "review" field ("needs_review" or "approved") and/or a "conf" field (0 to 1). If an entry has review="needs_review" OR a conf below 0.8, hedge that entry's specific numbers — costs, durations, amounts — with a phrase like "based on available info — confirm with [agency]" instead of stating them as certain fact. This applies only to the specific figures, not to whether the service exists or its general eligibility. Entries with no "review"/"conf" field at all are already-verified — do not hedge those.
+20. UNVERIFIED FACTS. Each KB entry may have a "review" field ("needs_review" or "approved") and/or a "conf" field (0 to 1). If an entry has review="needs_review" OR a conf below 0.8, hedge that entry's specific numbers — costs, durations, amounts — with a phrase like "based on available info — confirm with [agency]" instead of stating them as certain fact. This applies only to the specific figures, not to whether the service exists or its general eligibility. Entries with NO "review"/"conf" field at all must ALSO be treated as unverified — hedge their specific figures the same way. Only entries explicitly marked review="approved" OR with conf ≥ 0.8 may state figures as certain.
 20a. VARIABLE COSTS. If an entry has "costVaries": true, its cost is genuinely tiered/different depending on the situation (e.g. domestic vs. abroad) — never state a single flat number as "the cost." Say it varies and give the breakdown from "amount", or point them to confirm which tier applies to them. If an entry has no "amount" field at all, do not state ANY cost for it (not even "free") — say the cost isn't listed here and to confirm with the agency, or simply don't mention cost.
 20b. SELF-REPORTED BASIS. When eligibility for something you're about to state depends on a fact the CITIZEN told you (their employment status or life event) rather than something verified — which is true for essentially everything in CITIZEN CONTEXT — frame it conditionally once per reply, naturally, e.g. "Based on what you've told me — you're formally employed — you'd qualify for X. Let me know if that's not right." Do this once near the top of a reply that leans on that fact, not on every sentence, and keep it brief and conversational, not robotic.
 21. SLOT GUIDANCE. If a SLOT GUIDANCE block appears below, it names ONE fact you're missing that changes your answer. Ask for it naturally and warmly — like a friend clarifying, never like a form field. Ask ONLY that one thing, nothing else, even if other facts are also unknown. If the block says CRITICAL, ask it BEFORE giving guidance that depends on it — don't assert either possible answer. If it says REFINING, give the correct general guidance FIRST, then offer the question as an optional way to tailor it further. If NO slot guidance block appears, you have everything you need — do not invent a clarifying question.
@@ -196,6 +197,7 @@ KNOWLEDGE BASE: {knowledgeBase}
 CONVERSATION SUMMARY: {conversationSummary}
 RECENT MESSAGES: {recentMessages}
 
+{retrievalNote}
 {modeBlock}
 {slotGuidance}
 Proactively surface what the citizen qualifies for. Don't wait for them to ask the right question.
@@ -246,7 +248,7 @@ Después de dar un enlace, siempre agregá:
 
 Nunca finjas poder ver lo que el ciudadano ve en el sitio del gobierno. Sé honesto/a de que tu guía termina en la puerta — pero estás disponible para el seguimiento.
 
-20. DATOS SIN VERIFICAR. Cada entrada del KB puede tener un campo "review" ("needs_review" o "approved") y/o un campo "conf" (0 a 1). Si una entrada tiene review="needs_review" O un conf menor a 0.8, matizá las cifras específicas de esa entrada — costos, duraciones, montos — con una frase como "según la información disponible — confirmá con [agencia]" en lugar de darlas como certeza. Esto aplica solo a las cifras específicas, no a si el servicio existe o su elegibilidad general. Las entradas sin campo "review"/"conf" ya están verificadas — no las matices.
+20. DATOS SIN VERIFICAR. Cada entrada del KB puede tener un campo "review" ("needs_review" o "approved") y/o un campo "conf" (0 a 1). Si una entrada tiene review="needs_review" O un conf menor a 0.8, matizá las cifras específicas de esa entrada — costos, duraciones, montos — con una frase como "según la información disponible — confirmá con [agencia]" en lugar de darlas como certeza. Esto aplica solo a las cifras específicas, no a si el servicio existe o su elegibilidad general. Las entradas SIN ningún campo "review"/"conf" también deben tratarse como NO verificadas — matizá sus cifras de la misma forma. Solo las entradas con review="approved" explícito O con conf ≥ 0.8 pueden dar cifras como certeza.
 20a. COSTOS VARIABLES. Si una entrada tiene "costVaries": true, su costo es genuinamente escalonado/distinto según la situación (ej. doméstico vs. en el exterior) — nunca des un solo número plano como "el costo". Decí que varía y dá el desglose desde "amount", o decile que confirme cuál escalón le aplica. Si una entrada no tiene campo "amount" del todo, no digás NINGÚN costo para ella (ni siquiera "gratis") — decí que el costo no está listado acá y que confirme con la agencia, o simplemente no mencionés el costo.
 20b. BASE AUTOINFORMADA. Cuando la elegibilidad para algo que vas a afirmar depende de un dato que el CIUDADANO te contó (su situación laboral o evento de vida) en lugar de algo verificado — que es el caso de prácticamente todo en CONTEXTO DEL CIUDADANO — enmarcalo condicionalmente una vez por respuesta, de forma natural, ej. "Según lo que me contaste — que estás empleado formalmente — calificarías para X. Avisame si no es así." Hacé esto una vez cerca del inicio de una respuesta que se apoya en ese dato, no en cada oración, y mantenelo breve y conversacional, no robótico.
 21. GUÍA DE DATOS PENDIENTES. Si aparece un bloque de GUÍA DE DATOS PENDIENTES abajo, nombra UN dato que te falta y que cambia tu respuesta. Preguntalo de forma natural y cálida — como un amigo que aclara algo, nunca como un formulario. Preguntá SOLO eso, nada más, aunque falten otros datos también. Si dice CRÍTICO, preguntalo ANTES de dar la guía que depende de eso — no afirmes ninguna de las dos respuestas posibles. Si dice REFINAMIENTO, dá primero la guía general correcta, y después ofrecé la pregunta como una forma opcional de afinarla. Si NO aparece ningún bloque de datos pendientes, ya tenés todo lo que necesitás — no inventes una pregunta aclaratoria.
@@ -256,6 +258,7 @@ BASE DE CONOCIMIENTO: {knowledgeBase}
 RESUMEN DE CONVERSACIÓN: {conversationSummary}
 MENSAJES RECIENTES: {recentMessages}
 
+{retrievalNote}
 {modeBlock}
 {slotGuidance}
 Mostrá proactivamente a qué beneficios califica el ciudadano. No esperés que haga la pregunta correcta.
@@ -314,13 +317,23 @@ export function buildKBFacts(services: Service[], language: "en" | "es"): KBFact
   }))
 }
 
+// Widened locally (rather than importing ScoredService from lib/semantic-search)
+// so this file doesn't need to depend on the retrieval layer — the extra
+// fields are optional and simply absent for callers still on plain lookupServices
+// (e.g. the WhatsApp webhook), in which case the relevance note below is skipped.
+type SourceTaggedService = Service & {
+  _source?: "backdrop" | "foreground" | "both"
+  _situations?: string[]
+}
+
 export function buildSystemPrompt(
   ctx: CitizenContextData,
-  services: Service[],
+  services: SourceTaggedService[],
   recentMessages: string,
   language: "en" | "es" = "en",
   queryType: QueryType = "service-lookup",
-  slotToAsk?: SlotDef | null
+  slotToAsk?: SlotDef | null,
+  isHonestMiss = false
 ): string {
   const compactCtx = JSON.stringify({
     c:     ctx.profile.country,
@@ -348,11 +361,65 @@ export function buildSystemPrompt(
         : `SLOT GUIDANCE (${slotToAsk.critical ? "CRITICAL" : "REFINING"}): ${slotToAsk.ask.en}${slotToAsk.note ? ` ${slotToAsk.note.en}` : ""}`)
     : ""
 
+  // Semantic-search labeling (Phase 1): tell the model which entries answer
+  // THIS question vs. which are just standing context, so it leads with the
+  // direct answer instead of the situation backdrop. Only emitted when the
+  // retrieval layer actually tagged entries — plain lookupServices callers
+  // (no _source at all) get no note, same prompt as before this feature.
+  const foregroundIds = services.filter(s => s._source === "foreground" || s._source === "both").map(s => s.id)
+  const hasSourceTags = services.some(s => s._source !== undefined)
+
+  // Phase 2a: a citizen can hold N concurrent situations, so the backdrop is
+  // a UNION across all of them — presenting it as one flat list is the
+  // "grab-bag" the multi-context Colab check flagged (a reply blurring which
+  // benefit belongs to which situation). Group by _situations instead, so
+  // the model can present "for your new baby / for your job loss" rather
+  // than a merged dump. An entry already surfaced via foreground/"both" is
+  // excluded here — it's already covered by the note above.
+  const situationGroups = new Map<string, string[]>()
+  for (const s of services) {
+    if (s._source !== "backdrop") continue
+    for (const situ of s._situations || []) {
+      if (!situationGroups.has(situ)) situationGroups.set(situ, [])
+      situationGroups.get(situ)!.push(s.id)
+    }
+  }
+
+  const retrievalNoteParts: string[] = []
+  if (hasSourceTags && foregroundIds.length > 0) {
+    retrievalNoteParts.push(
+      language === "es"
+        ? `Directamente relevante a lo que preguntó: ${JSON.stringify(foregroundIds)}. Empezá tu respuesta con esto.`
+        : `Directly relevant to what they just asked: ${JSON.stringify(foregroundIds)}. Lead your answer with these.`
+    )
+  }
+  if (hasSourceTags && situationGroups.size > 0) {
+    const groupText = [...situationGroups.entries()]
+      .map(([slug, ids]) => `**${situationLabel(slug, language)}** — ${JSON.stringify(ids)}`)
+      .join("; ")
+    retrievalNoteParts.push(
+      language === "es"
+        ? `Sus situaciones (contexto — mencioná solo si es relevante, y cuando las menciones agrupá los beneficios por situación, no como un solo listado mezclado): ${groupText}.`
+        : `Their situations (context — mention only if relevant, and when you do, group benefits by situation rather than one merged list): ${groupText}.`
+    )
+  }
+  if (isHonestMiss) {
+    retrievalNoteParts.push(
+      language === "es"
+        ? "Ninguna entrada del KB coincide con lo específico que preguntó el ciudadano. Decí con claridad que no tenés información sobre ese tema específico. NO sustituyas ni listés los beneficios de su situación como si fueran la respuesta."
+        : "No KB entry matches the specific thing the citizen asked about. Say plainly you don't have information on that specific topic. Do NOT substitute or list their situation benefits as if they were the answer."
+    )
+  }
+  const retrievalNote = retrievalNoteParts.length > 0
+    ? (language === "es" ? `RELEVANCIA DE LA BASE DE CONOCIMIENTO: ${retrievalNoteParts.join(" ")}` : `KNOWLEDGE BASE RELEVANCE: ${retrievalNoteParts.join(" ")}`)
+    : ""
+
   return template
     .replace("{citizenContext}", compactCtx)
     .replace("{knowledgeBase}", JSON.stringify(compactKB))
     .replace("{conversationSummary}", ctx.conversationSummary || (language === "es" ? "Primera sesión." : "First session."))
     .replace("{recentMessages}", recentMessages)
+    .replace("{retrievalNote}", retrievalNote)
     .replace("{modeBlock}", modeBlock.trim())
     .replace("{slotGuidance}", slotGuidance)
 }

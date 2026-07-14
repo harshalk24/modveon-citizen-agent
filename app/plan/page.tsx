@@ -7,6 +7,7 @@ import { useLang } from "@/contexts/LanguageContext"
 import { useCitizen } from "@/contexts/CitizenContext"
 import { t } from "@/lib/i18n"
 import { lookupServices, services as kbServices } from "@/lib/kb"
+import { getActiveSituations, unionServicesForSituations } from "@/lib/situations"
 import {
   CheckCircle2, AlertCircle, ChevronDown, ChevronUp,
   Loader2, HelpCircle, ExternalLink, MessageSquare,
@@ -28,6 +29,8 @@ interface PlanStep {
   onlineUrl?: string | null
   why?: string
   status: "not-started" | "in-progress" | "done"
+  // Phase 2a: which active situation this step belongs to.
+  situation?: string
 }
 
 interface PlanPhase {
@@ -134,8 +137,11 @@ export default function PlanPage() {
     // No fresh stored plan — generate via Gemini
     setLoading(true)
     try {
-      const services = lookupServices({ country, lifeEvent, employment })
-      console.log("Plan page generating plan:", lifeEvent, "→", services.length, "services")
+      // Phase 2a: the merged plan covers the UNION of every active
+      // situation, not just the compat-primary lifeEvent.
+      const situations = currentCitizen ? getActiveSituations(currentCitizen.profile) : [lifeEvent]
+      const services = unionServicesForSituations({ country, situations, employment })
+      console.log("Plan page generating plan:", situations, "→", services.length, "services")
 
       if (services.length === 0) {
         console.warn("No services found for", lifeEvent, employment)
@@ -288,6 +294,11 @@ export default function PlanPage() {
   const resolvedLifeEvent = citizen?.profile?.lifeEvent ||
     (typeof window !== "undefined" ? localStorage.getItem("ca_detected_life_event") : "") || ""
 
+  // Phase 2a: show every active situation in the subtitle, not just the
+  // compat-primary one, so a multi-situation citizen sees their full context.
+  const activeSituationLabels = (citizen ? getActiveSituations(citizen.profile) : (resolvedLifeEvent ? [resolvedLifeEvent] : []))
+    .map(s => tr.profile.lifeEvents[s as keyof typeof tr.profile.lifeEvents] || s)
+
   if (!resolvedLifeEvent) {
     return (
       <div className="flex flex-col items-center justify-center h-full px-4 py-16 text-center">
@@ -351,7 +362,7 @@ export default function PlanPage() {
           <div>
             <h1 className="text-xl font-semibold text-gray-900">{tr.plan.title}</h1>
             <p className="text-sm text-gray-500 mt-0.5">
-              {tr.profile.lifeEvents[resolvedLifeEvent as keyof typeof tr.profile.lifeEvents] || resolvedLifeEvent}
+              {activeSituationLabels.length > 1 ? activeSituationLabels.join(" · ") : (activeSituationLabels[0] || resolvedLifeEvent)}
             </p>
             {citizen?.planUpdatedAt && (
               <p className="text-xs text-gray-400 mt-1">
@@ -474,6 +485,14 @@ export default function PlanPage() {
                                     {step.title}
                                   </p>
                                   <p className="text-xs text-gray-400 mt-0.5">{step.agency}</p>
+                                  {/* Phase 2a: tag which situation this step is for — only
+                                      shown once there's more than one active situation, so a
+                                      single-situation plan looks exactly as it did before. */}
+                                  {activeSituationLabels.length > 1 && step.situation && (
+                                    <span className="inline-block text-[10px] font-medium px-1.5 py-0.5 rounded mt-1 bg-blue-50 text-[#185FA5]">
+                                      {tr.profile.lifeEvents[step.situation as keyof typeof tr.profile.lifeEvents] || step.situation}
+                                    </span>
+                                  )}
                                   {step.deadline && (
                                     <p className="text-xs text-amber-600 font-medium mt-0.5">{tr.plan.deadline} {step.deadline}</p>
                                   )}

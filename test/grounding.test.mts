@@ -193,14 +193,14 @@ test("checkValues passes a tiered, hedged cost description on a costUncertain en
 // ── Full orchestrator: entity/value failures never need the LLM stage ───
 test("check() short-circuits on entity failure — never wrongly SUPPORTED, no API key required", async () => {
   const reply = `Here's what you need: **${birthCert.name}** from RNPN. You also qualify for **${maternityBenefit.name}**.`
-  const result = await check(reply, [birthCert], fullKB, { lifeEvent: "new-baby", employment: "unknown" })
+  const result = await check(reply, [birthCert], fullKB, { lifeEvents: ["new-baby"], employment: "unknown" })
   assert.equal(result.grounded, false)
   assert.equal(result.stage, "entity")
 })
 
 test("check() short-circuits on value failure — never wrongly SUPPORTED, no API key required", async () => {
   const reply = `**${dependentEnrollment.name}** — you must enroll within 30 days of birth.`
-  const result = await check(reply, [dependentEnrollment], fullKB, { lifeEvent: "new-baby", employment: "formal" })
+  const result = await check(reply, [dependentEnrollment], fullKB, { lifeEvents: ["new-baby"], employment: "formal" })
   assert.equal(result.grounded, false)
   assert.equal(result.stage, "value")
 })
@@ -210,19 +210,19 @@ test("check() passes a genuinely grounded, accurate reply (approved entry, no he
   // birthCert is now reviewStatus: "approved" with confidence 0.85 — its domestic
   // cost range ($3-$5) can be stated plainly, no hedge needed.
   const reply = `You need the ${birthCert.name}. For domestic use it costs about $3 to $5, depending on the municipality.`
-  const result = await check(reply, [birthCert], fullKB, { lifeEvent: "new-baby", employment: "unknown" })
+  const result = await check(reply, [birthCert], fullKB, { lifeEvents: ["new-baby"], employment: "unknown" })
   assert.equal(result.grounded, true, JSON.stringify(result))
 })
 
 test("check() passes a genuinely grounded, hedged reply for a still-unverified fact", { skip: !hasKey && "OPENAI_API_KEY not set" }, async () => {
   const reply = `You need the ${unverifiedFixture.name}. Based on available info, the cost is about $3.50 — please confirm the exact fee with the agency.`
-  const result = await check(reply, [unverifiedFixture], fullKB, { lifeEvent: "new-baby", employment: "unknown" })
+  const result = await check(reply, [unverifiedFixture], fullKB, { lifeEvents: ["new-baby"], employment: "unknown" })
   assert.equal(result.grounded, true, JSON.stringify(result))
 })
 
 test("check() catches a context contradiction (the empathy-opener bug) — never wrongly SUPPORTED", { skip: !hasKey && "OPENAI_API_KEY not set" }, async () => {
   const reply = `I'm sorry to hear about your job loss. Regarding the ${birthCert.name}, please confirm the fee with RNPN.`
-  const result = await check(reply, [birthCert], fullKB, { lifeEvent: "new-baby", employment: "unknown" })
+  const result = await check(reply, [birthCert], fullKB, { lifeEvents: ["new-baby"], employment: "unknown" })
   assert.equal(result.grounded, false, "a reply contradicting the citizen's actual life event must never be approved")
   assert.equal(result.stage, "faithfulness")
 })
@@ -255,24 +255,24 @@ test("check() does NOT flag a visit-prep reply citing hours/address/siteNav/veri
 - Hours: ${birthCert.officeHours}
 - Address: ${birthCert.capitalAddress}
 - Navigation: ${birthCert.siteNavigation}, as of ${birthCert.lastVerified}`
-  const result = await check(reply, [birthCert], fullKB, { lifeEvent: "new-baby", employment: "unknown" })
+  const result = await check(reply, [birthCert], fullKB, { lifeEvents: ["new-baby"], employment: "unknown" })
   assert.equal(result.grounded, true, JSON.stringify(result))
 })
 
 test("check() does NOT flag a reply listing the retrieved service's documents — the Task-8 bug", { skip: !hasKey && "OPENAI_API_KEY not set" }, async () => {
   const reply = `**${birthCert.name}** — Documents needed: ${birthCert.documents.join(", ")}.`
-  const result = await check(reply, [birthCert], fullKB, { lifeEvent: "new-baby", employment: "unknown" })
+  const result = await check(reply, [birthCert], fullKB, { lifeEvents: ["new-baby"], employment: "unknown" })
   assert.equal(result.grounded, true, JSON.stringify(result))
 })
 
 test("check() builds Spanish facts for a Spanish reply — a Spanish document list isn't flagged as a language mismatch", { skip: !hasKey && "OPENAI_API_KEY not set" }, async () => {
   const reply = `**${birthCert.nameEs}** — Documentos necesarios: ${birthCert.documentsEs.join(", ")}.`
-  const result = await check(reply, [birthCert], fullKB, { lifeEvent: "new-baby", employment: "unknown" }, "es")
+  const result = await check(reply, [birthCert], fullKB, { lifeEvents: ["new-baby"], employment: "unknown" }, "es")
   assert.equal(result.grounded, true, JSON.stringify(result))
 })
 
 test("check() still catches a genuinely fabricated agency/number even with the expanded facts payload", { skip: !hasKey && "OPENAI_API_KEY not set" }, async () => {
   const reply = `**${birthCert.name}** — you must also register with the Ministry of Labor, and the fee there is $200.`
-  const result = await check(reply, [birthCert], fullKB, { lifeEvent: "new-baby", employment: "unknown" })
+  const result = await check(reply, [birthCert], fullKB, { lifeEvents: ["new-baby"], employment: "unknown" })
   assert.equal(result.grounded, false, "a fabricated agency/fee must still be caught after the refactor")
 })

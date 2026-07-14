@@ -23,6 +23,10 @@ export interface PlanStep {
   onlineUrl?: string | null
   status: "not-started" | "in-progress" | "done"
   completedAt?: string
+  // Phase 2a: which active situation this step belongs to (the slug from the
+  // service's _situations, or the primary lifeEvent if ambiguous) — drives
+  // the plan UI's per-step situation tag.
+  situation?: string
 }
 
 export type Employment = "formal" | "informal" | "unemployed" | "unknown"
@@ -43,6 +47,10 @@ export interface CitizenContextData {
     country: string
     employment: Employment
     lifeEvent: string
+    // Phase 2a: source of truth for concurrent situations — a JSON array
+    // string, read through lib/situations.ts's getActiveSituations(), never
+    // parsed ad hoc. `lifeEvent` above stays as the compat primary.
+    activeLifeEvents?: string
     pendingLifeEvent?: string
     language: "es" | "en"
     email?: string

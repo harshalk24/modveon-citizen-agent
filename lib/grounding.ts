@@ -9,7 +9,10 @@ export interface GroundingResult {
 }
 
 export interface CitizenContextForGrounding {
-  lifeEvent: string
+  // Phase 2a: a citizen can hold N concurrent situations — pass ALL active
+  // ones (getActiveSituations(ctx)), not just the compat-primary lifeEvent.
+  // A single-element array behaves exactly as the old single-lifeEvent check.
+  lifeEvents: string[]
   employment: string
 }
 
@@ -278,15 +281,17 @@ async function runJudgeCall(prompt: string): Promise<{ ok: boolean; problems: st
 async function checkContradiction(reply: string, ctx: CitizenContextForGrounding): Promise<{ ok: boolean; problems: string[] }> {
   const prompt = `You are reviewing a draft reply from a government-benefits assistant before it reaches a citizen. Check ONLY ONE thing: does the reply CONTRADICT the citizen's own known context?
 
-CITIZEN CONTEXT: ${JSON.stringify({ lifeEvent: ctx.lifeEvent, employment: ctx.employment })}
+CITIZEN CONTEXT: ${JSON.stringify({ lifeEvents: ctx.lifeEvents, employment: ctx.employment })}
+
+Note: "lifeEvents" can hold MORE THAN ONE concurrent situation (e.g. a new baby AND a job loss at the same time) — the citizen genuinely has all of them at once, they are not alternatives. The reply discussing or surfacing benefits for ANY situation in that list is consistent with their context, never a contradiction, including when it discusses more than one of them in the same reply.
 
 CANDIDATE REPLY:
 """
 ${reply}
 """
 
-A contradiction means the reply ASSERTS something FALSE about the citizen's situation — e.g. opening with sympathy for a job loss when their actual life event is a new baby, or stating an eligibility rule that contradicts their known employment status.
-- Silence is always safe: the reply is NOT required to mention or acknowledge their life event/employment. Not mentioning it is never a contradiction — do not put a note about this in "problems" even as a minor caveat.
+A contradiction means the reply ASSERTS something FALSE about the citizen's situation — e.g. opening with sympathy for a job loss when "lifeEvents" contains ONLY new-baby (job loss is not one of their listed situations at all), or stating an eligibility rule that contradicts their known employment status.
+- Silence is always safe: the reply is NOT required to mention or acknowledge every listed life event/employment. Not mentioning one is never a contradiction — do not put a note about this in "problems" even as a minor caveat.
 - QUESTIONS ARE NEVER CONTRADICTIONS: if the reply ASKS the citizen something ("do you have a storefront or employees?", "what is the poder for?") instead of asserting it, that has no truth value to check.
 - "employment" (formal/informal/unemployed) describes how the citizen earns income personally — it says NOTHING about the size/structure/staffing of a business or situation they're asking about. A citizen with "informal" employment can still run a business with a storefront or employees; asking about that is not a contradiction.
 - A general, explicitly conditional rule ("you need X if your assets are $12,000 or more") is not an assertion about this specific citizen — only a contradiction if the reply drops the condition and asserts it applies to them without knowing that yet.

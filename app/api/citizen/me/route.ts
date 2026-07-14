@@ -29,6 +29,7 @@ export async function GET(req: Request) {
       country: citizen.country,
       employment: normalizeEmployment(ctx?.employment),
       lifeEvent: ctx?.lifeEvent || "",
+      activeLifeEvents: ctx?.activeLifeEvents || "[]",
       language: (citizen.language as "en" | "es") || "es",
       email: citizen.email || undefined,
       gender: citizen.gender || undefined,

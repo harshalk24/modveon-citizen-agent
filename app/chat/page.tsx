@@ -12,17 +12,22 @@ import ContextPills from "@/components/chat/ContextPills"
 import ChatTour from "@/components/chat/ChatTour"
 import { lookupServices, services as kbServices } from "@/lib/kb"
 import { extractLifeEvent, extractEmployment } from "@/lib/extract-intent"
+import { getActiveSituations, unionServicesForSituations } from "@/lib/situations"
 import { startRNPNDemoSequence, showFormPreview, showSubmissionFlow } from "@/lib/demo-sequence"
 
 // Maps the server's per-reply classification tag (the X-UI-State response
 // header, carried on the message as `uiState` — see app/api/chat/route.ts's
 // chatHeaders()) to which suggestion-chip set is relevant. Driven by the
 // actual classification computed for THAT reply (lib/classify-query.ts, plus
-// the confirming/out-of-scope branches in the route), not by re-guessing the
-// situation from the reply's prose — a scheme that covers every reply type
-// generically instead of hardcoding one phrase at a time.
+// the situation-added/out-of-scope branches in the route), not by
+// re-guessing the situation from the reply's prose — a scheme that covers
+// every reply type generically instead of hardcoding one phrase at a time.
 const UI_STATE_TO_CONVERSATION_STATE: Record<string, ConversationState> = {
-  "confirming":          "confirming",
+  // Phase 2a: a newly-added situation's ack is a statement, not a yes/no
+  // question (situations are always-added, never proposed) — general
+  // follow-ups fit better than a dedicated chip set here.
+  "situation-added":     "results-shown",
+  "situation-removed":   "results-shown",
   "out-of-scope":        "empty",              // nudge back to describing a situation
   "no-context-open":     "empty",              // hasn't described a situation yet
   "meta":                "empty",              // often invites describing the situation
@@ -51,6 +56,34 @@ function detectConversationState(messages: Message[]): ConversationState {
 
 function generateId() {
   return `msg_${Date.now()}_${Math.random().toString(36).slice(2)}`
+}
+
+// mirrors isUnverified() in lib/grounding.ts — keep in sync. Not imported
+// directly since grounding.ts may pull server-only deps into the client bundle.
+function isUnverifiedLocal(s: { reviewStatus?: string; confidence?: number }) {
+  if (s.reviewStatus === "needs_review") return true
+  if (s.reviewStatus === "approved") return false
+  if (typeof s.confidence === "number") return s.confidence < 0.8
+  return true
+}
+
+// The 11 onboarding situation chips — shared by the initial prompt and the
+// free-text re-prompt (when typed text doesn't resolve to a known situation),
+// so there's exactly one place that defines them.
+function situationButtons(lang: string): { label: string; action: string; variant?: "outline" | "green" }[] {
+  return [
+    { label: lang === "es" ? "🍼 Acabo de tener un bebé"          : "🍼 I just had a baby",             action: "ob:situation:new-baby",        variant: "outline" },
+    { label: lang === "es" ? "💼 Perdí mi trabajo"                 : "💼 I lost my job",                 action: "ob:situation:job-loss",        variant: "outline" },
+    { label: lang === "es" ? "🏪 Quiero registrar un negocio"      : "🏪 I want to register a business", action: "ob:situation:start-business",  variant: "outline" },
+    { label: lang === "es" ? "🌎 Necesito ayuda desde el exterior" : "🌎 I need help from abroad",       action: "ob:situation:diaspora",        variant: "outline" },
+    { label: lang === "es" ? "💍 Me voy a casar"                   : "💍 I'm getting married",           action: "ob:situation:marriage",        variant: "outline" },
+    { label: lang === "es" ? "⚫ Falleció un familiar"             : "⚫ A family member passed away",   action: "ob:situation:death",           variant: "outline" },
+    { label: lang === "es" ? "🏖️ Me voy a jubilar"                : "🏖️ I'm retiring",                  action: "ob:situation:retirement",      variant: "outline" },
+    { label: lang === "es" ? "🚗 Licencia de conducir"             : "🚗 Driver's license",              action: "ob:situation:driving-license", variant: "outline" },
+    { label: lang === "es" ? "🏠 Comprar o vender propiedad"       : "🏠 Buying / selling property",     action: "ob:situation:property",        variant: "outline" },
+    { label: lang === "es" ? "📚 Estudios o capacitación"          : "📚 Education / training",          action: "ob:situation:education",       variant: "outline" },
+    { label: lang === "es" ? "💔 Separación o divorcio"           : "💔 Separation or divorce",          action: "ob:situation:separation",      variant: "outline" },
+  ]
 }
 
 function ChatContent() {
@@ -127,19 +160,7 @@ function ChatContent() {
         content: lang === "es"
           ? "¡Hola! Soy Citizen Agent — encuentro los beneficios del gobierno para los que calificás y te ayudo a tramitarlos. ¿En qué te puedo ayudar hoy?"
           : "Hi! I'm Citizen Agent — I find every government benefit you qualify for and help you claim them. What can I help you with today?",
-        actionButtons: [
-          { label: lang === "es" ? "🍼 Acabo de tener un bebé"          : "🍼 I just had a baby",             action: "ob:situation:new-baby",        variant: "outline" },
-          { label: lang === "es" ? "💼 Perdí mi trabajo"                 : "💼 I lost my job",                 action: "ob:situation:job-loss",        variant: "outline" },
-          { label: lang === "es" ? "🏪 Quiero registrar un negocio"      : "🏪 I want to register a business", action: "ob:situation:start-business",  variant: "outline" },
-          { label: lang === "es" ? "🌎 Necesito ayuda desde el exterior" : "🌎 I need help from abroad",       action: "ob:situation:diaspora",        variant: "outline" },
-          { label: lang === "es" ? "💍 Me voy a casar"                   : "💍 I'm getting married",           action: "ob:situation:marriage",        variant: "outline" },
-          { label: lang === "es" ? "⚫ Falleció un familiar"             : "⚫ A family member passed away",   action: "ob:situation:death",           variant: "outline" },
-          { label: lang === "es" ? "🏖️ Me voy a jubilar"                : "🏖️ I'm retiring",                  action: "ob:situation:retirement",      variant: "outline" },
-          { label: lang === "es" ? "🚗 Licencia de conducir"             : "🚗 Driver's license",              action: "ob:situation:driving-license", variant: "outline" },
-          { label: lang === "es" ? "🏠 Comprar o vender propiedad"       : "🏠 Buying / selling property",     action: "ob:situation:property",        variant: "outline" },
-          { label: lang === "es" ? "📚 Estudios o capacitación"          : "📚 Education / training",          action: "ob:situation:education",       variant: "outline" },
-          { label: lang === "es" ? "💔 Separación o divorcio"           : "💔 Separation or divorce",          action: "ob:situation:separation",      variant: "outline" },
-        ],
+        actionButtons: situationButtons(lang),
       }])
       return
     }
@@ -149,7 +170,9 @@ function ChatContent() {
       const svcs = lookupServices({ country: citizen.profile.country, lifeEvent: citizen.profile.lifeEvent, employment: citizen.profile.employment || "unknown" })
       setEntitlementCount(svcs.length)
       if (svcs.length > 0) {
-        const urgentSvc = svcs.find(s => s.deadlineDays && s.deadlineDays <= 30)
+        // Only surface the urgency clause for a verified deadline — an
+        // unconfirmed deadlineDays shouldn't read as a hard countdown (#9).
+        const urgentSvc = svcs.find(s => s.deadlineDays && s.deadlineDays <= 30 && !isUnverifiedLocal(s))
 
         // Empathetic opener based on life event
         const empathyEn: Record<string, string> = {
@@ -244,9 +267,15 @@ function ChatContent() {
     // Count unclaimed
     const unclaimed = entitlements.filter(e => e.status === "new").length
 
+    // Don't show a hard countdown for a deadline sourced from an unverified
+    // KB entry (#9) — falls through to the plan-step/unclaimed greeting
+    // instead, which is still helpful without fabricating urgency.
+    const upcomingSrc = upcoming ? kbServices.find(k => k.id === upcoming.serviceId) : null
+    const upcomingVerified = !!upcomingSrc && !isUnverifiedLocal(upcomingSrc)
+
     // Only fire proactive if there is something meaningful to show.
     // New citizens (no plan, no urgent deadlines) should not see this.
-    const hasUrgentDeadline = daysLeft !== null && daysLeft <= 7
+    const hasUrgentDeadline = daysLeft !== null && daysLeft <= 7 && upcomingVerified
     const hasPlanStep = !!(nextStep?.serviceName || nextStep?.serviceId)
     const hasUnclaimed = unclaimed > 0
     if (!hasUrgentDeadline && !hasPlanStep && !hasUnclaimed) return
@@ -486,7 +515,8 @@ function ChatContent() {
               ? isEs ? ` ⚠️ ${svc.deadlineDays} días para registrarte` : ` ⚠️ ${svc.deadlineDays}-day deadline`
               : ""
             const docsLine = docs.length ? `\nDocuments: ${docs.join(" · ")}` : ""
-            return `**${name}** · ${svc.agency}${amt}${deadline}\n${desc}${docsLine}\nAPPLY_NOW:${svc.sourceUrl}`
+            const applyLine = svc.sourceUrl ? `\nAPPLY_NOW:${svc.sourceUrl}` : ""
+            return `**${name}** · ${svc.agency}${amt}${deadline}\n${desc}${docsLine}${applyLine}`
           }).join("\n\n")
 
           setMessages(prev => [...prev, {
@@ -562,15 +592,18 @@ function ChatContent() {
         const employment = ctx?.profile.employment  || localStorage.getItem("ca_detected_employment")  || "unknown"
         const country    = ctx?.profile.country     || "SV"
         const citizenId  = ctx?.citizenId
+        // Phase 2a: the merged plan covers the UNION of every active
+        // situation, not just the compat-primary lifeEvent.
+        const situations = ctx ? getActiveSituations(ctx.profile) : (lifeEvent ? [lifeEvent] : [])
 
-        console.log("Open plan → lifeEvent:", lifeEvent, "employment:", employment, "citizenId:", citizenId)
+        console.log("Open plan → situations:", situations, "employment:", employment, "citizenId:", citizenId)
 
         // Regenerate plan if: no steps yet, OR plan is stale (life event changed)
         const planIsStale = !!(ctx?.planLifeEvent && ctx.planLifeEvent !== lifeEvent)
         const needsPlan = lifeEvent && citizenId && (!ctx?.planSteps?.length || planIsStale)
 
         if (needsPlan) {
-          const svcs = lookupServices({ country, lifeEvent, employment })
+          const svcs = unionServicesForSituations({ country, situations, employment })
           console.log("Services found:", svcs.length)
           if (svcs.length > 0) {
             // Always inject the resolved lifeEvent/employment so the plan is
@@ -678,14 +711,29 @@ function ChatContent() {
         }, 400)
         return
       }
-      // For any other onboarding step, treat as "something else" → complete with what we have
+      // Free text at the situation step — try to resolve it the same way a
+      // chip tap would, rather than silently discarding it (onboarding must
+      // NEVER complete with an empty situation → no lifeEvent → no benefits).
       if (onboardingStep === 0) {
-        // "Something else" free text → treat as situation description
-        setOnboardingData(prev => ({ ...prev, situation: "" }))
+        const detected = extractLifeEvent(text)
         setMessages(prev => [...prev, { id: generateId(), role: "user", content: text.trim() }])
         setInput("")
-        setOnboardingStep(1)
-        setTimeout(() => setMessages(prev => [...prev, { id: generateId(), role: "assistant", content: lang === "es" ? "Entendido. ¿Cómo te llamás?" : "Got it. What's your name?" }]), 400)
+
+        if (detected) {
+          // Recognized → capture the situation and proceed exactly like a chip tap
+          setOnboardingData(prev => ({ ...prev, situation: detected }))
+          setOnboardingStep(1)
+          setTimeout(() => setMessages(prev => [...prev, { id: generateId(), role: "assistant",
+            content: lang === "es" ? "Entendido. ¿Cómo te llamás?" : "Got it. What's your name?" }]), 400)
+        } else {
+          // Not recognized → re-show the situation chips; do NOT advance (no empty situation)
+          setTimeout(() => setMessages(prev => [...prev, { id: generateId(), role: "assistant",
+            content: lang === "es"
+              ? "No estoy seguro de entender tu situación. ¿Cuál de estas se acerca más?"
+              : "I'm not sure I caught your situation. Which of these is closest?",
+            actionButtons: situationButtons(lang) }]), 400)
+          // stays on step 0
+        }
         return
       }
     }
@@ -730,7 +778,7 @@ function ChatContent() {
       if (!res.ok) throw new Error("Chat failed")
 
       // Server already knows, per this exact reply, what kind of message this
-      // is (X-UI-State — the classification, or "confirming"/"out-of-scope")
+      // is (X-UI-State — the classification, or "situation-added"/"out-of-scope")
       // and whether services were retrieved (X-Has-Services) — read those
       // instead of re-guessing from the reply text with keyword matching.
       const uiState     = res.headers.get("X-UI-State") || undefined

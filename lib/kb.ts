@@ -582,25 +582,46 @@ export const services: Service[] = [
     amount: "Varies by income and home price; interest-social tier and rates set by FSV — confirm current figures.",
     priority: 1, phaseToApply: 1,
     steps: [
-      "Log in to simple.sv with your ClaveÚnica account",
-      "Navigate to FSV loan consultation",
-      "View balance, payment history (last 12 months or full history)",
-      "Pay via credit or debit card"
+      "Prequalify for free — use the Simulador Financiero at portal.fsv.gob.sv, the FSV APP, call center 190, or an FSV agency (San Salvador, Santa Ana, San Miguel) to see the amount, term, and monthly payment you qualify for",
+      "Choose your credit line (new/used home, lot purchase, individual construction, RAM, or debt transfer) and request its specific requirements and forms from FSV",
+      "Find a home within your approved amount — FSV recommends getting a property appraisal (avalúo)",
+      "Submit the completed FSV application (Solicitud de Crédito Hipotecario) with the required documents for your credit line",
+      "Pay the down payment (prima) and/or complement — at the start or after approval, before signing",
+      "Wait for FSV to verify your information and resolve the application",
+      "Once approved, collect the approval letter and discount order from FSV, then attend the signing (escrituración) on the date FSV assigns"
     ],
-    documents: ["Active FSV loan (must be an FSV borrower)", "ClaveÚnica account (DUI-based)"],
-    documentsEs: ["Préstamo activo en el FSV", "Cuenta ClaveÚnica (basada en DUI)"],
-    sourceUrl: "https://simple.sv/tramite/consulta-y-pago-de-prestamos-fsv/persona-natural",
-    lastVerified: "2026-05-25",
-    universalTip: "FSV loans are available to workers who contribute to the AFP/ISSS. Ask your employer about FSV affiliation if you're looking to buy or build a home.",
-    // KB annotation audit (KB_ENRICH_FSV_CHILDSUBSIDY): description/descriptionEs
-    // rewritten to scope this as a NEW mortgage-loan application (was wrongly
-    // scoped as an existing-borrower balance/payment tool, causing retrieval
-    // collisions with rent/becas queries) — scope confirmed against the FSV
-    // portal, figures unconfirmed, stays needs_review. NOTE: `steps`/`documents`/
-    // `sourceUrl` below still describe the OLD balance-check flow (simple.sv
-    // loan consultation for existing borrowers) and now contradict the new
-    // application-focused description — flagged for a follow-up pass, not
-    // fixed here (no verified application steps/documents to substitute).
+    stepsEs: [
+      "Precalificá gratis — usá el Simulador Financiero en portal.fsv.gob.sv, la FSV APP, el call center 190, o una agencia del FSV (San Salvador, Santa Ana, San Miguel) para conocer el monto, plazo y cuota que podés obtener",
+      "Elegí tu línea de crédito (vivienda nueva/usada, compra de lote, construcción individual, RAM, o traslado de deuda) y solicitá al FSV sus requisitos y formularios específicos",
+      "Buscá una vivienda dentro del monto aprobado — el FSV recomienda pedir un avalúo",
+      "Presentá la Solicitud de Crédito Hipotecario completa con los documentos requeridos para tu línea de crédito",
+      "Pagá la prima y/o complemento — al inicio o después de la aprobación, antes de escriturar",
+      "Esperá a que el FSV verifique tu información y resuelva la solicitud",
+      "Una vez aprobado, retirá del FSV la carta de aprobación y la orden de descuento, y presentate a escriturar en la fecha que el FSV asigne"
+    ],
+    documents: [
+      "Valid DUI (and NIT)",
+      "Proof of income — formal employees: salary certificate (constancia de sueldo) + AFP account statement, last 6 months; independent/variable-income workers: monthly income detail and list of assets",
+      "6 months of AFP/IPSFA contributions (formal sector) or 2+ years of economic activity (independent)",
+      "Good credit history (or proof of loan payoff)",
+      "Tax solvency with the Ministerio de Hacienda (for a sale/credit price of about $30,000 or more)",
+      "Completed FSV credit application form (Solicitud de Crédito Hipotecario)"
+    ],
+    documentsEs: [
+      "DUI vigente (y NIT)",
+      "Comprobante de ingresos — sector formal: constancia de sueldo + estado de cuenta de AFP de los últimos 6 meses; independientes/ingresos variables: detalle de ingresos mensuales y lista de bienes",
+      "6 meses de cotizaciones al AFP/IPSFA (sector formal) o 2+ años de actividad económica (independiente)",
+      "Buen récord crediticio (o finiquito de préstamo)",
+      "Solvencia con el Ministerio de Hacienda (para precio de venta o crédito de aproximadamente $30,000 o más)",
+      "Solicitud de Crédito Hipotecario del FSV completa"
+    ],
+    sourceUrl: "https://portal.fsv.gob.sv/pasos-requisitos-adquirir-credito-vivienda-fsv/",
+    lastVerified: "2026-07-13",
+    universalTip: "Start with a free prequalification (portal.fsv.gob.sv, call 190, or the FSV APP) to learn the maximum you qualify for before house-hunting. FSV finances closing/registration costs and lets two people apply for one loan — keep a clean credit history and organize your documents in advance to improve approval odds.",
+    // KB annotation audit (KB_ENRICH_FSV_STEPS): steps/documents/sourceUrl
+    // rewritten to the real loan-application flow, confirmed against the FSV
+    // portal (portal.fsv.gob.sv); exact figures/forms and ES phrasing
+    // unconfirmed → stays needs_review.
     reviewStatus: "needs_review",
     confidence: 0.5,
   },
@@ -701,6 +722,13 @@ export async function lookupServicesDB(params: {
         ? new Date(r.last_verified as string).toISOString().split("T")[0]
         : new Date().toISOString().split("T")[0],
       officeHours: (r.office_hours as string) ?? undefined,
+      // `confidence` is a real column (schemas SQL, default 1.0) — carry it
+      // over so isUnverified() (grounding.ts) can hedge low-confidence
+      // DB-sourced entries the same way it does static-KB ones. There's no
+      // `review_status` column on `schemes` (only `is_active`, which isn't
+      // the same claim as human-reviewed) — not mapped, to avoid asserting
+      // "approved" on entries that were never actually reviewed as such.
+      confidence: (r.confidence as number) ?? undefined,
     }))
   } catch (err) {
     console.warn("[KB] Supabase lookup failed, falling back to static KB:", err)

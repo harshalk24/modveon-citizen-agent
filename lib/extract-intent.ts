@@ -1,3 +1,5 @@
+import { situationLabel } from "@/lib/situation-labels"
+
 // Cheap keyword fallback — the server flow (app/api/chat/route.ts) now uses
 // classifyQuery's lifeEvent/employment facets as the source of truth. This is
 // kept for the client-side localStorage cache (app/chat/page.tsx), which has
@@ -62,6 +64,51 @@ export function extractConfirmation(message: string): "yes" | "no" | null {
   ]
   if (matches(yesPhrases)) return "yes"
 
+  return null
+}
+
+// Deterministic safety net for the situation-ADD decision (app/api/chat/route.ts,
+// Phase 2a — see lib/situations.ts). classifyQuery's LLM-based hypothetical carve-out
+// is reliable against a message in isolation, but has been observed to occasionally
+// misfire once ANY prior conversation history is present — e.g. "What if I lost my
+// job?" can come back as a real "job-loss" declaration once earlier turns exist, even
+// though the identical message with no history correctly returns null. Since a wrongly
+// added situation is a durable write that's awkward to undo, this backstops the
+// classifier with the same keyword-matching reliability tier the codebase already
+// trusts for extractConfirmation's destructive-write gate — never used for `type` or
+// other facets, only to veto an add when the raw text is plainly a hypothetical.
+export function looksHypothetical(message: string): boolean {
+  const lower = message.toLowerCase().trim()
+  const matches = (phrases: string[]) =>
+    phrases.some(p => (p.includes(" ") ? lower.includes(p) : new RegExp(`\\b${p}\\b`).test(lower)))
+  return matches([
+    "what if", "what would happen if", "if i", "can i", "could i", "should i",
+    "would i", "am i allowed", "is it possible",
+    "qué pasa si", "que pasa si", "qué pasaría si", "que pasaria si",
+    "si yo", "puedo", "podría", "podria", "debería", "deberia",
+  ])
+}
+
+// Deterministic safety-valve parser for the situation-REMOVE command (Phase 2a
+// Step 6 — see lib/situations.ts's removeSituation). Doc explicitly scopes this
+// as a "functional-only, rough affordance", not polished NLU: only fires on an
+// explicit removal verb ("remove", "quitar", "eliminar", "ya no tengo"/"I no
+// longer have") combined with wording that names one of the citizen's actually-
+// active situations. Never infers removal from an unrelated statement (e.g. "I
+// found a job" does NOT remove job-loss — that would require judgment this
+// function deliberately doesn't attempt).
+export function extractRemoveSituation(message: string, activeSituations: string[]): string | null {
+  const lower = message.toLowerCase().trim()
+  const removalTriggers = [
+    "remove", "no longer", "not dealing with", "stop tracking", "delete",
+    "quitar", "eliminar", "ya no tengo", "ya no estoy", "borrar", "quita",
+  ]
+  if (!removalTriggers.some(t => lower.includes(t))) return null
+
+  for (const slug of activeSituations) {
+    const variants = [slug.replace(/-/g, " "), situationLabel(slug, "en"), situationLabel(slug, "es")]
+    if (variants.some(v => lower.includes(v.toLowerCase()))) return slug
+  }
   return null
 }
 

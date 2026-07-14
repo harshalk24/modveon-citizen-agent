@@ -30,6 +30,12 @@ model CitizenContext {
   id                  String   @id @default(cuid())
   citizenId           String   @unique
   lifeEvent           String?
+  // Phase 2a (concurrent situations): source of truth for which situations
+  // are active — a JSON array of slugs, e.g. ["new-baby","job-loss"]. `lifeEvent`
+  // is retained as a compat "primary (most-recently-added)" field so existing
+  // singular readers keep working; both are written through lib/situations.ts
+  // so they never drift. Full migration off `lifeEvent` is Phase 2b.
+  activeLifeEvents    String   @default("[]")
   pendingLifeEvent    String?
   employment          String?
   // Explicit-capture only (Task A) — set via the profile-save form, not
