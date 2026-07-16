@@ -97,6 +97,10 @@ export async function retrieveServices(p: {
   // the old single-lifeEvent path (no regression).
   lifeEvents: string[]
   employment: string
+  // Task GENDER_ELIGIBILITY: forwarded to isEligible on BOTH the backdrop
+  // (lookupServices) and foreground paths so a gender-gated entry is
+  // suppressed identically either way — no path divergence.
+  gender?: string
   slots?: Record<string, string>
   query: string
   queryType: string
@@ -111,7 +115,7 @@ export async function retrieveServices(p: {
   // situation would drop entries once a citizen has two or more).
   const backdropMap = new Map<string, { service: Service; situations: string[] }>()
   for (const le of p.lifeEvents) {
-    const entries = lookupServices({ country: p.country, lifeEvent: le, employment: p.employment, slots: p.slots })
+    const entries = lookupServices({ country: p.country, lifeEvent: le, employment: p.employment, gender: p.gender, slots: p.slots })
     for (const s of entries) {
       const existing = backdropMap.get(s.id)
       if (existing) existing.situations.push(le)
@@ -147,7 +151,7 @@ export async function retrieveServices(p: {
     // never include it. Same isEligible() call as lookupServices — one path
     // suppressing something the other still shows is exactly the divergence
     // this session's measurements kept catching elsewhere.
-    if (!isEligible(s, p.employment, p.slots)) continue
+    if (!isEligible(s, p.employment, p.gender, p.slots)) continue
     byId.set(f.id, { ...s, _score: f.score, _source: "foreground" })
   }
   for (const [id, { service, situations }] of backdropMap) {

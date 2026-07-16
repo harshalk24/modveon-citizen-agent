@@ -55,11 +55,17 @@ export function unionServicesForSituations(params: {
   country: string
   situations: string[]
   employment: string
+  // Task GENDER_ELIGIBILITY: forwarded to isEligible's gender gate so this
+  // path (Dashboard "All Benefits", the onboarding/greeting benefit cards,
+  // and the server-generated action plan) suppresses gender-gated entries
+  // identically to the chat retrieval path — no divergence where a male
+  // citizen still sees Maternity here after the chat reply already hides it.
+  gender?: string
   slots?: Record<string, string>
 }): SituationTaggedService[] {
   const map = new Map<string, SituationTaggedService>()
   for (const situ of params.situations) {
-    const matches = lookupServices({ country: params.country, lifeEvent: situ, employment: params.employment, slots: params.slots })
+    const matches = lookupServices({ country: params.country, lifeEvent: situ, employment: params.employment, gender: params.gender, slots: params.slots })
     for (const s of matches) {
       const existing = map.get(s.id)
       if (existing) existing._situations.push(situ)

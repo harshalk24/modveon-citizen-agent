@@ -120,6 +120,11 @@ export async function POST(req: Request) {
             pendingLifeEvent: dbCtx.pendingLifeEvent || undefined,
             language:   dbCtx.citizen?.language || contextData?.profile?.language  || language,
             municipality: dbCtx.municipality || contextData?.profile?.municipality || undefined,
+            // Task GENDER_ELIGIBILITY: citizen is already fetched via
+            // include:{citizen:true} — carry gender into ctx.profile so it
+            // reaches retrieveServices → isEligible's gender gate. Previously
+            // fetched but never threaded, so every citizen was gender-unknown.
+            gender:     dbCtx.citizen?.gender ?? undefined,
           },
           slots:               JSON.parse(primarySituation?.slotsJson || "{}"),
           pendingSlot:         primarySituation?.pendingSlot || undefined,
@@ -415,6 +420,7 @@ export async function POST(req: Request) {
     country:    ctx.profile.country    || "SV",
     lifeEvents: getActiveSituations(ctx.profile),
     employment: ctx.profile.employment || "unknown",
+    gender:     ctx.profile.gender,
     slots:      ctx.slots,
     query:      userMessage,
     queryType:  classification.type,

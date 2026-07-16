@@ -83,7 +83,7 @@ export async function POST(req: Request) {
     const situations = slugsOfRows(situationRows)
     const employment = normalizeEmployment(ctx.employment)
     const slots = JSON.parse(primaryRow(situationRows)?.slotsJson || "{}")
-    services = unionServicesForSituations({ country: citizen.country, situations, employment, slots })
+    services = unionServicesForSituations({ country: citizen.country, situations, employment, gender: citizen.gender ?? undefined, slots })
     profile = {
       firstName:  citizen.firstName || "there",
       country:    citizen.country,

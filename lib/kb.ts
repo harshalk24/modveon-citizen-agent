@@ -55,6 +55,12 @@ export interface Service {
     // isEligible's comment). Deliberately only these three states; no new
     // axes (e.g. informal-history) without a real design decision.
     requires?: "any" | "current_formal" | "prior_formal_ok"
+    // Task GENDER_ELIGIBILITY: gender gate, orthogonal to the employment
+    // `requires` axis. "any" (default when unset) = no gate. Only a KNOWN
+    // opposite-gender match suppresses; unknown/non-binary/prefer-not-to-say
+    // fall through and the entry's note hedges (fail-open, same discipline as
+    // the employment gate).
+    appliesTo?: "mother" | "father" | "any"
     note: string
     noteEs: string
   }
@@ -79,9 +85,30 @@ export interface Service {
 // false negative that costs a real citizen money), fail-CLOSED on claims
 // (the entry's own eligibility.note hedges "confirm with agency") — the
 // deliberate combination for a benefits-discovery tool, not a contradiction.
-export function isEligible(s: Service, employment: string, slots?: Record<string, string>): boolean {
-  // Citizen's employment status itself unknown/wildcard — matches every
-  // service, same fail-open default lookupServices already had pre-filter.
+// Task GENDER_ELIGIBILITY: normalize the free-form Citizen.gender value the
+// profile page stores. Only the two clearly-known values map through; "other"
+// / "prefer-not-to-say" / "" / anything unexpected → "unknown" so the gate
+// fails OPEN (shows both, entry note hedges) rather than wrongly suppressing.
+function normalizeGender(g?: string): "female" | "male" | "unknown" {
+  const v = (g ?? "").trim().toLowerCase()
+  if (v === "female" || v === "femenino")  return "female"
+  if (v === "male"   || v === "masculino") return "male"
+  return "unknown"
+}
+
+export function isEligible(s: Service, employment: string, gender?: string, slots?: Record<string, string>): boolean {
+  // Gender gate (Task GENDER_ELIGIBILITY) — checked BEFORE employment; both
+  // axes must pass. Suppress ONLY a known opposite-gender match; unknown/
+  // non-binary/prefer-not-to-say fall through (shown, the note hedges).
+  const appliesTo = s.eligibility?.appliesTo ?? "any"
+  if (appliesTo !== "any") {
+    const g = normalizeGender(gender)
+    if (appliesTo === "mother" && g === "male")   return false
+    if (appliesTo === "father" && g === "female") return false
+  }
+
+  // Employment gate (unchanged) — citizen's employment unknown/wildcard
+  // matches every service, same fail-open default lookupServices had.
   if (employment === "any" || employment === "unknown") return true
 
   const requires = s.eligibility?.requires ?? "any"
@@ -153,6 +180,7 @@ export const services: Service[] = [
     // contributions can still qualify a citizen who is no longer employed.
     eligibility: {
       requires: "prior_formal_ok",
+      appliesTo: "mother",
       note: "The ISSS maternity subsidy requires having contributed to ISSS as a formal worker. If you recently lost your job, you may still qualify based on your prior contributions — confirm your eligibility with ISSS.",
       noteEs: "El subsidio por maternidad del ISSS requiere haber cotizado al ISSS como trabajadora formal. Si perdiste tu empleo recientemente, podrías calificar según tus cotizaciones anteriores — confirmá con el ISSS.",
     },
@@ -235,6 +263,7 @@ export const services: Service[] = [
     // retired (was doing this job unevenly across the KB).
     eligibility: {
       requires: "current_formal",
+      appliesTo: "father",
       note: "Paternity leave is for fathers currently employed and contributing to ISSS. If you are not currently employed, this benefit likely does not apply — confirm with ISSS.",
       noteEs: "La licencia de paternidad es para padres actualmente empleados que cotizan al ISSS. Si no estás empleado actualmente, es probable que este beneficio no aplique — confirmá con el ISSS.",
     },
@@ -760,6 +789,9 @@ export function lookupServices(params: {
   country: string
   lifeEvent: string
   employment: string
+  // Task GENDER_ELIGIBILITY: known gender, forwarded to isEligible's gender
+  // gate. Optional/undefined => fail-open (both parents' benefits shown).
+  gender?: string
   // Slot-filling (Task S1): known decision-relevant facts for the current
   // situation, e.g. { businessSizeTier: "solo" }. Only used to suppress
   // services whose `suppressWhenSlot` matches — retrieval-side personalization,
@@ -776,7 +808,7 @@ export function lookupServices(params: {
       // unemployment benefit (tagged employment:["formal"], but its real
       // eligibility is PRIOR contributions, not current status) for the
       // unemployed citizens it's actually for.
-      isEligible(s, params.employment, params.slots) &&
+      isEligible(s, params.employment, params.gender, params.slots) &&
       !(
         s.suppressWhenSlot &&
         params.slots?.[s.suppressWhenSlot.key] !== undefined &&

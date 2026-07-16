@@ -72,6 +72,7 @@ export default function DashboardPage() {
     country: resolvedCountry,
     situations,
     employment: resolvedEmployment,
+    gender: citizen?.profile.gender,
   })
 
   const entitlements = citizen?.entitlements || []

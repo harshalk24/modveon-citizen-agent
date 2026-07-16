@@ -230,6 +230,7 @@ function ChatContent() {
         country: citizen.profile.country,
         situations: getActiveSituations(citizen.profile),
         employment: citizen.profile.employment || "unknown",
+        gender: citizen.profile.gender,
       })
       setEntitlementCount(svcs.length)
       if (svcs.length > 0) {
@@ -559,6 +560,7 @@ function ChatContent() {
           country: fresh.profile.country || "SV",
           situations: getActiveSituations(fresh.profile),
           employment: fresh.profile.employment || "unknown",
+          gender: fresh.profile.gender,
         })
         setEntitlementCount(svcs.length)
         if (svcs.length > 0) {
