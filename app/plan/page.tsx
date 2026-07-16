@@ -505,7 +505,7 @@ export default function PlanPage() {
                         return (
                           <div
                             key={step.serviceId}
-                            className={`bg-white border border-ca-surface-border border-l-[3px] border-l-brand rounded-[13px] px-5 py-4.5 shadow-[0_1px_3px_rgba(16,24,40,.05)] transition-opacity ${isDeleting ? "opacity-40" : ""}`}
+                            className={`bg-white border border-ca-surface-border border-l-[3px] border-l-brand rounded-[13px] px-5 py-5 shadow-[0_1px_3px_rgba(16,24,40,.05)] transition-opacity ${isDeleting ? "opacity-40" : ""}`}
                           >
                             {/* Title row */}
                             <div className="flex items-start justify-between gap-3">

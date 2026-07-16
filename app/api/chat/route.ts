@@ -33,12 +33,19 @@ function chatHeaders(
   uiState: string,
   hasServices: boolean,
   conversationId?: string | null,
+  targetSituation?: string | null,
 ): Record<string, string> {
   return {
     "Content-Type": "text/plain; charset=utf-8",
     "X-UI-State": uiState,
     "X-Has-Services": hasServices ? "1" : "0",
     ...(conversationId ? { "X-Conversation-Id": conversationId } : {}),
+    // Task DISCOVERY_CARDS_FIX (bug 2): which single situation THIS turn is
+    // about (askTargetSlug), so the client can scope the discovery cards to it
+    // — "I just had a baby" should list baby benefits, not the union of every
+    // active situation. Absent (open-ended "what do I qualify for?") → client
+    // shows the full union.
+    ...(targetSituation ? { "X-Target-Situation": targetSituation } : {}),
   }
 }
 
@@ -180,6 +187,7 @@ export async function POST(req: Request) {
     uiState: string,
     hasServices: boolean,
     body?: BodyInit,
+    targetSituation?: string | null,
   ): Promise<Response> {
     let shouldTellClientToUpgradeTitle = false
     if (isRealCitizen) {
@@ -200,7 +208,7 @@ export async function POST(req: Request) {
     const isStream = body instanceof ReadableStream
     return new Response(body ?? replyText, {
       headers: {
-        ...chatHeaders(uiState, hasServices, conversationId),
+        ...chatHeaders(uiState, hasServices, conversationId, targetSituation),
         // Transfer-Encoding only matters for the streamed body; canned string
         // replies don't set it (unchanged from before consolidation).
         ...(isStream ? { "Transfer-Encoding": "chunked" } : {}),
@@ -655,7 +663,7 @@ export async function POST(req: Request) {
     // hasServices reflects situation-worthy material (same set used for
     // entitlements), not raw foreground hits — a one-off topical match with no
     // established situation has nothing for "Open plan" to open.
-    return await finalizeTurn(fullResponse, classification.type, entitlementServices.length > 0, readable)
+    return await finalizeTurn(fullResponse, classification.type, entitlementServices.length > 0, readable, askTargetSlug || justAddedSituation)
   } catch (err) {
     console.error("Chat error:", err)
     return NextResponse.json({ error: "Agent unavailable" }, { status: 500 })

@@ -875,6 +875,7 @@ function ChatContent() {
     // just-added-situation turn, whose new situation isn't in the client's
     // citizen state until the finally's refresh completes).
     let replyUiState: string | undefined
+    let replyTargetSituation: string | undefined
     fetch("/api/classify", {
       method: "POST",
       headers: { "Content-Type": "application/json" },
@@ -913,6 +914,11 @@ function ChatContent() {
       // instead of re-guessing from the reply text with keyword matching.
       const uiState     = res.headers.get("X-UI-State") || undefined
       replyUiState = uiState
+      // Task DISCOVERY_CARDS_FIX (bug 2): the situation THIS turn is about, if
+      // any — used below to scope the discovery cards to it ("I just had a
+      // baby" → baby benefits only, not the whole union). Null header (open-
+      // ended) → full union.
+      replyTargetSituation = res.headers.get("X-Target-Situation") || undefined
       const hasServices = res.headers.get("X-Has-Services") === "1"
       // Task TITLE_OFF_HOTPATH: the server no longer does the title-upgrade
       // LLM call inline (it added ~2.6s to every reply that crossed the
@@ -983,9 +989,19 @@ function ChatContent() {
           // benefits are included this very turn. Empty union → no cards
           // (e.g. no-context-open with no situations yet) renders nothing.
           if (fresh && replyUiState && DISCOVERY_UI_STATES.has(replyUiState)) {
+            // Bug-2 fix: when the server says this turn is about ONE situation
+            // (X-Target-Situation), scope the cards to it so they match the
+            // situation-focused intro — "I just had a baby" lists baby benefits,
+            // not the union of every active situation. No target (open-ended
+            // "what do I qualify for?") → full union. Still gender-gated by
+            // unionServicesForSituations, so this adds no new eligibility path.
+            const active = getActiveSituations(fresh.profile)
+            const scoped = replyTargetSituation && active.includes(replyTargetSituation)
+              ? [replyTargetSituation]
+              : active
             const cards = unionServicesForSituations({
               country: fresh.profile.country || "SV",
-              situations: getActiveSituations(fresh.profile),
+              situations: scoped,
               employment: fresh.profile.employment || "unknown",
               gender: fresh.profile.gender,
             })
