@@ -924,22 +924,22 @@ function ChatContent() {
       {/* Tour overlay */}
       {showTour && <ChatTour onDone={() => setShowTour(false)} />}
 
-      <div className="flex flex-col h-screen bg-gray-50">
+      <div className="flex flex-col h-screen bg-white">
 
         {/* Greeting header — shows when citizen is known */}
         {greeting && (
-          <div className="bg-white border-b border-gray-100 px-5 py-3 flex items-center justify-between">
+          <div className="bg-white border-b border-ca-surface-hairline px-[30px] py-4 flex items-start justify-between">
             <div>
-              <p className="text-sm font-semibold text-gray-800">{greeting}</p>
-              {citizen?.profile.lifeEvent && (
-                <p className="text-xs text-gray-400 mt-0.5">
-                  {entitlementCount > 0
-                    ? `${entitlementCount} benefits found`
+              <p className="text-xl font-bold text-gray-900 tracking-tight">{greeting}</p>
+              <p className="text-[13px] text-ca-text-secondary mt-0.5">
+                {streaming
+                  ? (lang === "es" ? "Verificando fuentes oficiales…" : "Checking official sources…")
+                  : citizen?.profile.lifeEvent && entitlementCount > 0
+                    ? (lang === "es" ? `${entitlementCount} beneficios encontrados` : `${entitlementCount} benefits found`)
                     : ""}
-                </p>
-              )}
+              </p>
             </div>
-            <a href="/preview" className="flex items-center gap-1.5 px-3 py-1.5 rounded-full text-xs font-medium bg-yellow-400 text-yellow-900 hover:bg-yellow-500 transition-colors">
+            <a href="/preview" className="flex items-center gap-1.5 px-3.5 py-1.5 rounded-full text-xs font-semibold bg-ca-yellow text-ca-ink hover:bg-ca-yellow-hover transition-colors flex-shrink-0">
               <Sparkles size={12} />Preview
             </a>
           </div>
@@ -953,15 +953,7 @@ function ChatContent() {
         )}
 
         {/* Message list — dot-grid wallpaper in Sivar yellow */}
-        <div
-          className="relative flex-1 overflow-y-auto px-4 py-4 space-y-4"
-          style={{
-            backgroundColor: "#F5F7FA",
-            backgroundImage:
-              "radial-gradient(circle, rgba(255,196,0,0.45) 1.5px, transparent 1.5px)",
-            backgroundSize: "24px 24px",
-          }}
-        >
+        <div className="relative flex-1 overflow-y-auto px-[34px] py-[26px] space-y-4 bg-ca-canvas">
           {messages.map((msg, idx) => {
             // Show suggestion chips directly below the last assistant message
             const isLastAssistant =
@@ -994,13 +986,36 @@ function ChatContent() {
             )
           })}
 
+          {/* Task UI_REDESIGN (1b) — the ~25s "verifying" state, driven by the
+              REAL streaming lifecycle (streaming=true from send until the
+              stream resolves — see setStreaming(true)/(false) below), never a
+              fixed timeout. The mock's example names specific domains being
+              "reviewed" live; that's not something the client can actually
+              know mid-request (grounding runs entirely server-side before any
+              bytes stream back), so this uses honest generic wording instead
+              of fabricating a plausible-looking source list. */}
           {streaming && messages[messages.length - 1]?.content === "" && (
             <div className="flex justify-start">
-              <div className="bg-white border border-gray-200 rounded-2xl rounded-tl-sm px-4 py-3 shadow-sm">
-                <div className="flex gap-1 items-center">
-                  <span className="w-1.5 h-1.5 bg-gray-300 rounded-full animate-bounce [animation-delay:0ms]" />
-                  <span className="w-1.5 h-1.5 bg-gray-300 rounded-full animate-bounce [animation-delay:150ms]" />
-                  <span className="w-1.5 h-1.5 bg-gray-300 rounded-full animate-bounce [animation-delay:300ms]" />
+              <div className="max-w-[560px] bg-white border border-ca-surface-border rounded-[4px_15px_15px_15px] px-5 py-4 shadow-[0_1px_3px_rgba(16,24,40,.05)]">
+                <div className="flex items-center gap-2.5">
+                  <span className="flex gap-1">
+                    <span className="w-2 h-2 rounded-full bg-brand animate-ca-dot" />
+                    <span className="w-2 h-2 rounded-full bg-brand animate-ca-dot [animation-delay:.18s]" />
+                    <span className="w-2 h-2 rounded-full bg-brand animate-ca-dot [animation-delay:.36s]" />
+                  </span>
+                  <span className="text-[14.5px] font-semibold text-brand">
+                    {lang === "es" ? "Verificando fuentes oficiales…" : "Checking official sources…"}
+                  </span>
+                </div>
+                <p className="text-[13px] text-ca-text-secondary mt-2 leading-relaxed">
+                  {lang === "es"
+                    ? "Verifico cada dato contra sitios oficiales del gobierno antes de responder. Esto puede tardar unos segundos."
+                    : "I verify every fact against government sites before answering. This can take a few seconds."}
+                </p>
+                <div className="mt-3.5 flex flex-col gap-2">
+                  <div className="h-[13px] w-[92%] rounded-md animate-ca-shimmer" />
+                  <div className="h-[13px] w-[74%] rounded-md animate-ca-shimmer" />
+                  <div className="h-[13px] w-[83%] rounded-md animate-ca-shimmer" />
                 </div>
               </div>
             </div>
@@ -1027,34 +1042,38 @@ function ChatContent() {
         </div>
 
         {/* Input area */}
-        <div className="bg-white border-t border-gray-100">
-          <div data-tour="input-bar" className="flex items-end gap-2 px-4 pt-3 pb-1">
-            <textarea
-              ref={textareaRef}
-              value={input}
-              onChange={e => setInput(e.target.value)}
-              onKeyDown={handleKeyDown}
-              placeholder={tr.chat.placeholder}
-              rows={1}
-              className="flex-1 resize-none border border-gray-200 rounded-full px-5 py-2.5 text-sm focus:outline-none focus:border-[#FFC400] focus:ring-2 focus:ring-yellow-50 transition-all max-h-32 bg-white"
-              onInput={e => {
-                const el = e.target as HTMLTextAreaElement
-                el.style.height = "auto"
-                el.style.height = Math.min(el.scrollHeight, 128) + "px"
-              }}
-            />
+        <div className="bg-white border-t border-ca-surface-hairline">
+          <div data-tour="input-bar" className="flex items-center gap-2.5 px-[34px] pt-3 pb-1">
+            <div className="flex-1 flex items-center border border-ca-surface-input rounded-[14px] pl-4 pr-1.5 py-1 focus-within:border-brand transition-colors">
+              <textarea
+                ref={textareaRef}
+                value={input}
+                onChange={e => setInput(e.target.value)}
+                onKeyDown={handleKeyDown}
+                placeholder={tr.chat.placeholder}
+                rows={1}
+                className="flex-1 resize-none border-0 py-1.5 text-sm focus:outline-none max-h-32 bg-transparent"
+                onInput={e => {
+                  const el = e.target as HTMLTextAreaElement
+                  el.style.height = "auto"
+                  el.style.height = Math.min(el.scrollHeight, 128) + "px"
+                }}
+              />
+            </div>
             <button
               onClick={() => sendMessage(input)}
               disabled={!input.trim() || streaming}
-              className="flex-shrink-0 w-10 h-10 rounded-full bg-[#FFC400] hover:bg-[#E5AF00] text-yellow-900 flex items-center justify-center transition-colors disabled:opacity-40 disabled:cursor-not-allowed"
+              className="flex-shrink-0 w-[34px] h-[34px] rounded-[10px] bg-brand hover:bg-brand-dark text-white flex items-center justify-center transition-colors disabled:bg-ca-surface-input disabled:cursor-not-allowed"
             >
               {streaming
-                ? <Loader2 size={16} className="animate-spin" />
-                : <Send size={16} />}
+                ? <Loader2 size={15} className="animate-spin" />
+                : <Send size={15} />}
             </button>
           </div>
-          <p className="text-center text-xs text-gray-400 pb-2 px-4">
-            Citizen Agent can make mistakes. Verify important information with the relevant government agency.
+          <p className="text-center text-xs text-ca-text-tertiary pb-2.5 px-4 mt-1">
+            {lang === "es"
+              ? "Citizen Agent puede cometer errores. Verificá la información importante con la agencia gubernamental correspondiente."
+              : "Citizen Agent can make mistakes. Verify important information with the relevant government agency."}
           </p>
         </div>
       </div>

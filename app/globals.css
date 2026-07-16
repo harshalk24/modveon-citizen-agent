@@ -85,3 +85,27 @@ html {
 .animate-msg-in {
   animation: msg-in 0.15s ease-out both;
 }
+
+/* Task UI_REDESIGN — Chat's ~25s "verifying" state (the first-class latency
+   treatment, never a bare spinner): pulsing dots + shimmer skeleton bars. */
+@keyframes ca-dot {
+  0%, 80%, 100% { transform: translateY(0); opacity: .35; }
+  40%           { transform: translateY(-3px); opacity: 1; }
+}
+@keyframes ca-shimmer {
+  0%   { background-position: -400px 0; }
+  100% { background-position: 400px 0; }
+}
+.animate-ca-dot     { animation: ca-dot 1.2s infinite; }
+.animate-ca-shimmer {
+  background-image: linear-gradient(90deg, #EEF2F7 25%, #E2E8F0 37%, #EEF2F7 63%);
+  background-size: 400px 100%;
+  animation: ca-shimmer 1.4s infinite linear;
+}
+
+/* Chat thread canvas — off-white with a faint Sivar-yellow dot grid. */
+.bg-ca-canvas {
+  background-color: #F7F9FD;
+  background-image: radial-gradient(rgba(255, 196, 0, .30) 1.4px, transparent 1.4px);
+  background-size: 32px 32px;
+}

@@ -4,37 +4,33 @@ import { useLang } from "@/contexts/LanguageContext"
 import { t } from "@/lib/i18n"
 import { CitizenContextData } from "@/types/context"
 
-const LIFE_EVENT_EMOJI: Record<string, string> = {
-  "new-baby": "🛒",
-  "job-loss": "💼",
-  "start-business": "🏪",
-}
-
 export default function ContextPills({ citizen }: { citizen: CitizenContextData }) {
   const { lang } = useLang()
   const tr = t(lang)
 
+  // Design handoff (Refined Navy): plain text, no emoji — distinct from the
+  // Dashboard/My Plan tag treatments which kept emoji (that section of the
+  // mock didn't specify otherwise; this one explicitly does).
   const pills = [
     citizen.profile.lifeEvent
-      ? { emoji: LIFE_EVENT_EMOJI[citizen.profile.lifeEvent] || "📋", label: tr.contextPills[citizen.profile.lifeEvent as keyof typeof tr.contextPills] }
+      ? tr.contextPills[citizen.profile.lifeEvent as keyof typeof tr.contextPills]
       : null,
     citizen.profile.employment && citizen.profile.employment !== "unknown"
-      ? { emoji: "💼", label: tr.contextPills[citizen.profile.employment as keyof typeof tr.contextPills] }
+      ? tr.contextPills[citizen.profile.employment as keyof typeof tr.contextPills]
       : null,
-    citizen.profile.country ? { emoji: "📍", label: citizen.profile.country === "SV" ? "El Salvador" : citizen.profile.country } : null,
-  ].filter(Boolean) as { emoji: string; label: string }[]
+    citizen.profile.country ? (citizen.profile.country === "SV" ? "El Salvador" : citizen.profile.country) : null,
+  ].filter(Boolean) as string[]
 
   if (pills.length === 0) return null
 
   return (
-    <div className="flex flex-wrap gap-2 px-4 py-3 border-b border-gray-100 bg-white overflow-x-auto">
-      {pills.map((pill, i) => (
+    <div className="flex flex-wrap gap-2 px-[34px] py-3.5 border-b border-ca-surface-hairline bg-white overflow-x-auto">
+      {pills.map((label, i) => (
         <span
           key={i}
-          className="flex-shrink-0 inline-flex items-center gap-1.5 text-xs font-medium px-3 py-1.5 rounded-full bg-gray-100 text-gray-600 whitespace-nowrap"
+          className="flex-shrink-0 text-[12.5px] font-medium px-2.5 py-1 rounded-full bg-ca-pill border border-ca-pill-border text-ca-pill-text whitespace-nowrap"
         >
-          <span>{pill.emoji}</span>
-          {pill.label}
+          {label}
         </span>
       ))}
     </div>

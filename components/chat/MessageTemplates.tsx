@@ -92,7 +92,7 @@ export default function MessageTemplates({
 
   return (
     <div
-      className="flex flex-wrap gap-2 px-4 py-2.5 transition-opacity duration-150"
+      className="flex flex-wrap gap-2 px-[34px] py-3 transition-opacity duration-150"
       style={{ opacity: visible ? 1 : 0 }}
     >
       {chips.map((chip, i) => (
@@ -100,8 +100,8 @@ export default function MessageTemplates({
           key={`${displayed}-${lang}-${i}`}
           onClick={() => onSelect(chip)}
           disabled={disabled}
-          className="text-xs px-3 py-1.5 rounded-full border border-gray-200 bg-white
-                     hover:border-[#FFC400] hover:bg-yellow-50 text-gray-600
+          className="text-[12.5px] font-medium px-3.5 py-2 rounded-full border border-ca-surface-input bg-white
+                     hover:border-ca-yellow text-[#475569]
                      transition-all disabled:opacity-40 whitespace-nowrap"
         >
           {chip}
