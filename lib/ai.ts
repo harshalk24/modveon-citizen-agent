@@ -87,3 +87,18 @@ export async function summariseConversation(messages: any[], language: "en" | "e
   const text = await getLLM().complete(prompt, { temperature: 0.1, maxTokens: 200 })
   return text.trim()
 }
+
+// Task History-C1: the cheap-tier title upgrade — same .complete() call
+// pattern as summariseConversation/classifyQuery above (short prompt, low
+// maxTokens, not the main streamChat generation model). Failure here is
+// never fatal to the caller — lib/conversation-store.ts's maybeUpgradeTitle
+// wraps this in try/catch and leaves the truncated baseline title in place
+// on any error, per the task's "truncated is the failure mode" rule.
+export async function generateConversationTitle(messages: { role: string; content: string }[], language: "en" | "es" = "en"): Promise<string> {
+  const prompt = language === "es"
+    ? `Generá un título corto de 3 a 5 palabras para esta conversación. Sin comillas, sin punto final, sin saludos genéricos.\nConversación: ${JSON.stringify(messages)}`
+    : `Generate a short 3-5 word title for this conversation. No quotes, no trailing period, no generic greetings.\nConversation: ${JSON.stringify(messages)}`
+
+  const text = await getLLM().complete(prompt, { temperature: 0.3, maxTokens: 30 })
+  return text.trim().replace(/^["']+|["']+$/g, "").replace(/\.+$/, "")
+}

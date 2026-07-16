@@ -18,13 +18,45 @@ model Citizen {
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
 
-  sessions   Session[]
-  context    CitizenContext?
-  situations Situation[]
-  deadlines  Deadline[]
-  actionPlan ActionPlan?
-  feedbacks  Feedback[]
-  logs       ResponseLog[]
+  sessions      Session[]
+  context       CitizenContext?
+  situations    Situation[]
+  deadlines     Deadline[]
+  actionPlan    ActionPlan?
+  feedbacks     Feedback[]
+  logs          ResponseLog[]
+  conversations Conversation[]
+}
+
+// Task History-C1 — durable conversation history (Version A, device-scoped,
+// no auth). Distinct from the live Redis session (lib/session.ts, 24h TTL,
+// ephemeral) — this is the permanent record a citizen can revisit later.
+// The Redis session carries the active conversationId; each chat turn
+// write-throughs to that conversation's rows here.
+model Conversation {
+  id        String   @id @default(cuid())
+  citizenId String
+  title     String
+  // Task TITLE_OFF_HOTPATH: idempotency guard for the client-triggered
+  // title-upgrade endpoint — true only once the LLM title has actually been
+  // written, so a retried/duplicate client call (or a client that fires the
+  // request more than once) is a true no-op instead of a repeated LLM call.
+  titleUpgraded Boolean @default(false)
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+  citizen   Citizen  @relation(fields: [citizenId], references: [id])
+  messages  Message[]
+  @@index([citizenId])
+}
+
+model Message {
+  id             String   @id @default(cuid())
+  conversationId String
+  role           String   // "user" | "assistant"
+  content        String
+  createdAt      DateTime @default(now())
+  conversation   Conversation @relation(fields: [conversationId], references: [id], onDelete: Cascade)
+  @@index([conversationId])
 }
 
 // Task 2b-C1 — per-situation state, one row per concurrently-active
