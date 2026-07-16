@@ -2,7 +2,7 @@
 
 import { useState, useEffect, useRef } from "react"
 import { useRouter } from "next/navigation"
-import { motion, AnimatePresence } from "framer-motion"
+import { motion } from "framer-motion"
 import { useLang } from "@/contexts/LanguageContext"
 import { useCitizen } from "@/contexts/CitizenContext"
 import { t } from "@/lib/i18n"
@@ -269,7 +269,7 @@ export default function PlanPage() {
   if (citizenLoading || (!citizen && loading)) {
     return (
       <div className="flex flex-col items-center justify-center h-full gap-3">
-        <Loader2 size={24} className="animate-spin text-[#185FA5]" />
+        <Loader2 size={24} className="animate-spin text-brand" />
       </div>
     )
   }
@@ -285,16 +285,16 @@ export default function PlanPage() {
   if (!resolvedLifeEvent) {
     return (
       <div className="flex flex-col items-center justify-center h-full px-4 py-16 text-center">
-        <HelpCircle size={40} className="text-gray-300 mb-4" />
-        <h2 className="text-lg font-semibold text-gray-700 mb-2">
+        <HelpCircle size={40} className="text-ca-text-tertiary/50 mb-4" />
+        <h2 className="text-lg font-bold text-gray-800 mb-2">
           {lang === "es" ? "No hay plan aún" : "No plan yet"}
         </h2>
-        <p className="text-sm text-gray-400 mb-6 max-w-xs">
+        <p className="text-sm text-ca-text-tertiary mb-6 max-w-xs">
           {lang === "es" ? "Contanos tu situación en el chat para generar tu plan." : "Tell us your situation in the chat to generate your plan."}
         </p>
         <button
           onClick={() => router.push("/chat")}
-          className="bg-[#185FA5] hover:bg-[#145290] text-white px-5 py-2.5 rounded-xl text-sm font-medium transition-colors"
+          className="bg-brand hover:bg-brand-dark text-white px-5 py-2.5 rounded-xl text-sm font-semibold transition-colors"
         >
           {lang === "es" ? "Ir al chat" : "Go to chat"}
         </button>
@@ -305,8 +305,8 @@ export default function PlanPage() {
   if (loading) {
     return (
       <div className="flex flex-col items-center justify-center h-full gap-3">
-        <Loader2 size={24} className="animate-spin text-[#185FA5]" />
-        <p className="text-sm text-gray-500">
+        <Loader2 size={24} className="animate-spin text-brand" />
+        <p className="text-sm text-ca-text-secondary">
           {lang === "es" ? "Generando tu plan..." : "Generating your plan..."}
         </p>
       </div>
@@ -316,20 +316,20 @@ export default function PlanPage() {
   if (planError) {
     return (
       <div className="flex flex-col items-center justify-center h-full px-4 py-16 text-center">
-        <HelpCircle size={40} className="text-gray-300 mb-4" />
-        <h2 className="text-lg font-semibold text-gray-700 mb-2">
+        <HelpCircle size={40} className="text-ca-text-tertiary/50 mb-4" />
+        <h2 className="text-lg font-bold text-gray-800 mb-2">
           {planError === "no-citizen"
             ? (lang === "es" ? "Necesitás una cuenta" : "Account required")
             : (lang === "es" ? "No se pudo generar el plan" : "Couldn't generate plan")}
         </h2>
-        <p className="text-sm text-gray-400 mb-6 max-w-xs">
+        <p className="text-sm text-ca-text-tertiary mb-6 max-w-xs">
           {planError === "no-citizen"
             ? (lang === "es" ? "Completá el registro para guardar tu plan personalizado." : "Complete registration to save your personalised plan.")
             : (lang === "es" ? "Hubo un error al generar tu plan. Intentá de nuevo desde el chat." : "There was an error generating your plan. Try again from the chat.")}
         </p>
         <button
           onClick={() => router.push("/chat")}
-          className="bg-[#185FA5] hover:bg-[#145290] text-white px-5 py-2.5 rounded-xl text-sm font-medium transition-colors"
+          className="bg-brand hover:bg-brand-dark text-white px-5 py-2.5 rounded-xl text-sm font-semibold transition-colors"
         >
           {lang === "es" ? "Volver al chat" : "Back to chat"}
         </button>
@@ -338,102 +338,103 @@ export default function PlanPage() {
   }
 
   return (
-    <div className="h-screen overflow-y-auto bg-gray-50">
+    <div className="h-screen overflow-y-auto bg-ca-surface-canvas">
       {/* Header */}
-      <div className="bg-white border-b border-gray-100 px-6 py-5">
+      <div className="bg-white border-b border-ca-surface-hairline px-6 py-5">
         <div className="flex items-start justify-between">
           <div>
-            <h1 className="text-xl font-semibold text-gray-900">{tr.plan.title}</h1>
-            <p className="text-sm text-gray-500 mt-0.5">
+            <h1 className="text-xl font-bold text-gray-900 tracking-tight">{tr.plan.title}</h1>
+            <p className="text-sm text-ca-text-secondary mt-0.5">
               {activeSituationLabels.length > 1 ? activeSituationLabels.join(" · ") : (activeSituationLabels[0] || resolvedLifeEvent)}
             </p>
             {citizen?.planUpdatedAt && (
-              <p className="text-xs text-gray-400 mt-1">
+              <p className="text-xs text-ca-text-tertiary mt-1">
                 {lang === "es" ? "Actualizado:" : "Last updated:"} {formatUpdatedAt(citizen.planUpdatedAt)}
               </p>
             )}
           </div>
           <div className="flex items-center gap-2">
-            <a href="/preview" className="flex items-center gap-1.5 px-3 py-1.5 rounded-full text-xs font-medium bg-yellow-400 text-yellow-900 hover:bg-yellow-500 transition-colors">
-              <Sparkles size={12} />Preview
-            </a>
             {allSteps.length > 0 && (
-              <span className="text-xs font-semibold px-2.5 py-1 rounded-full bg-emerald-50 text-emerald-700">
+              <span className="text-xs font-bold px-3 py-1.5 rounded-full bg-ca-success-light text-ca-success">
                 {tr.plan.progress(doneSteps.length, allSteps.length)}
               </span>
             )}
+            <a href="/preview" className="flex items-center gap-1.5 px-3.5 py-1.5 rounded-full text-xs font-semibold bg-ca-yellow text-ca-ink hover:bg-ca-yellow-hover transition-colors">
+              <Sparkles size={12} />Preview
+            </a>
           </div>
         </div>
 
         {allSteps.length > 0 && (
-          <div className="mt-4">
-            <div className="flex items-center justify-between text-xs text-gray-400 mb-1.5">
-              <span>{progress}%</span>
-            </div>
-            <div className="h-2 bg-gray-100 rounded-full overflow-hidden">
-              <motion.div
-                className="h-full bg-[#185FA5] rounded-full"
-                initial={{ width: 0 }}
-                animate={{ width: `${progress}%` }}
-                transition={{ duration: 0.6, ease: "easeOut" }}
-              />
-            </div>
+          <div className="h-1.5 bg-ca-track rounded-full overflow-hidden mt-3.5">
+            <motion.div
+              className="h-full bg-[#3C7D5A] rounded-full"
+              initial={{ width: 0 }}
+              animate={{ width: `${progress}%` }}
+              transition={{ duration: 0.6, ease: "easeOut" }}
+            />
           </div>
         )}
       </div>
 
       {/* Urgent alert */}
       {urgentStep?.deadline && (
-        <div className="mx-4 mt-4 p-4 rounded-xl border-l-4 border-red-500 bg-red-50">
-          <div className="flex items-start gap-2">
-            <AlertCircle size={16} className="text-red-500 mt-0.5 flex-shrink-0" />
-            <div>
-              <p className="text-sm font-semibold text-red-700">
-                {tr.plan.urgentTitle} {urgentStep.deadline}
-              </p>
-              <p className="text-xs text-red-600 mt-0.5">{urgentStep.title} — {urgentStep.agency}</p>
-            </div>
+        <div className="mx-6 mt-4 flex gap-2.5 rounded-r-[11px] border-l-[3px] border-[#D64242] bg-ca-danger-light px-4 py-3.5">
+          <AlertCircle size={17} className="text-ca-danger mt-0.5 flex-shrink-0" />
+          <div>
+            <p className="text-sm font-bold text-ca-danger">
+              {tr.plan.urgentTitle} {urgentStep.deadline}
+            </p>
+            <p className="text-xs text-ca-danger mt-0.5">{urgentStep.title} — {urgentStep.agency}</p>
           </div>
         </div>
       )}
 
       {/* Plan phases */}
-      <div className="px-4 py-4 space-y-3">
+      <div className="px-6 py-4 space-y-3">
         {plan.map(phase => {
           const isExpanded = expandedPhases.has(phase.phase)
           const phaseDone = phase.steps.filter(s => s.status === "done").length
           return (
-            <div key={phase.phase} className="bg-white rounded-xl border border-gray-100 overflow-hidden shadow-sm">
-              {/* Phase header */}
+            <div key={phase.phase} className="space-y-3">
+              {/* Phase label */}
               <button
                 onClick={() => togglePhase(phase.phase)}
-                className="w-full flex items-center justify-between px-4 py-3 bg-gray-50 hover:bg-gray-100 transition-colors"
+                className="w-full flex items-center justify-between"
               >
                 <div className="flex items-center gap-3">
-                  <span className="text-xs font-semibold text-gray-500 uppercase tracking-wide">
+                  <span className="text-xs font-bold text-ca-text-tertiary uppercase tracking-wider">
                     {phase.phase === 1
                       ? (lang === "es" ? "FASE 1 — HACÉ ESTO PRIMERO" : "PHASE 1 — DO THESE FIRST")
                       : (lang === "es" ? `FASE ${phase.phase}` : `PHASE ${phase.phase}`)}
                   </span>
                   {phaseDone > 0 && (
-                    <span className="text-xs text-emerald-600 font-medium">
+                    <span className="text-xs text-ca-success font-semibold">
                       {phaseDone}/{phase.steps.length}
                     </span>
                   )}
                 </div>
-                {isExpanded ? <ChevronUp size={14} className="text-gray-400" /> : <ChevronDown size={14} className="text-gray-400" />}
+                {isExpanded ? <ChevronUp size={14} className="text-ca-text-tertiary" /> : <ChevronDown size={14} className="text-ca-text-tertiary" />}
               </button>
 
-              {/* Steps */}
-              <AnimatePresence>
-                {isExpanded && (
-                  <motion.div
-                    initial={{ height: 0 }}
-                    animate={{ height: "auto" }}
-                    exit={{ height: 0 }}
-                    className="overflow-hidden"
-                  >
-                    <div className="divide-y divide-gray-50">
+              {/* Steps — a plain conditional render (no height animation).
+                  framer-motion's height:0->"auto" measures the DOM at
+                  animation start; on the VERY FIRST render after the plan
+                  finishes loading, that can lock in a stale/short height and
+                  clip the active step's card (confirmed live: collapsing and
+                  re-expanding the phase "fixes" it, since the second
+                  measurement is correct — that's the height:"auto" footgun,
+                  not a data bug). A first-time visitor's first view of their
+                  plan is exactly the moment this can't be allowed to happen,
+                  so this trades the collapse/expand height animation for one
+                  that can't silently clip real content. */}
+              {isExpanded && (
+                <motion.div
+                  initial={{ opacity: 0 }}
+                  animate={{ opacity: 1 }}
+                  transition={{ duration: 0.15 }}
+                >
+                    <div className="space-y-3">
                       {phase.steps.map((step, idx) => {
                         const isDone = step.status === "done"
                         const isCompleting = completingStep === step.serviceId
@@ -443,54 +444,104 @@ export default function PlanPage() {
                         const probKey = `prob-${step.serviceId}`
                         const showDeleteConfirm = confirmDeleteStep === step.serviceId
 
+                        // Design handoff (Refined Navy): only the ACTIVE step gets
+                        // the rich card (documents/what-to-say/if-problems/apply
+                        // button) — matches the mock's step-2 example, which
+                        // collapses a not-yet-reached step to just a circle +
+                        // title + deadline. This is a deliberate hierarchy change
+                        // (not just a recolor): "one obvious next action" per the
+                        // brief's low-literacy/high-anxiety usability goal, so a
+                        // multi-step plan doesn't dump every step's full detail on
+                        // an anxious first-time user at once. Delete stays
+                        // available on every row (not just active) — collapsing
+                        // detail shouldn't also remove a real capability the
+                        // mock's static prototype simply didn't happen to render.
+                        if (!isActive) {
+                          return (
+                            <div key={step.serviceId}>
+                              <div
+                                className={`bg-white border border-ca-surface-border px-5 py-4 flex items-center gap-3.5 transition-opacity ${showDeleteConfirm ? "rounded-t-[13px]" : "rounded-[13px]"} ${isDeleting ? "opacity-40" : ""} ${isDone ? "opacity-60" : ""}`}
+                              >
+                                {isCompleting ? (
+                                  <Loader2 size={20} className="animate-spin text-brand flex-shrink-0" />
+                                ) : isDone ? (
+                                  <CheckCircle2 size={20} className="text-ca-success flex-shrink-0" />
+                                ) : (
+                                  <div className="w-6 h-6 rounded-full border-2 border-ca-surface-input flex-shrink-0" />
+                                )}
+                                <div className="flex-1 min-w-0">
+                                  <p className={`text-[15px] font-bold ${isDone ? "line-through text-ca-text-tertiary" : "text-gray-900"}`}>
+                                    {step.title}
+                                  </p>
+                                  {step.deadline && !isDone && (
+                                    <p className="text-xs text-ca-warn font-semibold mt-0.5">{tr.plan.deadline} {step.deadline}</p>
+                                  )}
+                                </div>
+                                <button
+                                  onClick={() => setConfirmDeleteStep(showDeleteConfirm ? null : step.serviceId)}
+                                  className="p-0.5 text-ca-text-tertiary hover:text-ca-text-secondary transition-colors rounded flex-shrink-0"
+                                  title={lang === "es" ? "Eliminar paso" : "Remove step"}
+                                  disabled={isDeleting}
+                                >
+                                  <MoreHorizontal size={14} />
+                                </button>
+                              </div>
+                              {showDeleteConfirm && (
+                                <div className="bg-white border border-t-0 border-ca-surface-border rounded-b-[13px] px-5 py-2.5 flex items-center gap-2 text-xs">
+                                  <Trash2 size={11} className="text-ca-danger flex-shrink-0" />
+                                  <span className="text-ca-text-secondary">{lang === "es" ? "¿Eliminar este paso?" : "Remove this step?"}</span>
+                                  <button onClick={() => handleDeleteStep(step)} className="text-ca-danger hover:opacity-80 font-semibold">
+                                    {lang === "es" ? "Eliminar" : "Remove"}
+                                  </button>
+                                  <button onClick={() => setConfirmDeleteStep(null)} className="text-ca-text-tertiary hover:text-ca-text-secondary">
+                                    {lang === "es" ? "Cancelar" : "Cancel"}
+                                  </button>
+                                </div>
+                              )}
+                            </div>
+                          )
+                        }
+
                         return (
                           <div
                             key={step.serviceId}
-                            className={`border-l-4 p-4 transition-all ${isDeleting ? "opacity-40" : ""}
-                              ${isDone ? "border-emerald-400 opacity-60" : isActive ? "border-[#185FA5]" : "border-gray-200"}`}
+                            className={`bg-white border border-ca-surface-border border-l-[3px] border-l-brand rounded-[13px] px-5 py-4.5 shadow-[0_1px_3px_rgba(16,24,40,.05)] transition-opacity ${isDeleting ? "opacity-40" : ""}`}
                           >
                             {/* Title row */}
-                            <div className="flex items-start justify-between gap-2">
-                              <div className="flex items-start gap-2.5 flex-1 min-w-0">
-                                {isCompleting ? (
-                                  <Loader2 size={18} className="animate-spin text-[#185FA5] mt-0.5 flex-shrink-0" />
-                                ) : isDone ? (
-                                  <CheckCircle2 size={18} className="text-emerald-500 mt-0.5 flex-shrink-0" />
-                                ) : isActive ? (
-                                  <div className="w-5 h-5 rounded-full bg-[#185FA5] flex items-center justify-center text-white text-[11px] font-bold flex-shrink-0 mt-0.5">
-                                    {idx + 1}
-                                  </div>
-                                ) : (
-                                  <div className="w-5 h-5 rounded-full border-2 border-gray-200 flex-shrink-0 mt-0.5" />
-                                )}
+                            <div className="flex items-start justify-between gap-3">
+                              <div className="flex items-start gap-3 flex-1 min-w-0">
+                                <div className="w-7 h-7 rounded-full bg-brand flex items-center justify-center text-white text-[13px] font-bold flex-shrink-0">
+                                  {idx + 1}
+                                </div>
                                 <div className="flex-1 min-w-0">
-                                  <p className={`text-sm font-semibold leading-snug ${isDone ? "line-through text-gray-400" : "text-gray-800"}`}>
+                                  <p className="text-[15.5px] font-bold text-gray-900 leading-snug">
                                     {step.title}
                                   </p>
-                                  <p className="text-xs text-gray-400 mt-0.5">{step.agency}</p>
-                                  {/* Phase 2a: tag which situation this step is for — only
-                                      shown once there's more than one active situation, so a
-                                      single-situation plan looks exactly as it did before. */}
-                                  {activeSituationLabels.length > 1 && step.situation && (
-                                    <span className="inline-block text-[10px] font-medium px-1.5 py-0.5 rounded mt-1 bg-blue-50 text-[#185FA5]">
-                                      {tr.profile.lifeEvents[step.situation as keyof typeof tr.profile.lifeEvents] || step.situation}
-                                    </span>
-                                  )}
-                                  {step.deadline && (
-                                    <p className="text-xs text-amber-600 font-medium mt-0.5">{tr.plan.deadline} {step.deadline}</p>
-                                  )}
-                                  {/* Online badge */}
-                                  {step.canDoOnline && step.onlineUrl && (
-                                    <a
-                                      href={step.onlineUrl}
-                                      target="_blank"
-                                      rel="noopener noreferrer"
-                                      className="inline-flex items-center gap-0.5 text-xs px-2 py-0.5 rounded-full bg-emerald-50 text-emerald-700 hover:bg-emerald-100 transition-colors mt-1"
-                                    >
-                                      <ExternalLink size={9} />
-                                      {lang === "es" ? "Hacer en línea" : "Do online"}
-                                    </a>
-                                  )}
+                                  <p className="text-xs text-ca-text-secondary mt-0.5">{step.agency}</p>
+                                  <div className="flex flex-wrap items-center gap-2 mt-2">
+                                    {/* Phase 2a: tag which situation this step is for — only
+                                        shown once there's more than one active situation, so a
+                                        single-situation plan looks exactly as it did before. */}
+                                    {activeSituationLabels.length > 1 && step.situation && (
+                                      <span className="text-[11.5px] font-semibold px-2.5 py-0.5 rounded-md bg-brand-light text-brand">
+                                        {tr.profile.lifeEvents[step.situation as keyof typeof tr.profile.lifeEvents] || step.situation}
+                                      </span>
+                                    )}
+                                    {step.deadline && (
+                                      <span className="text-xs font-semibold text-ca-warn">{tr.plan.deadline} {step.deadline}</span>
+                                    )}
+                                    {step.canDoOnline && step.onlineUrl && (
+                                      <a
+                                        href={step.onlineUrl}
+                                        target="_blank"
+                                        rel="noopener noreferrer"
+                                        className="inline-flex items-center gap-0.5 text-xs px-2 py-0.5 rounded-full bg-ca-success-light text-ca-success hover:opacity-80 transition-opacity"
+                                      >
+                                        <ExternalLink size={9} />
+                                        {lang === "es" ? "Hacer en línea" : "Do online"}
+                                      </a>
+                                    )}
+                                  </div>
                                 </div>
                               </div>
                               {/* Apply now + Delete */}
@@ -503,16 +554,15 @@ export default function PlanPage() {
                                       href={applyUrl}
                                       target="_blank"
                                       rel="noopener noreferrer"
-                                      className="inline-flex items-center gap-1 text-xs font-medium px-2 py-0.5 rounded-lg bg-[#185FA5] text-white hover:bg-[#145290] transition-colors"
+                                      className="inline-flex items-center gap-1.5 text-[13px] font-semibold px-3.5 py-2 rounded-[9px] bg-brand text-white hover:bg-brand-dark transition-colors whitespace-nowrap"
                                     >
-                                      <ExternalLink size={10} />
-                                      {lang === "es" ? "Aplicar" : "Apply now"}
+                                      {lang === "es" ? "Aplicar" : "Apply now"} →
                                     </a>
                                   ) : null
                                 })()}
                                 <button
                                   onClick={() => setConfirmDeleteStep(showDeleteConfirm ? null : step.serviceId)}
-                                  className="p-0.5 text-gray-300 hover:text-gray-500 transition-colors rounded"
+                                  className="p-0.5 text-ca-text-tertiary hover:text-ca-text-secondary transition-colors rounded"
                                   title={lang === "es" ? "Eliminar paso" : "Remove step"}
                                   disabled={isDeleting}
                                 >
@@ -523,13 +573,13 @@ export default function PlanPage() {
 
                             {/* Inline delete confirm */}
                             {showDeleteConfirm && (
-                              <div className="flex items-center gap-2 mt-2 text-xs py-1 border-b border-gray-100">
-                                <Trash2 size={11} className="text-red-400 flex-shrink-0" />
-                                <span className="text-gray-500">{lang === "es" ? "¿Eliminar este paso?" : "Remove this step?"}</span>
-                                <button onClick={() => handleDeleteStep(step)} className="text-red-500 hover:text-red-600 font-semibold">
+                              <div className="flex items-center gap-2 mt-2 text-xs py-1 border-b border-ca-surface-hairline">
+                                <Trash2 size={11} className="text-ca-danger flex-shrink-0" />
+                                <span className="text-ca-text-secondary">{lang === "es" ? "¿Eliminar este paso?" : "Remove this step?"}</span>
+                                <button onClick={() => handleDeleteStep(step)} className="text-ca-danger hover:opacity-80 font-semibold">
                                   {lang === "es" ? "Eliminar" : "Remove"}
                                 </button>
-                                <button onClick={() => setConfirmDeleteStep(null)} className="text-gray-400 hover:text-gray-600">
+                                <button onClick={() => setConfirmDeleteStep(null)} className="text-ca-text-tertiary hover:text-ca-text-secondary">
                                   {lang === "es" ? "Cancelar" : "Cancel"}
                                 </button>
                               </div>
@@ -537,14 +587,14 @@ export default function PlanPage() {
 
                             {/* Documents */}
                             {step.documents?.length > 0 && (
-                              <div className="mt-3">
-                                <p className="text-xs text-gray-400 mb-1.5">{tr.plan.bringDocuments}</p>
-                                <div className="flex flex-wrap gap-1">
+                              <div className="mt-3.5">
+                                <p className="text-xs text-ca-text-secondary mb-1.5">{tr.plan.bringDocuments}</p>
+                                <div className="flex flex-wrap gap-2">
                                   {step.documents.map((doc, di) => (
                                     <button
                                       key={di}
                                       onClick={() => handleDocInfo(doc)}
-                                      className="inline-flex items-center gap-1 text-xs text-gray-500 hover:text-[#185FA5] transition-colors bg-gray-50 hover:bg-blue-50 px-2 py-0.5 rounded-full border border-gray-200 hover:border-[#B5D4F4]"
+                                      className="inline-flex items-center gap-1 text-[12.5px] text-ca-text-secondary hover:text-brand transition-colors bg-white hover:bg-brand-light px-2.5 py-1 rounded-full border border-ca-surface-input hover:border-brand"
                                     >
                                       <Info size={9} />
                                       {doc}
@@ -554,99 +604,51 @@ export default function PlanPage() {
                               </div>
                             )}
 
-                            {/* What to say — blue block, always open for active, collapsible for others */}
-                            {!isDone && step.whatToSayWhenYouArrive && (
-                              <>
-                                {isActive ? (
-                                  <div className="mt-3 bg-blue-50 rounded-xl p-3">
-                                    <p className="text-xs font-medium text-blue-700 mb-1 flex items-center gap-1.5">
-                                      <MessageSquare size={11} />
-                                      {lang === "es" ? "Qué decir al llegar" : "What to say"}
-                                    </p>
-                                    <p className="text-xs text-blue-800 leading-relaxed">&ldquo;{step.whatToSayWhenYouArrive}&rdquo;</p>
-                                  </div>
-                                ) : (
-                                  <div className="mt-2">
-                                    <button
-                                      onClick={() => toggleTip(sayKey)}
-                                      className="flex items-center gap-1 text-xs text-[#185FA5] hover:text-[#145290] transition-colors"
-                                    >
-                                      <MessageSquare size={11} />
-                                      {lang === "es" ? "Qué decir al llegar" : "What to say"}
-                                      {expandedTips.has(sayKey) ? <ChevronUp size={10} /> : <ChevronDown size={10} />}
-                                    </button>
-                                    {expandedTips.has(sayKey) && (
-                                      <div className="mt-1.5 bg-blue-50 rounded-xl p-3">
-                                        <p className="text-xs text-blue-800 leading-relaxed">&ldquo;{step.whatToSayWhenYouArrive}&rdquo;</p>
-                                      </div>
-                                    )}
-                                  </div>
-                                )}
-                              </>
+                            {/* What to say — always open (this is the active step) */}
+                            {step.whatToSayWhenYouArrive && (
+                              <div className="mt-3.5 bg-brand-light rounded-[10px] p-3.5">
+                                <p className="text-[12.5px] font-bold text-brand mb-1 flex items-center gap-1.5">
+                                  <MessageSquare size={14} />
+                                  {lang === "es" ? "Qué decir al llegar" : "What to say"}
+                                </p>
+                                <p className="text-[13px] text-gray-700 leading-relaxed">&ldquo;{step.whatToSayWhenYouArrive}&rdquo;</p>
+                              </div>
                             )}
 
-                            {/* If problems — amber block, always open for active, collapsible for others */}
-                            {!isDone && step.whatToDoIfProblems && (
-                              <>
-                                {isActive ? (
-                                  <div className="mt-2 bg-amber-50 rounded-xl p-3">
-                                    <p className="text-xs font-medium text-amber-700 mb-1 flex items-center gap-1.5">
-                                      <AlertCircle size={11} />
-                                      {lang === "es" ? "Si algo sale mal" : "If something goes wrong"}
-                                    </p>
-                                    <p className="text-xs text-amber-800 leading-relaxed">{step.whatToDoIfProblems}</p>
-                                  </div>
-                                ) : (
-                                  <div className="mt-1.5">
-                                    <button
-                                      onClick={() => toggleTip(probKey)}
-                                      className="flex items-center gap-1 text-xs text-gray-400 hover:text-gray-600 transition-colors"
-                                    >
-                                      <AlertCircle size={11} />
-                                      {lang === "es" ? "Si algo sale mal" : "If something goes wrong"}
-                                      {expandedTips.has(probKey) ? <ChevronUp size={10} /> : <ChevronDown size={10} />}
-                                    </button>
-                                    {expandedTips.has(probKey) && (
-                                      <div className="mt-1.5 bg-amber-50 rounded-xl p-3">
-                                        <p className="text-xs text-amber-800 leading-relaxed">{step.whatToDoIfProblems}</p>
-                                      </div>
-                                    )}
-                                  </div>
-                                )}
-                              </>
+                            {/* If problems — always open (this is the active step) */}
+                            {step.whatToDoIfProblems && (
+                              <div className="mt-2.5 bg-ca-warn-light border border-ca-warn-border rounded-[10px] p-3.5">
+                                <p className="text-[12.5px] font-bold text-ca-warn mb-1 flex items-center gap-1.5">
+                                  <AlertCircle size={14} />
+                                  {lang === "es" ? "Si algo sale mal" : "If something goes wrong"}
+                                </p>
+                                <p className="text-[13px] text-ca-warn leading-relaxed">{step.whatToDoIfProblems}</p>
+                              </div>
                             )}
 
-                            {/* Bottom row: Ask agent (left) + Mark as done / Done (right) */}
-                            <div className="flex items-center justify-between mt-3 pt-2 border-t border-gray-50">
+                            {/* Bottom row: Ask agent (left) + Mark as done (right) */}
+                            <div className="flex items-center justify-between mt-4">
                               <button
                                 onClick={() => handleAskAgent(step)}
-                                className="text-xs text-gray-400 hover:text-[#185FA5] transition-colors"
+                                className="text-[13px] font-semibold text-ca-text-secondary hover:text-brand transition-colors"
                               >
                                 {lang === "es" ? "Preguntar al agente" : "Ask agent"}
                               </button>
-                              {isDone ? (
-                                <span className="inline-flex items-center gap-1 text-xs font-medium text-emerald-600 bg-emerald-50 px-2.5 py-1 rounded-lg">
-                                  <CheckCircle2 size={11} />
-                                  {lang === "es" ? "Hecho" : "Done"}
-                                </span>
-                              ) : (
-                                <button
-                                  onClick={() => toggleStep(step, phase.phase)}
-                                  disabled={isCompleting || isDeleting}
-                                  className="ml-auto flex items-center gap-1.5 text-xs font-medium px-3 py-1.5 rounded-lg bg-[#185FA5] text-white hover:bg-[#0C447C] transition-colors disabled:opacity-50"
-                                >
-                                  {isCompleting ? <Loader2 size={11} className="animate-spin" /> : <CheckCircle2 size={11} />}
-                                  {lang === "es" ? "Marcar como hecho" : "Mark as done"}
-                                </button>
-                              )}
+                              <button
+                                onClick={() => toggleStep(step, phase.phase)}
+                                disabled={isCompleting || isDeleting}
+                                className="flex items-center gap-1.5 text-[13px] font-semibold px-3.5 py-2 rounded-[9px] bg-white text-ca-success border border-ca-success-border hover:bg-ca-success-light transition-colors disabled:opacity-50"
+                              >
+                                {isCompleting ? <Loader2 size={14} className="animate-spin" /> : <CheckCircle2 size={14} />}
+                                {lang === "es" ? "Marcar como hecho" : "Mark as done"}
+                              </button>
                             </div>
                           </div>
                         )
                       })}
                     </div>
                   </motion.div>
-                )}
-              </AnimatePresence>
+              )}
             </div>
           )
         })}
