@@ -10,7 +10,7 @@
 //              top-K match. See KB_ENRICH's spike notes for how the floors
 //              were calibrated (40 hand-labeled query/entry pairs).
 import OpenAI from "openai"
-import { services, lookupServices, Service } from "./kb"
+import { services, lookupServices, isEligible, Service } from "./kb"
 
 export type ScoredService = Service & {
   _score?: number
@@ -139,6 +139,15 @@ export async function retrieveServices(p: {
   for (const f of foreground) {
     const s = services.find(x => x.id === f.id)
     if (!s) continue
+    // Task 2b eligibility FILTER (EF6 — the straggler-class trap): foreground
+    // is a raw semantic search with no employment awareness of its own, so
+    // without this an ineligible service (e.g. current_formal-gated
+    // paternity leave, asked about by an unemployed citizen) could surface
+    // via a topical match even though lookupServices's backdrop path would
+    // never include it. Same isEligible() call as lookupServices — one path
+    // suppressing something the other still shows is exactly the divergence
+    // this session's measurements kept catching elsewhere.
+    if (!isEligible(s, p.employment, p.slots)) continue
     byId.set(f.id, { ...s, _score: f.score, _source: "foreground" })
   }
   for (const [id, { service, situations }] of backdropMap) {

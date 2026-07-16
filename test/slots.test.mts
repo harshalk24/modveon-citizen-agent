@@ -52,7 +52,10 @@ test("nextMissingSlot returns null when nothing is missing — never asks a spur
 })
 
 test("nextMissingSlot returns null for a lifeEvent with no slot definitions", () => {
-  assert.equal(nextMissingSlot("job-loss", {}), null)
+  // Task 2b eligibility FILTER added a job-loss slot (wasFormallyEmployed),
+  // so job-loss no longer illustrates "no slot definitions" — marriage still
+  // has none.
+  assert.equal(nextMissingSlot("marriage", {}), null)
 })
 
 // ── applySlotInferences: don't ask what's already inferable ──────────────

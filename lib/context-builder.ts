@@ -141,26 +141,27 @@ const SYSTEM_PROMPT_EN = `
 You are Citizen Agent — a knowledgeable friend who knows every government process in El Salvador.
 
 CRITICAL RULES:
-0. ABSOLUTE CONSTRAINT: You have access to a KNOWLEDGE BASE section below. It contains the COMPLETE list of government services this citizen qualifies for, organized into "directAnswer" (what they just asked about) and "situations" (their other active situations, grouped). Together those two fields are the entire KNOWLEDGE BASE — you MUST NOT list any service, benefit, program, or scheme that isn't in EITHER of them. Not AFP. Not severance pay. Not PROCOMES. Not any other program.
+0. ABSOLUTE CONSTRAINT: You have access to a KNOWLEDGE BASE section below. "directAnswer" always contains the services to LIST this turn. Depending on the turn, it ALSO contains either "situations" (their other active situations, in full — ALSO to list, each under its own heading) or "otherSituationsForReasoning" (their other active situations, in BRIEF — for reasoning about cross-situation eligibility only; NEVER list these as separate benefit blocks). You MUST NOT list any service, benefit, program, or scheme that isn't in "directAnswer" (or in "situations" when it's present). Not AFP. Not severance pay. Not PROCOMES. Not any other program.
 1. ASSUME FIRST. Never ask for information you can reasonably assume. State assumption, show results, let citizen correct.
 2. ONE QUESTION MAX per response, and only ask if NONE of the KB services can answer the question AND the answer genuinely changes which services to show. If the citizen asks "what are my entitlements" or "what can I apply for" — answer immediately from the KB services already loaded in context.
 2a. ISSS ASSUMPTION. If employment is "formal", always assume the citizen contributes to ISSS. Immediately surface maternity benefit, paternity leave, and dependent enrollment without asking.
 2b. SITUATION OVER PROFILE. Surface universal services first (regardless of employment), then employment-specific benefits.
 2c. DOCUMENT LISTS. When listing documents, use: [doc name] DOC_INFO:[slug] per line.
 2d. NEVER RE-ASK EMPLOYMENT. If employment is already set in CITIZEN CONTEXT (anything other than "unknown"), do not ask about it again in any follow-up message. Treat it as confirmed and use it silently.
+2e. ACTION-STEP SEQUENCES. When your reply presents an ORDERED SEQUENCE OF ACTIONS THE CITIZEN WILL CARRY OUT to complete a trámite or process (e.g. the steps to obtain a poder notarial, register a birth, apply for a benefit in person), output the bare token PLAN_STEPS: on its OWN LINE immediately before the first step. Emit it AT MOST ONCE per reply. Do NOT emit it for: a list of documents (that uses DOC_INFO), a list of services/benefits (the service-block format in rule 17), a list of eligibility requirements or facts/conditions, or a "Before you go" preparation summary (rule 18). Test: if each item is something the citizen DOES, in order → emit it; if the items are things they HAVE, NEED, or QUALIFY FOR → do NOT emit it. PLAN_STEPS: is an invisible UI signal — never mention it, describe it, or translate it; the interface removes it before display.
 3. EMPATHY FIRST. When the citizen first describes a difficult situation, open with a brief human acknowledgment BEFORE listing benefits. Use ONE short sentence:
 - Job loss → "I'm sorry to hear about your job loss — let's make sure you get every support available."
 - New baby → "Congratulations on your new baby! Here's what you qualify for."
 - Health issue → "I hope you're doing okay — here's what support is available."
 - Starting business → "Exciting — here's what you need to get started."
 Keep it short (1 sentence). Then immediately go into the benefits. Never skip this for the citizen's first message describing their situation.
-3b. KNOWLEDGE BASE IS THE ONLY SOURCE FOR SERVICES. You MUST ONLY list services that appear somewhere in the KNOWLEDGE BASE section of this prompt — in "directAnswer" or under any situation inside "situations". If a service isn't in either, it does not exist — do not mention it, do not invent it, do not supplement with training data. The KNOWLEDGE BASE contains EXACTLY the services this citizen qualifies for, across BOTH fields combined. List them. No more, no less. For factual questions about documents, processes, or how things work: you may answer from general knowledge. For the list of services/benefits/schemes: KNOWLEDGE BASE ONLY.
+3b. KNOWLEDGE BASE IS THE ONLY SOURCE FOR SERVICES YOU LIST. You MUST ONLY list services that appear in "directAnswer", or under a situation inside "situations" when that field is present this turn. If "otherSituationsForReasoning" is present instead, its entries are NOT to be listed as benefit blocks — they exist only so you can reason about how the citizen's other active situations affect eligibility for what you ARE listing (e.g. an employment-based benefit's terms, given they're unemployed). If a service isn't in "directAnswer" or "situations", it does not exist — do not mention it, do not invent it, do not supplement with training data. List exactly what's listable. No more, no less. For factual questions about documents, processes, or how things work: you may answer from general knowledge. For the list of services/benefits/schemes: KNOWLEDGE BASE ONLY.
 4. BEFORE answering a service query, verify it exists in the KNOWLEDGE BASE. If not there, do not invent it.
 5. SPEAK CLEARLY IN ENGLISH. Short sentences. Active voice.
 6. AMOUNTS IN REAL MONEY. "$400 per week for 12 weeks" not bureaucratic formulae.
 7. NO BUREAUCRATIC NAMES. "your birth certificate" not "Certified birth registration document".
 8. NO POLITICS. Redirect unless it's poder notarial, property transactions, or diaspora chains — those are fully supported. Never say "I cannot help" for poder notarial.
-9. APPLY_NOW TAGS. For each service in the KB, after describing it, output exactly: APPLY_NOW:[applyUrl] where applyUrl is the 'applyUrl' field from that service's KB entry. Example: if applyUrl is 'https://www.isss.gob.sv' then output APPLY_NOW:https://www.isss.gob.sv — NEVER put the service name in the tag. ALWAYS use the URL from the KB entry's applyUrl field. If applyUrl is missing, omit the tag entirely.
+9. APPLY_NOW TAGS. Each service in the KB has TWO different URL fields with TWO different purposes — do not confuse them: "applyUrl" means the citizen can complete THIS step online right now; "infoUrl" is a general "learn more" link, NOT an application link. For each service, after describing it, output exactly: APPLY_NOW:[applyUrl] using ONLY the 'applyUrl' field. Example: if applyUrl is 'https://www.isss.gob.sv' then output APPLY_NOW:https://www.isss.gob.sv — NEVER put the service name in the tag. If applyUrl is missing/null, OMIT THE TAG ENTIRELY — do NOT substitute infoUrl, siteNav, or any other URL field instead. A missing applyUrl means this step can't be completed online, not "use a different link."
 14. When KB is empty AND query is depth-knowledge or plan-clarification: answer from general knowledge. Only show "no services found" when citizen explicitly asks what services they qualify for AND KB is empty.
 15. Never ask citizen to describe their situation if lifeEvent is already in context.
 16. For ALL follow-up questions (lifeEvent or entitlements set): never say "I cannot find" or "I am sorry." Use conversation history from RECENT MESSAGES. Connect answers to their personal situation. End follow-ups with one next-step suggestion.
@@ -208,20 +209,21 @@ const SYSTEM_PROMPT_ES = `
 Sos Citizen Agent — un amigo que conoce todos los trámites del gobierno de El Salvador.
 
 REGLAS CRÍTICAS:
-0. RESTRICCIÓN ABSOLUTA: Tenés acceso a una sección BASE DE CONOCIMIENTO abajo. Contiene la lista COMPLETA de servicios del gobierno para los que califica este ciudadano, organizada en "directAnswer" (lo que acaba de preguntar) y "situations" (sus otras situaciones activas, agrupadas). Juntos, esos dos campos son TODA la BASE DE CONOCIMIENTO — NO PODÉS listar ningún servicio, beneficio, programa o esquema que no esté en NINGUNO de los dos. No AFP. No liquidación. No PROCOMES. No ningún otro programa.
+0. RESTRICCIÓN ABSOLUTA: Tenés acceso a una sección BASE DE CONOCIMIENTO abajo. "directAnswer" siempre contiene los servicios que debés LISTAR este turno. Según el turno, también contiene "situations" (sus otras situaciones activas, completas — TAMBIÉN para listar, cada una bajo su propio encabezado) o "otherSituationsForReasoning" (sus otras situaciones activas, en BREVE — solo para razonar sobre elegibilidad cruzada; NUNCA las listés como beneficios separados). NO PODÉS listar ningún servicio, beneficio, programa o esquema que no esté en "directAnswer" (o en "situations" cuando esté presente). No AFP. No liquidación. No PROCOMES. No ningún otro programa.
 1. ASUMIR PRIMERO. Nunca pedás información que podés asumir razonablemente. Mostrá resultados, dejá que el ciudadano corrija.
 2. UNA PREGUNTA MÁXIMO por respuesta. Si el ciudadano pregunta "¿a qué tengo derecho?" respondé de inmediato desde el KB.
 2a. SUPUESTO ISSS. Si empleo="formal", asumí que cotiza al ISSS. Mostrá de inmediato maternidad, paternidad e inscripción de dependientes.
 2b. SITUACIÓN SOBRE PERFIL. Mostrá primero servicios universales, luego específicos por empleo.
 2c. LISTAS DE DOCUMENTOS. Usá: [nombre doc] DOC_INFO:[slug] por línea.
 2d. NUNCA PREGUNTES EMPLEO DE NUEVO. Si empleo ya está en CONTEXTO DEL CIUDADANO (algo distinto de "unknown"), no lo preguntes en ningún mensaje de seguimiento. Usalo en silencio como dato confirmado.
-3. LA BASE DE CONOCIMIENTO ES LA ÚNICA FUENTE DE SERVICIOS. SOLO podés listar servicios que aparecen en algún lugar de la sección BASE DE CONOCIMIENTO de este prompt — en "directAnswer" o dentro de alguna situación en "situations". Si un servicio no está en ninguno de los dos, no existe — no lo mencionés, no lo inventés, no suplementés con conocimiento de entrenamiento. La BASE DE CONOCIMIENTO contiene EXACTAMENTE los servicios para los que califica este ciudadano, entre AMBOS campos combinados. Listalós. Ni más ni menos. Para preguntas factuales sobre documentos y procesos: podés responder desde conocimiento general. Para la lista de servicios/beneficios/esquemas: SOLO BASE DE CONOCIMIENTO.
+2e. SECUENCIAS DE PASOS DE ACCIÓN. Cuando tu respuesta presenta una SECUENCIA ORDENADA DE ACCIONES QUE EL CIUDADANO VA A REALIZAR para completar un trámite o proceso (ej. los pasos para obtener un poder notarial, registrar un nacimiento, solicitar un beneficio en persona), escribí el token PLAN_STEPS: SOLO en su PROPIA LÍNEA, justo antes del primer paso. Emitilo COMO MÁXIMO UNA VEZ por respuesta. NO lo emitás para: una lista de documentos (eso usa DOC_INFO), una lista de servicios/beneficios (el formato de bloque de la regla 17), una lista de requisitos de elegibilidad o hechos/condiciones, ni un resumen de "Antes de ir" (regla 18). Prueba: si cada ítem es algo que el ciudadano HACE, en orden → emitilo; si los ítems son cosas que TIENE, NECESITA o para las que CALIFICA → NO lo emitás. PLAN_STEPS: es una señal invisible de interfaz — nunca lo menciones, describas ni traduzcas; la interfaz lo elimina antes de mostrar.
+3. LA BASE DE CONOCIMIENTO ES LA ÚNICA FUENTE DE SERVICIOS QUE LISTÁS. SOLO podés listar servicios que aparecen en "directAnswer", o dentro de alguna situación en "situations" cuando ese campo está presente este turno. Si en cambio aparece "otherSituationsForReasoning", esas entradas NO se listan como beneficios — existen solo para que razonés cómo las otras situaciones activas del ciudadano afectan la elegibilidad de lo que SÍ estás listando (ej. los términos de un beneficio por empleo, dado que perdió su trabajo). Si un servicio no está en "directAnswer" ni en "situations", no existe — no lo mencionés, no lo inventés, no suplementés con conocimiento de entrenamiento. Listá exactamente lo listable. Ni más ni menos. Para preguntas factuales sobre documentos y procesos: podés responder desde conocimiento general. Para la lista de servicios/beneficios/esquemas: SOLO BASE DE CONOCIMIENTO.
 4. ANTES de responder una consulta de servicio, verificá que exista en la BASE DE CONOCIMIENTO. Si no está, no lo inventés.
 5. HABLÁ EN ESPAÑOL SALVADOREÑO. Usá "vos". Oraciones cortas. Voz activa.
 6. MONTOS EN DINERO REAL. "$400 por semana durante 12 semanas" no fórmulas burocráticas.
 7. SIN NOMBRES BUROCRÁTICOS. "tu acta de nacimiento" no "Certificación de partida de nacimiento".
 8. SIN POLÍTICA. Redirigí excepto poder notarial, transacciones de propiedad y trámites de diáspora — esos están completamente soportados.
-9. ETIQUETAS APPLY_NOW. Por cada servicio del KB, después de describirlo, escribí exactamente: APPLY_NOW:[applyUrl] donde applyUrl es el campo 'applyUrl' de la entrada del KB. Ejemplo: si applyUrl es 'https://www.isss.gob.sv' entonces escribí APPLY_NOW:https://www.isss.gob.sv — NUNCA pongás el nombre del servicio en el tag. SIEMPRE usá la URL del campo applyUrl del KB. Si applyUrl falta, omití el tag.
+9. ETIQUETAS APPLY_NOW. Cada servicio del KB tiene DOS campos de URL distintos con propósitos DISTINTOS — no los confundas: "applyUrl" significa que el ciudadano puede completar ESTE paso en línea ahora mismo; "infoUrl" es un enlace general de "saber más", NO un enlace para trámite. Por cada servicio, después de describirlo, escribí exactamente: APPLY_NOW:[applyUrl] usando SOLO el campo 'applyUrl'. Ejemplo: si applyUrl es 'https://www.isss.gob.sv' entonces escribí APPLY_NOW:https://www.isss.gob.sv — NUNCA pongás el nombre del servicio en el tag. Si applyUrl falta/es null, OMITÍ EL TAG POR COMPLETO — NO sustituyas con infoUrl, siteNav, ni ningún otro campo de URL. Que falte applyUrl significa que este paso no se puede completar en línea, no "usá otro enlace."
 14. Si el KB está vacío Y la consulta es de conocimiento o plan: respondé desde conocimiento general.
 15. Nunca pedás que describan su situación si lifeEvent ya está en contexto.
 16. Para TODAS las preguntas de seguimiento: nunca digás "no puedo encontrar" ni "lo siento." Usá el historial de MENSAJES RECIENTES. Conectá respuestas con su situación personal. Terminá con un próximo paso relevante.
@@ -323,34 +325,70 @@ export function buildKBFacts(services: Service[], language: "en" | "es"): KBFact
   }))
 }
 
+// Task APPLY_NOW_FIX: a deterministic guard, applied to every generated draft
+// BEFORE grounding runs. Confirmed live: the model was emitting
+// APPLY_NOW:<infoUrl> even when a service's real applyUrl is null — not
+// fabrication (infoUrl is a real, present field) and not a UI bug (the
+// renderer only ever displays what's literally in this text) but a prompt-
+// following gap, reaching for the nearby infoUrl field instead of omitting
+// the tag as Rule 9 says. Scrubbing here, before checkGrounding, means a bad
+// tag never reaches the judge (no more false grounding-fail from this cause)
+// and never reaches the citizen either — strictly better than validating
+// only in the client, which has no ground-truth applyUrl data to check
+// against (the API only ever sends the citizen plain reply text, never
+// structured service facts — see app/api/chat/route.ts's response shape).
+// Matches ChatMessage.tsx's own APPLY_NOW:<url>(\s+DOWNLOAD:<url>)? parse
+// pattern so a dropped tag here is exactly what would otherwise have
+// rendered a bad "Apply now" button there.
+export function stripInvalidApplyNowTags(text: string, services: Service[], language: "en" | "es"): string {
+  const nameToApplyUrl = new Map<string, string | null>()
+  for (const s of services) {
+    const name = language === "es" ? s.nameEs : s.name
+    nameToApplyUrl.set(name, (s.steps && s.steps.length > 0) ? s.sourceUrl : null)
+  }
+
+  let currentApplyUrl: string | null | undefined // undefined = no known service context yet
+  return text.replace(/(\*\*[^*]+\*\*)|(APPLY_NOW:\S+(?:\s+DOWNLOAD:\S+)?)/g, (match, boldName, applyTag) => {
+    if (boldName) {
+      currentApplyUrl = nameToApplyUrl.get(boldName.slice(2, -2))
+      return match
+    }
+    const emittedUrl = applyTag.match(/^APPLY_NOW:(\S+)/)?.[1]
+    return currentApplyUrl && emittedUrl === currentApplyUrl ? match : ""
+  })
+}
+
 // Widened locally (rather than importing ScoredService from lib/semantic-search)
 // so this file doesn't need to depend on the retrieval layer — the extra
 // fields are optional and simply absent for callers still on plain lookupServices
 // (e.g. the WhatsApp webhook), in which case the relevance note below is skipped.
-type SourceTaggedService = Service & {
+// Exported so lib/grounding.ts's fallback formatter can share the exact same
+// tagged-service shape instead of re-declaring an equivalent type.
+export type SourceTaggedService = Service & {
   _source?: "backdrop" | "foreground" | "both"
   _situations?: string[]
 }
 
-// Task 2b structural grouping: what buildSystemPrompt hands the model instead
-// of a flat array + a prose "please group these IDs yourself" instruction.
-// The model READS the grouping rather than COMPUTING it — a join over a long
-// flat list is exactly the kind of structural requirement that collapses
-// under length when only expressed as prose (same lesson as the classifier/
-// cross-situation-reasoning work this session).
-export interface NestedKBPayload {
-  directAnswer: KBFact[]
+export interface GroupedServices {
+  directAnswer: SourceTaggedService[]
   // Keyed by situation LABEL (not slug) — target situation's key is inserted
-  // first so it reads first in JSON.stringify's key order too, though the
-  // model is told explicitly rather than relying on that alone.
-  situations: Record<string, KBFact[]>
+  // first so it reads first in JSON.stringify's/Object.entries' key order too.
+  situations: Record<string, SourceTaggedService[]>
 }
 
-export function buildNestedKBPayload(
+// Task 2b structural grouping: the single grouping computation shared by BOTH
+// reply-construction paths — buildNestedKBPayload (feeds the LLM's prompt)
+// and lib/grounding.ts's buildFallbackReply (the deterministic grounding-
+// fallback path). Originally this logic lived only inside buildNestedKBPayload,
+// which meant the grounding-fallback path never got the grouping treatment —
+// a citizen whose draft failed grounding twice (a common outcome) still saw
+// the old flat, mis-ordered dump regardless of the fix. Pulling the grouping
+// into one function used by both closes that gap structurally, the same way
+// buildKBFacts is the one place both generation and the judge read facts from.
+export function groupServicesBySituation(
   services: SourceTaggedService[],
-  language: "en" | "es",
   targetSituation: string | null
-): NestedKBPayload {
+): GroupedServices {
   // directAnswer = foreground/both entries (the turn's actual question) —
   // target-situation entries first, then any other foreground entry
   // (including one with no situation at all, e.g. FSV for a home-loan query
@@ -360,7 +398,6 @@ export function buildNestedKBPayload(
     ...foregroundServices.filter(s => targetSituation && s._situations?.includes(targetSituation)),
     ...foregroundServices.filter(s => !(targetSituation && s._situations?.includes(targetSituation))),
   ]
-  const directAnswer = buildKBFacts(orderedForeground, language)
   const directAnswerIds = new Set(orderedForeground.map(s => s.id))
 
   // situations = ALL active situations' backdrop entries, in full (per the
@@ -379,12 +416,81 @@ export function buildNestedKBPayload(
     ...(targetSituation && bySlug.has(targetSituation) ? [targetSituation] : []),
     ...[...bySlug.keys()].filter(slug => slug !== targetSituation),
   ]
-  const situations: Record<string, KBFact[]> = {}
-  for (const slug of orderedSlugs) {
-    situations[situationLabel(slug, language)] = buildKBFacts(bySlug.get(slug)!, language)
-  }
 
-  return { directAnswer, situations }
+  return { directAnswer: orderedForeground, situations: bySlug.size > 0 ? Object.fromEntries(orderedSlugs.map(slug => [slug, bySlug.get(slug)!])) : {} }
+}
+
+// Task 2b query-adaptive listing: the target situation's FULL scheme set to
+// LIST — its directAnswer entries plus its own backdrop group, merged under
+// one heading/section rather than as two disconnected fragments. Both reply
+// paths call this (buildFocusedKBPayload below for the LLM path, and
+// lib/grounding.ts's buildFallbackReply for the deterministic path) so "same
+// schemes listed on a focused turn" (the doc's consistency contract) holds
+// by construction, not by two hand-synced implementations drifting apart.
+export function resolveTargetSchemes(grouped: GroupedServices, targetSituation: string): SourceTaggedService[] {
+  const targetGroupSlug = grouped.situations[targetSituation] ? targetSituation : null
+  return [...grouped.directAnswer, ...(targetGroupSlug ? grouped.situations[targetGroupSlug] : [])]
+}
+
+// Task 2b structural grouping: what buildSystemPrompt hands the model instead
+// of a flat array + a prose "please group these IDs yourself" instruction.
+// The model READS the grouping rather than COMPUTING it — a join over a long
+// flat list is exactly the kind of structural requirement that collapses
+// under length when only expressed as prose (same lesson as the classifier/
+// cross-situation-reasoning work this session).
+export interface NestedKBPayload {
+  directAnswer: KBFact[]
+  situations: Record<string, KBFact[]>
+}
+
+export function buildNestedKBPayload(
+  services: SourceTaggedService[],
+  language: "en" | "es",
+  targetSituation: string | null
+): NestedKBPayload {
+  const grouped = groupServicesBySituation(services, targetSituation)
+  const situations: Record<string, KBFact[]> = {}
+  for (const [slug, svcs] of Object.entries(grouped.situations)) {
+    situations[situationLabel(slug, language)] = buildKBFacts(svcs, language)
+  }
+  return { directAnswer: buildKBFacts(grouped.directAnswer, language), situations }
+}
+
+// Task 2b query-adaptive listing: the FOCUSED-turn shape (a real target
+// situation) — "focus the LISTING, not the REASONING." directAnswer is the
+// target situation's full scheme set (what to list). Every OTHER active
+// situation appears only as brief one-line notes, NOT full scheme facts —
+// enough for the model to reason about cross-situation eligibility
+// interactions (Task 2b-4's instruction still fires independently of this
+// payload) without being tempted to list them as separate benefit blocks.
+// Dropping other situations from the payload entirely would re-break that
+// reasoning; this is deliberately a middle ground between the general
+// turn's buildNestedKBPayload (full detail, all situations, all listable)
+// and the fallback path (no reasoning capability, so it needs no
+// "otherSituationsForReasoning" data at all — just the target list).
+export interface FocusedKBPayload {
+  directAnswer: KBFact[]
+  otherSituationsForReasoning: Record<string, string[]>
+}
+
+export function buildFocusedKBPayload(
+  services: SourceTaggedService[],
+  language: "en" | "es",
+  targetSituation: string
+): FocusedKBPayload {
+  const grouped = groupServicesBySituation(services, targetSituation)
+  const directAnswer = buildKBFacts(resolveTargetSchemes(grouped, targetSituation), language)
+
+  const otherSituationsForReasoning: Record<string, string[]> = {}
+  for (const [slug, svcs] of Object.entries(grouped.situations)) {
+    if (slug === targetSituation) continue
+    otherSituationsForReasoning[situationLabel(slug, language)] = svcs.map(s => {
+      const name = language === "es" ? s.nameEs : s.name
+      const note = language === "es" ? s.eligibility?.noteEs : s.eligibility?.note
+      return note ? `${name} — ${note}` : name
+    })
+  }
+  return { directAnswer, otherSituationsForReasoning }
 }
 
 export function buildSystemPrompt(
@@ -417,15 +523,19 @@ export function buildSystemPrompt(
   })
 
   const hasSourceTags = services.some(s => s._source !== undefined)
-  // Task 2b structural grouping: nested when the retrieval layer tagged
-  // entries (the normal chat flow); untagged callers (e.g. the WhatsApp
-  // webhook, still on plain lookupServices) get everything in directAnswer
-  // and an empty situations map — same flat list they always saw, just
-  // wrapped in the same JSON shape so the model only ever has one shape to
-  // parse regardless of caller.
-  const nestedKB: NestedKBPayload = hasSourceTags
-    ? buildNestedKBPayload(services, language, targetSituation)
-    : { directAnswer: buildKBFacts(services, language), situations: {} }
+  // Task 2b query-adaptive listing: a focused turn (real target situation)
+  // gets the FocusedKBPayload shape (target-only listing + brief reasoning
+  // context for the rest); a general turn (no target — e.g. "what am I
+  // eligible for?") gets the prior task's full NestedKBPayload shape (every
+  // active situation, all listable). Untagged callers (e.g. the WhatsApp
+  // webhook, still on plain lookupServices) always get the general shape
+  // with everything in directAnswer — same flat list they always saw.
+  const isFocused = hasSourceTags && targetSituation !== null
+  const kbPayload: NestedKBPayload | FocusedKBPayload = isFocused
+    ? buildFocusedKBPayload(services, language, targetSituation!)
+    : hasSourceTags
+      ? buildNestedKBPayload(services, language, targetSituation)
+      : { directAnswer: buildKBFacts(services, language), situations: {} }
 
   const modeBlock = getModeBlock(queryType, ctx, language)
   const template  = language === "es" ? SYSTEM_PROMPT_ES : SYSTEM_PROMPT_EN
@@ -437,11 +547,25 @@ export function buildSystemPrompt(
     : ""
 
   const retrievalNoteParts: string[] = []
-  // Task 2b structural grouping: the note now explains the SHAPE instead of
-  // asking the model to join IDs across two parts of the prompt itself.
-  if (hasSourceTags) {
-    const hasDirectAnswer = nestedKB.directAnswer.length > 0
-    const hasSituations = Object.keys(nestedKB.situations).length > 0
+  // Task 2b query-adaptive listing: the note explains whichever SHAPE this
+  // turn actually has — focused (target-only + brief reasoning context) or
+  // general (all situations, all listable) — instead of asking the model to
+  // join IDs across two parts of the prompt itself.
+  if (hasSourceTags && isFocused) {
+    const fp = kbPayload as FocusedKBPayload
+    const hasDirectAnswer = fp.directAnswer.length > 0
+    const hasOther = Object.keys(fp.otherSituationsForReasoning).length > 0
+    if (hasDirectAnswer || hasOther) {
+      retrievalNoteParts.push(
+        language === "es"
+          ? `Este turno tiene un enfoque claro. La BASE DE CONOCIMIENTO está organizada para vos: "directAnswer" es lo que el ciudadano preguntó — listá SOLO esto.${hasOther ? ` "otherSituationsForReasoning" contiene notas breves de sus OTRAS situaciones activas — usalas SOLO para razonar cómo esas situaciones afectan la elegibilidad de lo que estás listando (ej. los términos de un beneficio dependen de que perdió su empleo); NUNCA las listés como beneficios separados.` : ""}`
+          : `This turn has a clear focus. The KNOWLEDGE BASE is organized for you: "directAnswer" is what the citizen asked about — list ONLY this.${hasOther ? ` "otherSituationsForReasoning" holds brief notes about their OTHER active situations — use them ONLY to reason about how those situations affect eligibility for what you're listing (e.g. a benefit's terms depend on them having lost their job); NEVER list these as separate benefits.` : ""}`
+      )
+    }
+  } else if (hasSourceTags) {
+    const np = kbPayload as NestedKBPayload
+    const hasDirectAnswer = np.directAnswer.length > 0
+    const hasSituations = Object.keys(np.situations).length > 0
     if (hasDirectAnswer || hasSituations) {
       retrievalNoteParts.push(
         language === "es"
@@ -477,7 +601,7 @@ export function buildSystemPrompt(
 
   return template
     .replace("{citizenContext}", compactCtx)
-    .replace("{knowledgeBase}", JSON.stringify(nestedKB))
+    .replace("{knowledgeBase}", JSON.stringify(kbPayload))
     .replace("{conversationSummary}", ctx.conversationSummary || (language === "es" ? "Primera sesión." : "First session."))
     .replace("{recentMessages}", recentMessages)
     .replace("{retrievalNote}", retrievalNote)

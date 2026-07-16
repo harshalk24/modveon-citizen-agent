@@ -30,6 +30,28 @@ export const extractBirthRegistered: SlotExtractor = extractYesNo
 export const extractAlreadyRegistered: SlotExtractor = extractYesNo
 export const extractHasEmployees: SlotExtractor = extractYesNo
 
+// Task 2b eligibility FILTER: extractYesNo's bare word-boundary match is
+// known to over-match — a business-only reply like "it's just me, no
+// employees or storefront" was confirmed live to falsely fill an unrelated
+// situation's yes/no slot via its bare "no". The commit-2 FILL loop already
+// scopes WHICH situation's pendingSlot gets tried, but that doesn't stop a
+// message that's clearly about a DIFFERENT slot's topic from coincidentally
+// matching this one's bare yes/no. Since wasFormallyEmployed can co-occur
+// with new-baby or start-business (job-loss pairs with either in practice),
+// guard against exactly that: if the message contains another slot's known
+// topic vocabulary and nothing about formal employment, don't extract.
+const OFF_TOPIC_ANCHORS = [
+  "storefront", "shop", "store", "employees", "workers", "staff", "hire",
+  "local", "tienda", "empleados", "trabajadores", "negocio",
+  "baby", "birth", "bebé", "nacimiento", "partida",
+]
+
+export const extractWasFormallyEmployed: SlotExtractor = (message) => {
+  const lower = message.toLowerCase().trim()
+  if (matches(lower, OFF_TOPIC_ANCHORS)) return null
+  return extractYesNo(message)
+}
+
 export const extractBusinessSizeTier: SlotExtractor = (message) => {
   const lower = message.toLowerCase()
   const employeesPhrases = [

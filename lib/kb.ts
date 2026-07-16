@@ -48,13 +48,48 @@ export interface Service {
   // entries whose eligibility is genuinely nuanced (employment-contingent)
   // carry this; most entries have none.
   eligibility?: {
-    // Machine key for the later filter work (Situation-table task) — defined
-    // now so the type is ready, but deliberately left unset by this task; no
-    // filter logic reads it yet.
-    requires?: string
+    // Task 2b eligibility FILTER: the employment-gate model isEligible()
+    // reads. "any" = no gate (default when unset). "current_formal" = needs
+    // CURRENT formal employment. "prior_formal_ok" = qualifies if currently
+    // formal OR was formerly formal (surface-unless-known-negative — see
+    // isEligible's comment). Deliberately only these three states; no new
+    // axes (e.g. informal-history) without a real design decision.
+    requires?: "any" | "current_formal" | "prior_formal_ok"
     note: string
     noteEs: string
   }
+}
+
+// Task 2b eligibility FILTER (the filter half of the keystone). Single source
+// of truth for the employment-gate decision — both lookupServices (below)
+// and lib/semantic-search.ts's foreground path call this, so an entry
+// suppressed by one path is suppressed by the other (no straggler
+// divergence — the exact class of bug this session's other measurements
+// kept finding two-paths-diverged issues in).
+//
+// "current_formal" (e.g. paternity leave, ISSS dependent/spouse enrollment)
+// needs ACTIVE ISSS coverage right now — a hard, symmetric gate.
+//
+// "prior_formal_ok" (e.g. unemployment benefit, maternity subsidy) is
+// deliberately ASYMMETRIC: surface unless we affirmatively know the citizen
+// was NEVER formally employed. A citizen who is currently formal, OR whose
+// job-loss `wasFormallyEmployed` slot is "yes", OR whose slot is simply
+// UNKNOWN (unfilled) all see the benefit; only slot === "no" (confirmed
+// never-formal) suppresses it. Fail-OPEN on surfacing (a hidden benefit is a
+// false negative that costs a real citizen money), fail-CLOSED on claims
+// (the entry's own eligibility.note hedges "confirm with agency") — the
+// deliberate combination for a benefits-discovery tool, not a contradiction.
+export function isEligible(s: Service, employment: string, slots?: Record<string, string>): boolean {
+  // Citizen's employment status itself unknown/wildcard — matches every
+  // service, same fail-open default lookupServices already had pre-filter.
+  if (employment === "any" || employment === "unknown") return true
+
+  const requires = s.eligibility?.requires ?? "any"
+  if (requires === "any") return true
+  if (requires === "current_formal") return employment === "formal"
+  // prior_formal_ok
+  if (employment === "formal") return true
+  return slots?.wasFormallyEmployed !== "no"
 }
 
 export const services: Service[] = [
@@ -84,7 +119,10 @@ export const services: Service[] = [
   },
   {
     id: "sv-isss-maternity-benefit",
-    country: "SV", lifeEvents: ["new-baby"], employment: ["formal"],
+    // Task 2b eligibility FILTER: employment tag retired (was the overloaded
+    // current-vs-prior gate) — eligibility.requires: "prior_formal_ok" below
+    // is the real gate now.
+    country: "SV", lifeEvents: ["new-baby"], employment: ["any"],
     name: "Maternity benefit (subsidio por maternidad)",
     nameEs: "Subsidio por maternidad (ISSS)",
     agency: "ISSS", agencyFull: "Instituto Salvadoreño del Seguro Social",
@@ -114,13 +152,19 @@ export const services: Service[] = [
     // job, does maternity still apply?"). Hedged, not a hard denial — prior
     // contributions can still qualify a citizen who is no longer employed.
     eligibility: {
+      requires: "prior_formal_ok",
       note: "The ISSS maternity subsidy requires having contributed to ISSS as a formal worker. If you recently lost your job, you may still qualify based on your prior contributions — confirm your eligibility with ISSS.",
       noteEs: "El subsidio por maternidad del ISSS requiere haber cotizado al ISSS como trabajadora formal. Si perdiste tu empleo recientemente, podrías calificar según tus cotizaciones anteriores — confirmá con el ISSS.",
     },
   },
   {
     id: "sv-isss-dependent-enrollment",
-    country: "SV", lifeEvents: ["new-baby"], employment: ["formal"],
+    // Task 2b eligibility FILTER: genuine current_formal gate (not one of the
+    // doc's 3 named examples, but the same reasoning applies) — enrolling a
+    // NEW dependent requires the parent to hold ACTIVE ISSS coverage right
+    // now, via current formal employment; unlike the unemployment benefit,
+    // there's no "prior contributions" path to this one.
+    country: "SV", lifeEvents: ["new-baby"], employment: ["any"],
     name: "Enroll baby as ISSS dependent",
     nameEs: "Inscribir al bebé como dependiente del ISSS",
     agency: "ISSS", agencyFull: "Instituto Salvadoreño del Seguro Social",
@@ -140,6 +184,11 @@ export const services: Service[] = [
     // KB annotation audit: unannotated, carries a deadline + eligibility claim
     // — added to the human-review worklist.
     reviewStatus: "needs_review",
+    eligibility: {
+      requires: "current_formal",
+      note: "Enrolling your baby as an ISSS dependent requires that YOU currently hold active ISSS coverage through formal employment — this isn't based on past contributions.",
+      noteEs: "Inscribir a tu bebé como dependiente del ISSS requiere que VOS tengas cobertura activa del ISSS por empleo formal actual — esto no se basa en cotizaciones anteriores.",
+    },
   },
   {
     id: "sv-child-subsidy",
@@ -165,7 +214,7 @@ export const services: Service[] = [
   },
   {
     id: "sv-isss-paternity-benefit",
-    country: "SV", lifeEvents: ["new-baby"], employment: ["formal"],
+    country: "SV", lifeEvents: ["new-baby"], employment: ["any"],
     name: "Paternity benefit (partner)",
     nameEs: "Licencia de paternidad (pareja)",
     agency: "ISSS", agencyFull: "Instituto Salvadoreño del Seguro Social",
@@ -181,7 +230,11 @@ export const services: Service[] = [
     // claim — added to the human-review worklist.
     reviewStatus: "needs_review",
     // Task 2b eligibility notes — see sv-isss-maternity-benefit's comment.
+    // Task 2b eligibility FILTER: requires "current_formal" — the filter now
+    // actually suppresses this for a non-formal citizen; employment tag
+    // retired (was doing this job unevenly across the KB).
     eligibility: {
+      requires: "current_formal",
       note: "Paternity leave is for fathers currently employed and contributing to ISSS. If you are not currently employed, this benefit likely does not apply — confirm with ISSS.",
       noteEs: "La licencia de paternidad es para padres actualmente empleados que cotizan al ISSS. Si no estás empleado actualmente, es probable que este beneficio no aplique — confirmá con el ISSS.",
     },
@@ -190,7 +243,7 @@ export const services: Service[] = [
   // ── EL SALVADOR — JOB LOSS ─────────────────────────────
   {
     id: "sv-isss-unemployment",
-    country: "SV", lifeEvents: ["job-loss"], employment: ["formal"],
+    country: "SV", lifeEvents: ["job-loss"], employment: ["any"],
     name: "ISSS unemployment benefit",
     nameEs: "Prestación por desempleo del ISSS",
     agency: "ISSS", agencyFull: "Instituto Salvadoreño del Seguro Social",
@@ -208,36 +261,18 @@ export const services: Service[] = [
     // claim — added to the human-review worklist.
     reviewStatus: "needs_review",
     // Task 2b eligibility notes — see sv-isss-maternity-benefit's comment.
-    // Note is correct now, but this entry is still filter-suppressed from
-    // retrieval for unemployed citizens (a separate, later filter-change fix
-    // rides with the Situation-table work) — so this note won't actually be
-    // exercised by the judge until that filter change lands. Expected.
+    // Task 2b eligibility FILTER: this is the entry that motivated the whole
+    // task. requires: "prior_formal_ok" + the filter's surface-unless-known-
+    // negative rule means this NOW actually surfaces for an unemployed
+    // citizen (previously wrongly suppressed by the old employment:["formal"]
+    // tag, which conflated CURRENT status with the PRIOR contributions this
+    // benefit actually depends on).
     eligibility: {
+      requires: "prior_formal_ok",
       note: "This is continuation of ISSS health coverage for people who were formal contributors and recently lost their job — it depends on prior formal contributions, not current employment.",
       noteEs: "Es la continuación de la cobertura de salud del ISSS para personas que fueron cotizantes formales y perdieron su empleo — depende de las cotizaciones formales anteriores, no de un empleo actual.",
     },
   },
-  {
-    id: "sv-insaforp-training",
-    country: "SV", lifeEvents: ["job-loss"], employment: ["unemployed", "formal"],
-    name: "INSAFORP free job training",
-    nameEs: "Capacitación gratuita — INSAFORP",
-    agency: "INSAFORP", agencyFull: "Instituto Salvadoreño de Formación Profesional",
-    description: "Free vocational training in tech, administration, and trades.",
-    descriptionEs: "Cursos gratuitos en tecnología, administración y oficios.",
-    priority: 2, phaseToApply: 2,
-    documents: ["DUI"], documentsEs: ["DUI"],
-    sourceUrl: "https://www.insaforp.org.sv", lastVerified: "2026-05-10",
-    officeHours: "Monday–Friday, 8:00am–4:00pm",
-    universalTip: "Many courses are online and free. Search the catalogue at insaforp.org.sv before going in person — you may not need to visit at all.",
-    siteNavigation: "insaforp.org.sv → Catálogo de Cursos (as of May 2026)",
-    // KB annotation audit: INSAFORP has been dissolved/restructured into INCAF —
-    // agency name, URL, and process details below are stale pending content
-    // rewrite (Spanish human review owed). Marked needs_review so grounding
-    // hedges these facts instead of treating them as trusted/verified.
-    reviewStatus: "needs_review",
-  },
-
   // ── EL SALVADOR — START BUSINESS ───────────────────────
   {
     id: "sv-conamype-grant",
@@ -367,7 +402,10 @@ export const services: Service[] = [
   },
   {
     id: "sv-isss-spouse-enrollment",
-    country: "SV", lifeEvents: ["marriage"], employment: ["formal"],
+    // Task 2b eligibility FILTER: same reasoning as sv-isss-dependent-
+    // enrollment — enrolling a beneficiary requires the citizen's OWN
+    // active ISSS coverage right now, not prior contributions.
+    country: "SV", lifeEvents: ["marriage"], employment: ["any"],
     name: "ISSS spouse / beneficiary enrollment",
     nameEs: "Inscripción de cónyuge como beneficiario ISSS",
     agency: "ISSS", agencyFull: "Instituto Salvadoreño del Seguro Social",
@@ -382,6 +420,11 @@ export const services: Service[] = [
     // KB annotation audit: unannotated, carries a 30-day deadline claim —
     // added to the human-review worklist.
     reviewStatus: "needs_review",
+    eligibility: {
+      requires: "current_formal",
+      note: "Enrolling your spouse as an ISSS beneficiary requires that YOU currently hold active ISSS coverage through formal employment.",
+      noteEs: "Inscribir a tu cónyuge como beneficiario del ISSS requiere que VOS tengas cobertura activa del ISSS por empleo formal actual.",
+    },
   },
 
   // ── EL SALVADOR — DEATH / BEREAVEMENT ──────────────────
@@ -427,7 +470,18 @@ export const services: Service[] = [
   // ── EL SALVADOR — RETIREMENT ───────────────────────────
   {
     id: "sv-afp-retirement-pension",
-    country: "SV", lifeEvents: ["retirement"], employment: ["formal", "informal"],
+    // Task 2b eligibility FILTER — JUDGMENT CALL, flag for review: this
+    // wasn't one of the doc's 3 named entries. Its old employment:["formal",
+    // "informal"] tag had the SAME current-vs-prior conflation bug as
+    // unemployment (a citizen filing a retirement claim is, by definition,
+    // not "currently" formal or informal at that moment — the real gate is
+    // decades of PAST contributions). It doesn't cleanly fit current_formal/
+    // prior_formal_ok (those only reason about FORMAL history, not informal),
+    // and the doc explicitly rules out inventing a new axis here. Set to
+    // "any" — the description's own contribution-years language already
+    // carries the real eligibility fact; not asserting a new, better-fitting
+    // gate without a design decision.
+    country: "SV", lifeEvents: ["retirement"], employment: ["any"],
     name: "AFP retirement pension claim",
     nameEs: "Pensión de vejez AFP",
     agency: "AFP", agencyFull: "Administradoras de Fondos de Pensiones (CRECER / CONFÍA)",
@@ -447,7 +501,10 @@ export const services: Service[] = [
   },
   {
     id: "sv-isss-retirement",
-    country: "SV", lifeEvents: ["retirement"], employment: ["formal"],
+    // Task 2b eligibility FILTER — same judgment call as sv-afp-retirement-
+    // pension above: this is a pre-1998 PRIOR-contributions benefit, not a
+    // current-employment one; "any" rather than inventing a new axis.
+    country: "SV", lifeEvents: ["retirement"], employment: ["any"],
     name: "ISSS retirement benefit",
     nameEs: "Prestación de vejez ISSS",
     agency: "ISSS", agencyFull: "Instituto Salvadoreño del Seguro Social",
@@ -522,21 +579,47 @@ export const services: Service[] = [
   {
     id: "sv-insaforp-free-training",
     country: "SV", lifeEvents: ["education", "job-loss"], employment: ["unemployed", "informal", "any"],
-    name: "Free vocational training (INSAFORP)",
-    nameEs: "Capacitación vocacional gratuita (INSAFORP)",
+    // Task INSAFORP_MERGE: this entry and the now-deleted "sv-insaforp-training"
+    // ("INSAFORP free job training") were the same real-world program entered
+    // twice under reordered names — the fallback measurement showed the model
+    // routinely blending the two (describing one, attaching the other's
+    // document list), which the faithfulness judge correctly flagged as an
+    // entity mismatch (68 rejections across 23 runs). Collapsed to one entry;
+    // "job training" folded into name/description so semantic search still
+    // matches queries phrased either way.
+    name: "Free vocational & job training (INSAFORP)",
+    nameEs: "Capacitación vocacional y laboral gratuita (INSAFORP)",
     agency: "INSAFORP", agencyFull: "Instituto Salvadoreño de Formación Profesional",
-    description: "Free technical and vocational training courses in areas like cooking, electrical, computing, beauty, and construction. Open to all Salvadorans.",
-    descriptionEs: "Cursos técnicos y vocacionales gratuitos en cocina, electricidad, computación, belleza y construcción. Abierto a todos los salvadoreños.",
+    description: "Free technical, vocational, and job training courses in areas like cooking, electrical, computing, tech, administration, trades, beauty, and construction. Open to all Salvadorans.",
+    descriptionEs: "Cursos técnicos, vocacionales y de capacitación laboral gratuitos en cocina, electricidad, computación, tecnología, administración, oficios, belleza y construcción. Abierto a todos los salvadoreños.",
+    // Task INSAFORP_AMOUNT_FIX: a hedged amount ("no fee... confirm with X")
+    // made things WORSE on re-measurement — the entry's name/description
+    // still flatly assert "free," the model naturally echoes that framing,
+    // and the faithfulness judge then caught the model's bare "free" claim
+    // NOT reproducing the hedge. Asserting "Free" confidently, matching
+    // name/description exactly, removes the internal contradiction instead
+    // of creating a new one.
+    amount: "Free",
     priority: 1, phaseToApply: 1,
-    documents: ["DUI", "Birth certificate", "Completed application form"],
-    documentsEs: ["DUI", "Partida de nacimiento", "Formulario de solicitud completo"],
+    // Task INSAFORP_MERGE: the two duplicate entries disagreed on documents
+    // (["DUI"] vs ["DUI","Birth certificate","Completed application form"])
+    // and neither could be confirmed as current. Harshal's call: keep the
+    // conservative, verified-enough DUI-only list as the asserted
+    // requirement; the other two are mentioned only as a hedged possibility
+    // in the tip below, never asserted as required (asserting the longer
+    // list unconfirmed would be the exact over-claim the grounding
+    // discipline forbids).
+    documents: ["DUI"], documentsEs: ["DUI"],
     sourceUrl: "https://www.insaforp.org.sv", lastVerified: "2026-05-25",
     officeHours: "Monday–Friday, 8:00am–4:00pm",
-    universalTip: "Check the INSAFORP website or visit in person to see the current course calendar. Courses fill up fast — register early.",
+    universalTip: "Many courses are online — search the catalogue at insaforp.org.sv before visiting in person, you may not need to go at all. Courses fill up fast, so register early. Some programs may also ask for a birth certificate and a completed application form — confirm current enrollment requirements when you apply.",
+    siteNavigation: "insaforp.org.sv → Catálogo de Cursos (as of May 2026)",
     // KB annotation audit: INSAFORP has been dissolved/restructured into INCAF —
     // agency name, URL, and process details below are stale pending content
     // rewrite (Spanish human review owed). Marked needs_review so grounding
     // hedges these facts instead of treating them as trusted/verified.
+    // NOT relabeled to INCAF here (Task INSAFORP_MERGE) — that's a separate,
+    // KB-wide agency-currency verification item, not this task's scope.
     reviewStatus: "needs_review",
   },
 
@@ -610,7 +693,11 @@ export const services: Service[] = [
   // ── EL SALVADOR — SOCIAL BENEFITS ─────────────────────
   {
     id: "sv-fsv-housing-loan",
-    country: "SV", lifeEvents: ["social-benefits", "housing", "property"], employment: ["formal"],
+    // Task 2b eligibility FILTER: employment tag retired — FSV's real gate is
+    // income/payment capacity (formal OR independent-worker income both
+    // qualify per the description below), not a formal/prior-formal axis.
+    // requires: "any" below; the note already carries the real nuance.
+    country: "SV", lifeEvents: ["social-benefits", "housing", "property"], employment: ["any"],
     name: "FSV housing loan (Fondo Social para la Vivienda)",
     nameEs: "Préstamo habitacional FSV",
     agency: "FSV", agencyFull: "Fondo Social para la Vivienda",
@@ -663,6 +750,7 @@ export const services: Service[] = [
     confidence: 0.5,
     // Task 2b eligibility notes — see sv-isss-maternity-benefit's comment.
     eligibility: {
+      requires: "any",
       note: "An FSV housing loan requires provable income and payment capacity — as a formal worker (6+ months of contributions) or an independent worker (about 2+ years of activity). If you have no current income, you likely won't qualify right now — confirm with FSV.",
       noteEs: "Un crédito de vivienda del FSV requiere ingresos comprobables y capacidad de pago — como trabajador formal (6+ meses de cotizaciones) o independiente (unos 2+ años de actividad). Si no tenés ingresos actualmente, es probable que no califiques por ahora — confirmá con el FSV.",
     },
@@ -683,15 +771,13 @@ export function lookupServices(params: {
     .filter(s =>
       s.country === params.country &&
       s.lifeEvents.includes(params.lifeEvent) &&
-      (
-        // "any"/"unknown" (citizen status not yet known) matches every service,
-        // same as legacy behavior — precise formal-vs-informal gating applies
-        // once employment is actually known.
-        params.employment === "any" ||
-        params.employment === "unknown" ||
-        s.employment.includes(params.employment) ||
-        s.employment.includes("any")
-      ) &&
+      // Task 2b eligibility FILTER: replaces the old raw `employment` tag
+      // check — that model couldn't distinguish CURRENT formal employment
+      // from PRIOR formal employment, wrongly suppressing e.g. the
+      // unemployment benefit (tagged employment:["formal"], but its real
+      // eligibility is PRIOR contributions, not current status) for the
+      // unemployed citizens it's actually for.
+      isEligible(s, params.employment, params.slots) &&
       !(
         s.suppressWhenSlot &&
         params.slots?.[s.suppressWhenSlot.key] !== undefined &&

@@ -1,6 +1,6 @@
 import {
   extractBirthRegistered, extractAlreadyRegistered, extractHasEmployees,
-  extractBusinessSizeTier, extractPoderPurpose, SlotExtractor,
+  extractBusinessSizeTier, extractPoderPurpose, extractWasFormallyEmployed, SlotExtractor,
 } from "@/lib/slot-extract"
 
 // A slot exists only if not knowing it changes the answer (Task S1 rule 1).
@@ -34,6 +34,22 @@ export const SLOT_DEFS: Record<string, SlotDef[]> = {
         es: "¿Ya registraste el nacimiento en el RNPN, o todavía lo tenés pendiente?",
       },
       extract: extractBirthRegistered,
+    },
+  ],
+  "job-loss": [
+    {
+      // Task 2b eligibility FILTER: the "was formerly formal" fact the
+      // prior_formal_ok gate reads (lib/kb.ts's isEligible). NOT critical —
+      // the unemployment/maternity benefits already surface while this is
+      // unknown (surface-unless-known-negative); this slot only refines
+      // toward the one correct suppression (a confirmed "no").
+      key: "wasFormallyEmployed",
+      critical: false,
+      ask: {
+        en: "Were you formally employed (contributing to ISSS) before losing your job?",
+        es: "¿Estabas empleado formalmente (cotizando al ISSS) antes de perder tu empleo?",
+      },
+      extract: extractWasFormallyEmployed,
     },
   ],
   "start-business": [
