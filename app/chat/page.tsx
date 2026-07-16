@@ -14,6 +14,7 @@ import ChatTour from "@/components/chat/ChatTour"
 import { services as kbServices } from "@/lib/kb"
 import { extractLifeEvent, extractEmployment } from "@/lib/extract-intent"
 import { getActiveSituations, unionServicesForSituations } from "@/lib/situations"
+import { isServiceReplyType } from "@/lib/ui-state"
 import { startRNPNDemoSequence, showFormPreview, showSubmissionFlow } from "@/lib/demo-sequence"
 
 // Maps the server's per-reply classification tag (the X-UI-State response
@@ -74,12 +75,23 @@ function generateId() {
   return `msg_${Date.now()}_${Math.random().toString(36).slice(2)}`
 }
 
-// Non-service replies (meta / out-of-scope / no-context-open) shouldn't carry a
-// plan CTA even if the server retrieved services internally. Missing uiState =>
-// treat as service (backward-compat with pre-tag messages).
-const NON_SERVICE_UI_STATES = new Set(["meta", "out-of-scope", "no-context-open"])
-function isServiceReplyType(uiState?: string) {
-  return !uiState || !NON_SERVICE_UI_STATES.has(uiState)
+// Task VERIFY_COPY — two-phase "verifying" copy. Neutral rotating lines shown
+// immediately on send (true regardless of query type); swapped to the service
+// "official sources" line only once the parallel classify pre-flight confirms a
+// service-type reply. Dropped the old "verify every fact against government
+// sites" wording — an overclaim (the agent grounds against the curated KB, not
+// a live site check).
+const NEUTRAL_VERIFY: Record<"en" | "es", string[]> = {
+  en: ["Thinking that through…", "Looking into it…", "Piecing it together…", "One moment…"],
+  es: ["Pensándolo…", "Revisando eso…", "Juntando las piezas…", "Un momento…"],
+}
+const SERVICE_VERIFY_TITLE: Record<"en" | "es", string> = {
+  en: "Checking against official sources…",
+  es: "Verificando en fuentes oficiales…",
+}
+const SERVICE_VERIFY_SUB: Record<"en" | "es", string> = {
+  en: "This can take a few seconds.",
+  es: "Esto puede tardar unos segundos.",
 }
 
 // mirrors isUnverified() in lib/grounding.ts — keep in sync. Not imported
@@ -124,6 +136,14 @@ function ChatContent() {
   const [entitlementCount, setEntitlementCount] = useState(0)
   const [showTour, setShowTour] = useState(false)
   const [generatingPlan, setGeneratingPlan] = useState(false)
+  // Task VERIFY_COPY — verifying-copy state: starts neutral every turn; flips to
+  // the service "official sources" line only when the classify pre-flight
+  // confirms a service-type reply. neutralIdx rotates the neutral lines.
+  const [verifyingIsService, setVerifyingIsService] = useState(false)
+  const [neutralIdx, setNeutralIdx] = useState(0)
+  // Guards against a slow classify from a PRIOR turn flipping the copy after a
+  // new turn has already started (best-effort, so a stale result must be dropped).
+  const verifyTurnRef = useRef<string | null>(null)
   const bottomRef = useRef<HTMLDivElement>(null)
   const textareaRef = useRef<HTMLTextAreaElement>(null)
   const hasAutoSentRef = useRef(false)
@@ -132,6 +152,15 @@ function ChatContent() {
   // Set to true after the first real LLM message — prevents welcome effect from
   // resetting messages when citizen context refreshes after streaming ends
   const conversationStartedRef = useRef(false)
+
+  // Task VERIFY_COPY — rotate the neutral verifying lines (~every 1.8s) while a
+  // reply is in flight and we're still in the neutral phase (classify hasn't
+  // confirmed a service reply). Stops once service copy takes over or streaming ends.
+  useEffect(() => {
+    if (!streaming || verifyingIsService) return
+    const id = setInterval(() => setNeutralIdx(i => i + 1), 1800)
+    return () => clearInterval(id)
+  }, [streaming, verifyingIsService])
 
   // ── Conversational onboarding ─────────────────────────────────────
   const [onboardingStep, setOnboardingStep] = useState(0)
@@ -821,6 +850,33 @@ function ChatContent() {
     const assistantId = generateId()
     setMessages(prev => [...prev, { id: assistantId, role: "assistant", content: "" }])
 
+    // Task VERIFY_COPY — reset to neutral verifying copy for this turn, then fire
+    // the classify pre-flight in PARALLEL with /api/chat (below). It only picks
+    // the verifying label; it never blocks or feeds the reply. Guards:
+    //  - require a DEFINITE service type — a null/unknown result stays neutral
+    //    (isServiceReplyType(undefined) is true for pre-tag-message back-compat,
+    //    which is NOT what we want here; the `type &&` gate handles that).
+    //  - verifyTurnRef drops a stale result from a previous turn.
+    setVerifyingIsService(false)
+    setNeutralIdx(0)
+    verifyTurnRef.current = assistantId
+    fetch("/api/classify", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({
+        citizenId: citizen?.citizenId,
+        messages: updatedMessages.map(m => ({ role: m.role, content: m.content })),
+        language: lang,
+      }),
+    })
+      .then(r => (r.ok ? r.json() : { type: null }))
+      .then(({ type }) => {
+        if (verifyTurnRef.current === assistantId && type && isServiceReplyType(type)) {
+          setVerifyingIsService(true)
+        }
+      })
+      .catch(() => {})
+
     try {
       const res = await fetch("/api/chat", {
         method: "POST",
@@ -944,7 +1000,7 @@ function ChatContent() {
               <p className="text-xl font-bold text-gray-900 tracking-tight">{greeting}</p>
               <p className="text-[13px] text-ca-text-secondary mt-0.5">
                 {streaming
-                  ? (lang === "es" ? "Verificando fuentes oficiales…" : "Checking official sources…")
+                  ? (verifyingIsService ? SERVICE_VERIFY_TITLE[lang] : NEUTRAL_VERIFY[lang][neutralIdx % NEUTRAL_VERIFY[lang].length])
                   : citizen?.profile.lifeEvent && entitlementCount > 0
                     ? (lang === "es" ? `${entitlementCount} beneficios encontrados` : `${entitlementCount} benefits found`)
                     : ""}
@@ -997,14 +1053,15 @@ function ChatContent() {
             )
           })}
 
-          {/* Task UI_REDESIGN (1b) — the ~25s "verifying" state, driven by the
-              REAL streaming lifecycle (streaming=true from send until the
-              stream resolves — see setStreaming(true)/(false) below), never a
-              fixed timeout. The mock's example names specific domains being
-              "reviewed" live; that's not something the client can actually
-              know mid-request (grounding runs entirely server-side before any
-              bytes stream back), so this uses honest generic wording instead
-              of fabricating a plausible-looking source list. */}
+          {/* Task UI_REDESIGN (1b) / VERIFY_COPY (#1) — the ~25s "verifying"
+              state, driven by the REAL streaming lifecycle (streaming=true from
+              send until the stream resolves), never a fixed timeout. Two-phase
+              copy: neutral rotating lines immediately (true for any query type),
+              swapped to the service "official sources" line only once the
+              parallel /api/classify pre-flight confirms a service reply. The
+              old "verify every fact against government sites" line was an
+              overclaim (grounding is against the curated KB, not a live site
+              check) and is gone. */}
           {streaming && messages[messages.length - 1]?.content === "" && (
             <div className="flex justify-start">
               <div className="max-w-[560px] bg-white border border-ca-surface-border rounded-[4px_15px_15px_15px] px-5 py-4 shadow-[0_1px_3px_rgba(16,24,40,.05)]">
@@ -1015,14 +1072,16 @@ function ChatContent() {
                     <span className="w-2 h-2 rounded-full bg-brand animate-ca-dot [animation-delay:.36s]" />
                   </span>
                   <span className="text-[14.5px] font-semibold text-brand">
-                    {lang === "es" ? "Verificando fuentes oficiales…" : "Checking official sources…"}
+                    {verifyingIsService
+                      ? SERVICE_VERIFY_TITLE[lang]
+                      : NEUTRAL_VERIFY[lang][neutralIdx % NEUTRAL_VERIFY[lang].length]}
                   </span>
                 </div>
-                <p className="text-[13px] text-ca-text-secondary mt-2 leading-relaxed">
-                  {lang === "es"
-                    ? "Verifico cada dato contra sitios oficiales del gobierno antes de responder. Esto puede tardar unos segundos."
-                    : "I verify every fact against government sites before answering. This can take a few seconds."}
-                </p>
+                {verifyingIsService && (
+                  <p className="text-[13px] text-ca-text-secondary mt-2 leading-relaxed">
+                    {SERVICE_VERIFY_SUB[lang]}
+                  </p>
+                )}
                 <div className="mt-3.5 flex flex-col gap-2">
                   <div className="h-[13px] w-[92%] rounded-md animate-ca-shimmer" />
                   <div className="h-[13px] w-[74%] rounded-md animate-ca-shimmer" />
