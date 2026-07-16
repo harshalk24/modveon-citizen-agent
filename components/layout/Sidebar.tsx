@@ -24,9 +24,6 @@ const PREVIEW_PERSONAS: Record<string, { name: string; country: string; situatio
   "/preview/navigation": { name: "Priya Kapoor",   country: "United Kingdom", situation: "Opening a food business"    },
   "/preview/plan":       { name: "Priya Kapoor",   country: "United Kingdom", situation: "London Café Action Plan"    },
   "/preview/pagent":     { name: "Sarah Tan",      country: "Singapore",     situation: "New mother · 8 days old baby"},
-  "/bermuda/proactive":  { name: "Jordan Blake",    country: "Bermuda",       situation: "Government Job Application"  },
-  "/bermuda":            { name: "Marcus Tavares",  country: "Bermuda",       situation: "Standard Work Permit"        },
-  "/bermuda/plan":       { name: "Marcus Tavares",  country: "Bermuda",       situation: "Work Permit Arrival Plan"    },
 }
 
 const PREVIEW_CONVOS_MAP: Record<string, { id: string; title: string; time: string; active: boolean }[]> = {
@@ -65,27 +62,6 @@ const PREVIEW_CONVOS_MAP: Record<string, { id: string; title: string; time: stri
     { id: "c4", title: "MediSave baby grant",               time: "2 weeks ago", active: false },
     { id: "c5", title: "CHAS healthcare card",              time: "Last month",  active: false },
   ],
-  "/bermuda/proactive": [
-    { id: "c1", title: "Manager (Operations) application", time: "Just now",    active: true  },
-    { id: "c2", title: "Senior Programme Manager role",    time: "2 hours ago", active: false },
-    { id: "c3", title: "CV upload and role matching",      time: "Yesterday",   active: false },
-    { id: "c4", title: "Work permit eligibility check",    time: "2 days ago",  active: false },
-    { id: "c5", title: "Government careers portal guide",  time: "Last week",   active: false },
-  ],
-  "/bermuda": [
-    { id: "c1", title: "Work permit arrival checklist",    time: "Just now",    active: true  },
-    { id: "c2", title: "Social Insurance registration",    time: "1 hour ago",  active: false },
-    { id: "c3", title: "Health insurance confirmation",    time: "Yesterday",   active: false },
-    { id: "c4", title: "PRC eligibility after 20 years",   time: "2 days ago",  active: false },
-    { id: "c5", title: "Assessment Number for lease",      time: "Last week",   active: false },
-  ],
-  "/bermuda/plan": [
-    { id: "c1", title: "Work permit arrival checklist",    time: "Just now",    active: true  },
-    { id: "c2", title: "Social Insurance registration",    time: "1 hour ago",  active: false },
-    { id: "c3", title: "Health insurance confirmation",    time: "Yesterday",   active: false },
-    { id: "c4", title: "PRC eligibility after 20 years",   time: "2 days ago",  active: false },
-    { id: "c5", title: "Assessment Number for lease",      time: "Last week",   active: false },
-  ],
 }
 
 export default function Sidebar() {
@@ -99,7 +75,11 @@ export default function Sidebar() {
 
   if (pathname === "/" || pathname.startsWith("/onboarding")) return null
 
-  const isPreview = pathname.startsWith("/preview") || pathname.startsWith("/bermuda")
+  // Task UI_REDESIGN: app/bermuda/* is retired (older proactive-demo surface)
+  // — the shell no longer recognizes it as a preview persona. Route files
+  // stay in place (orphaned, out of scope to delete here); this just stops
+  // the Sidebar from treating a bermuda path as reachable/first-class.
+  const isPreview = pathname.startsWith("/preview")
 
   // Resolve per-page preview persona — match exact path first, fallback to prefix
   const previewPersona = isPreview
@@ -135,7 +115,7 @@ export default function Sidebar() {
 
   return (
     <>
-      <aside className="w-[220px] h-screen bg-[#1B3A8C] border-r border-[#152D70] flex flex-col flex-shrink-0">
+      <aside className="w-[236px] h-screen bg-ca-blue border-r border-ca-blue-hover flex flex-col flex-shrink-0">
 
         {/* Header */}
         <div className="px-4 pt-5 pb-3 border-b border-white/10 flex-shrink-0">
@@ -177,13 +157,14 @@ export default function Sidebar() {
                 key={href}
                 href={href}
                 className={cn(
-                  "flex items-center gap-3 px-3 py-2.5 rounded-lg text-sm font-medium transition-colors",
+                  "relative flex items-center gap-3 px-3 py-2.5 rounded-lg text-sm transition-colors",
                   active
-                    ? "border-l-[3px] border-yellow-400 bg-white/20 text-white font-semibold -ml-[3px] pl-[calc(0.75rem+3px)]"
-                    : "text-white/70 hover:bg-white/10 hover:text-white"
+                    ? "bg-white/[.13] text-white font-semibold"
+                    : "font-medium text-white/75 hover:bg-white/10 hover:text-white"
                 )}
               >
-                <Icon size={16} />
+                {active && <span className="absolute left-0 top-2 bottom-2 w-[3px] rounded-full bg-ca-yellow" />}
+                <Icon size={17} />
                 {label}
               </Link>
             )
