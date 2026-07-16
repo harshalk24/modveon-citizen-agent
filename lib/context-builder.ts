@@ -505,7 +505,12 @@ export function buildSystemPrompt(
   // payload can order directAnswer/situations around it (Task 2b structural
   // grouping). null for a generic/unmapped turn — payload still builds fine,
   // just with no situation prioritized first.
-  targetSituation: string | null = null
+  targetSituation: string | null = null,
+  // Task SITUATION_ADD_DISCOVERY: set to the slug the citizen JUST declared
+  // this turn (mid-chat add). Turns the reply from a bare "added" ack into a
+  // discovery moment — acknowledge the new situation, then lead with its
+  // benefits. null on every other turn.
+  justAddedSituation: string | null = null
 ): string {
   const compactCtx = JSON.stringify({
     c:     ctx.profile.country,
@@ -599,7 +604,17 @@ export function buildSystemPrompt(
     ? (language === "es" ? `RELEVANCIA DE LA BASE DE CONOCIMIENTO: ${retrievalNoteParts.join(" ")}` : `KNOWLEDGE BASE RELEVANCE: ${retrievalNoteParts.join(" ")}`)
     : ""
 
-  return template
+  // Task SITUATION_ADD_DISCOVERY: a mid-chat situation-add falls through to
+  // this discovery path (instead of a bare ack early-return). Prepended to
+  // the top of the prompt for salience so the reply opens by acknowledging
+  // the NEW situation alongside existing ones, then leads with its benefits.
+  const justAddedNote = justAddedSituation
+    ? (language === "es"
+        ? `EL CIUDADANO ACABA de contarte sobre una nueva situación este turno: **${situationLabel(justAddedSituation, "es")}**, además de su(s) situación(es) existente(s). Abrí con un reconocimiento breve y cálido de la nueva situación (una línea), y luego mostrale para qué califica ahora en TODAS sus situaciones activas, EMPEZANDO por los beneficios de la nueva. No lo presentes como una confirmación seca de "agregado" — es un momento de descubrimiento.\n\n`
+        : `THE CITIZEN JUST told you about a new situation this turn: **${situationLabel(justAddedSituation, "en")}**, in addition to their existing situation(s). Open with a brief, warm one-line acknowledgment of the new situation, then show what they now qualify for across ALL their active situations, LEADING with the benefits for the new one. Do not present this as a bare "added" confirmation — it's a discovery moment.\n\n`)
+    : ""
+
+  return justAddedNote + template
     .replace("{citizenContext}", compactCtx)
     .replace("{knowledgeBase}", JSON.stringify(kbPayload))
     .replace("{conversationSummary}", ctx.conversationSummary || (language === "es" ? "Primera sesión." : "First session."))

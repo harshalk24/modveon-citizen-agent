@@ -19,15 +19,6 @@ import { logGroundingFallback, GroundingAttempt } from "@/lib/grounding-log"
 import { applySlotInferences, nextMissingSlot, SLOT_DEFS } from "@/lib/slots"
 import { prisma } from "@/lib/prisma"
 
-// Human-readable labels for the "situation added" acknowledgment — keys
-// match classifyQuery's lifeEvent output.
-const LIFE_EVENT_LABELS: Record<string, { en: string; es: string }> = {
-  "new-baby":       { en: "you had a new baby",        es: "tuviste un bebé" },
-  "job-loss":       { en: "you lost your job",         es: "perdiste tu trabajo" },
-  "start-business": { en: "you're starting a business", es: "estás iniciando un negocio" },
-  "diaspora":       { en: "you're managing things from abroad", es: "estás gestionando trámites desde el exterior" },
-}
-
 // Tags every reply with WHY it looks the way it does, so the client can pick
 // relevant follow-up suggestions from the actual server-side classification
 // instead of re-guessing from the reply text (fragile keyword sniffing).
@@ -341,6 +332,11 @@ export async function POST(req: Request) {
   // though the same message with no history correctly nulls out). An added
   // situation is a durable write, so veto it here regardless of what the
   // classifier said — see lib/extract-intent.ts's looksHypothetical.
+  // Task SITUATION_ADD_DISCOVERY: set to the slug when a mid-chat add fires,
+  // so the reply falls through to the main discovery path (retrieval +
+  // generation) instead of a bare ack early-return, and buildSystemPrompt
+  // opens by acknowledging the new situation then leads with its benefits.
+  let justAddedSituation: string | null = null
   const isHypotheticalPhrasing = looksHypothetical(userMessage)
   if (detectedEvent && isHypotheticalPhrasing) {
     console.log("Situation add skipped — message reads as hypothetical despite classifier lifeEvent:", detectedEvent)
@@ -367,12 +363,12 @@ export async function POST(req: Request) {
       if (isRealCitizen) {
         console.log("Durable profile write (situation added):", detectedEvent, "— now active:", next.activeLifeEvents)
       }
-      const addedLabel = LIFE_EVENT_LABELS[detectedEvent]
-      const allLabels = next.activeLifeEvents.map(s => situationLabel(s, isEs ? "es" : "en"))
-      const msg = isEs
-        ? `Agregado: ${addedLabel?.es || "tu nueva situación"} — ahora tenés ${allLabels.join(" y ")}.`
-        : `Added ${addedLabel?.en || "your new situation"} — you now have ${allLabels.join(" and ")}.`
-      return await finalizeTurn(msg, "situation-added", true)
+      // Task SITUATION_ADD_DISCOVERY: do NOT early-return a bare ack here.
+      // Record what was just added and fall through to the main retrieval +
+      // generation path (same one an already-active situation uses), so the
+      // reply acknowledges the new situation AND lists what they now qualify
+      // for. The situation is already persisted above (addSituationRow).
+      justAddedSituation = detectedEvent
     }
   }
 
@@ -518,7 +514,7 @@ export async function POST(req: Request) {
   // the slot-filling ASK decision) also orders the KB payload's directAnswer/
   // situations — the same "which situation is this turn about" answer drives
   // both what gets asked and what leads the reply.
-  const systemPrompt = buildSystemPrompt(ctx, services, JSON.stringify(recentMsgs), language, classification.type, slotToAsk, retrieval.isHonestMiss, askTargetSlug)
+  const systemPrompt = buildSystemPrompt(ctx, services, JSON.stringify(recentMsgs), language, classification.type, slotToAsk, retrieval.isHonestMiss, askTargetSlug, justAddedSituation)
 
   // Format for Gemini — strip leading model turns
   const formattedMessages = messages
