@@ -72,11 +72,11 @@ export const SEED_URLS: Record<string, SeedEntry[]> = {
     { url: "https://www.rnpn.gob.sv/tramites/",                 agency: "RNPN", crawl: false, maxPages: 1 },
     { url: "https://www.rnpn.gob.sv/tramites/registro-de-nacimiento/", agency: "RNPN", crawl: false, maxPages: 1 },
 
-    // ── INSAFORP ──────────────────────────────────────
+    // ── INCAF (successor to INSAFORP, dissolved 2024) ──
     // Free job training, retraining programs
-    { url: "https://www.insaforp.org.sv",                       agency: "INSAFORP", crawl: false, maxPages: 1 },
-    { url: "https://www.insaforp.org.sv/index.php/servicios",   agency: "INSAFORP", crawl: false, maxPages: 1 },
-    { url: "https://www.insaforp.org.sv/index.php/cursos-y-capacitaciones", agency: "INSAFORP", crawl: false, maxPages: 1 },
+    { url: "https://www.incaf.gob.sv",                          agency: "INCAF", crawl: false, maxPages: 1 },
+    { url: "https://www.incaf.gob.sv/guia-de-servicios/",       agency: "INCAF", crawl: false, maxPages: 1 },
+    { url: "https://www.incaf.gob.sv/formacion-profesional/",   agency: "INCAF", crawl: false, maxPages: 1 },
 
     // ── CONAMYPE ──────────────────────────────────────
     // Small business grants, entrepreneurship programs

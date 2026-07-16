@@ -14,7 +14,7 @@ const BY_SITUATION: Record<string, Template[]> = {
     { label: "✅ Do I qualify for unemployment benefits?", message: "Do I qualify for ISSS unemployment benefits and how much would I get?" },
     { label: "⏳ How long do benefits last?",           message: "For how many months can I receive unemployment benefits and when do they stop?" },
     { label: "📄 What documents do I need?",           message: "What documents do I need to apply for unemployment benefits this week?" },
-    { label: "🎓 What free training is available?",    message: "What free vocational training does INSAFORP offer and how do I enroll?" },
+    { label: "🎓 What free training is available?",    message: "What free vocational training does INCAF offer and how do I enroll?" },
     { label: "📅 What's the application deadline?",    message: "Is there a deadline to apply for unemployment benefits after losing my job?" },
   ],
   "start-business": [

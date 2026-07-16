@@ -587,9 +587,9 @@ export const services: Service[] = [
     // entity mismatch (68 rejections across 23 runs). Collapsed to one entry;
     // "job training" folded into name/description so semantic search still
     // matches queries phrased either way.
-    name: "Free vocational & job training (INSAFORP)",
-    nameEs: "Capacitación vocacional y laboral gratuita (INSAFORP)",
-    agency: "INSAFORP", agencyFull: "Instituto Salvadoreño de Formación Profesional",
+    name: "Free vocational & job training (INCAF)",
+    nameEs: "Capacitación vocacional y laboral gratuita (INCAF)",
+    agency: "INCAF", agencyFull: "Instituto Nacional de Capacitación y Formación",
     description: "Free technical, vocational, and job training courses in areas like cooking, electrical, computing, tech, administration, trades, beauty, and construction. Open to all Salvadorans.",
     descriptionEs: "Cursos técnicos, vocacionales y de capacitación laboral gratuitos en cocina, electricidad, computación, tecnología, administración, oficios, belleza y construcción. Abierto a todos los salvadoreños.",
     // Task INSAFORP_AMOUNT_FIX: a hedged amount ("no fee... confirm with X")
@@ -610,16 +610,15 @@ export const services: Service[] = [
     // list unconfirmed would be the exact over-claim the grounding
     // discipline forbids).
     documents: ["DUI"], documentsEs: ["DUI"],
-    sourceUrl: "https://www.insaforp.org.sv", lastVerified: "2026-05-25",
+    sourceUrl: "https://www.incaf.gob.sv", lastVerified: "2026-07-16",
     officeHours: "Monday–Friday, 8:00am–4:00pm",
-    universalTip: "Many courses are online — search the catalogue at insaforp.org.sv before visiting in person, you may not need to go at all. Courses fill up fast, so register early. Some programs may also ask for a birth certificate and a completed application form — confirm current enrollment requirements when you apply.",
-    siteNavigation: "insaforp.org.sv → Catálogo de Cursos (as of May 2026)",
-    // KB annotation audit: INSAFORP has been dissolved/restructured into INCAF —
-    // agency name, URL, and process details below are stale pending content
-    // rewrite (Spanish human review owed). Marked needs_review so grounding
-    // hedges these facts instead of treating them as trusted/verified.
-    // NOT relabeled to INCAF here (Task INSAFORP_MERGE) — that's a separate,
-    // KB-wide agency-currency verification item, not this task's scope.
+    universalTip: "Many courses are free — browse the offerings at incaf.gob.sv under Formación Profesional before visiting in person, you may not need to go at all. Courses fill up fast, so register early. Some programs may also ask for a birth certificate and a completed application form — confirm current enrollment requirements when you apply.",
+    siteNavigation: "incaf.gob.sv → Formación Profesional (as of 2026-07-16)",
+    // Agency currency RESOLVED (TASK_KB_INSAFORP_INCAF, verified 2026-07-16): INSAFORP dissolved,
+    // succeeded by INCAF (Instituto Nacional de Capacitación y Formación, incaf.gob.sv, law in
+    // force 2023-12-09). Name/agency/URL now current. Kept needs_review because the process
+    // specifics under INCAF (document list, enrollment steps, office hours) are NOT primary-source
+    // confirmed — grounding should keep hedging those until Spanish human review.
     reviewStatus: "needs_review",
   },
 

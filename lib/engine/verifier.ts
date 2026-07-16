@@ -50,7 +50,7 @@ const CONFIDENCE_THRESHOLD = 0.6
 export const AGENCY_ROOT_URLS: Record<string, string> = {
   ISSS:         "https://www.isss.gob.sv",
   RNPN:         "https://www.rnpn.gob.sv",
-  INSAFORP:     "https://www.insaforp.org.sv",
+  INCAF:        "https://www.incaf.gob.sv",
   CONAMYPE:     "https://www.conamype.gob.sv",
   CNR:          "https://www.cnr.gob.sv",
   Hacienda:     "https://www.mh.gob.sv",
