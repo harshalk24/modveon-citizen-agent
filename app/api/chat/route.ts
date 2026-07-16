@@ -473,11 +473,19 @@ export async function POST(req: Request) {
   // though it's included in `services` for answering/grounding this turn.
   const entitlementServices = services.filter(s => s._source !== "foreground")
   if (entitlementServices.length > 0 && isRealCitizen && primarySituation) {
-    const entitlements = entitlementServices.map(s => ({
-      serviceId: s.id,
-      status:    "new",
-      savedAt:   new Date().toISOString(),
-    }))
+    // Task ENTITLEMENT_STATUS: preserve each entitlement's EXISTING record
+    // (status/savedAt/receivedAt) across turns — this used to unconditionally
+    // rebuild every entry as status:"new", which silently clobbered a
+    // citizen's "received" mark (set via PATCH /api/entitlement/status) the
+    // very next turn that re-retrieved the same service. Only a serviceId not
+    // already tracked gets a fresh "new" record; one already tracked keeps
+    // whatever a prior turn or the status-toggle endpoint last set.
+    const existingById = new Map<string, { serviceId: string; status: string; savedAt?: string; receivedAt?: string }>(
+      JSON.parse(primarySituation.entitlementsJson || "[]").map((e: any) => [e.serviceId, e])
+    )
+    const entitlements = entitlementServices.map(s =>
+      existingById.get(s.id) ?? { serviceId: s.id, status: "new", savedAt: new Date().toISOString() }
+    )
     ctx.entitlements = entitlements
     // Task 2b-C1: entitlements persist to the PRIMARY situation's row now,
     // not the shared CitizenContext field — lifeEvent/employment are already

@@ -196,3 +196,46 @@ export async function updatePrimaryEntitlements(citizenId: string, primaryLifeEv
     data: { entitlementsJson },
   })
 }
+
+// Task ENTITLEMENT_STATUS: toggles a single entitlement's status, mirroring
+// Deadline.completed's boolean-toggle shape (and /api/plan/step's PATCH
+// pattern) for the JSON-blob-backed entitlements array — the "Benefits
+// claimed" Dashboard progress row (app/dashboard/page.tsx) filters on
+// status==="received", but until this nothing ever wrote anything besides
+// "new", so that row was permanently stuck at 0.
+//
+// Scoped to the PRIMARY row ONLY — same scope updatePrimaryEntitlements
+// above already uses, because that's the only copy any reader (GET
+// /api/citizen/me, the Dashboard) ever looks at. A serviceId can appear in a
+// NON-primary situation's entitlementsJson too — each situation's array is a
+// snapshot from whenever IT was last primary, so once primary shifts, older
+// situations' arrays go stale and un-read. (Confirmed live: a first version
+// of this searched every active row and updated the first match by row
+// order, which silently patched a demoted situation's stale, never-read
+// copy instead of the live one — exactly the "write path A, read path B"
+// divergence this codebase has repeatedly had to hunt down elsewhere.)
+// Returns false (caller 404s) if the serviceId isn't in the primary's
+// array — same "don't leak/guess, just say not found" convention as
+// getConversationMessages/conversationExists.
+export async function updateEntitlementStatus(
+  citizenId: string,
+  serviceId: string,
+  received: boolean
+): Promise<boolean> {
+  const rows = await loadActiveSituationRows(citizenId)
+  const primary = primaryRow(rows)
+  if (!primary) return false
+
+  const entitlements: { serviceId: string; status: string; savedAt?: string; receivedAt?: string }[] =
+    JSON.parse(primary.entitlementsJson || "[]")
+  const idx = entitlements.findIndex(e => e.serviceId === serviceId)
+  if (idx === -1) return false
+
+  entitlements[idx] = {
+    ...entitlements[idx],
+    status: received ? "received" : "new",
+    receivedAt: received ? new Date().toISOString() : undefined,
+  }
+  await updatePrimaryEntitlements(citizenId, primary.lifeEvent, JSON.stringify(entitlements))
+  return true
+}

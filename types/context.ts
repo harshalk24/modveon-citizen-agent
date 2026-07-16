@@ -2,6 +2,7 @@ export interface EntitlementStatus {
   serviceId: string
   status: "new" | "applied" | "pending" | "received"
   savedAt?: string
+  receivedAt?: string
 }
 
 export interface PlanStep {
