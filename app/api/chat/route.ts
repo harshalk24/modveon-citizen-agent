@@ -455,12 +455,25 @@ export async function POST(req: Request) {
   // real topical signal. "open-ended" already means "show everything" by
   // its own query-type definition — a single-situation topForeground pick
   // directly contradicts that, so it must never set a target here.
-  let askTargetSlug: string | null = classifierTargetSlug
+  // Task MULTICONTEXT_ELIGIBILITY: the open-ended carve-out must apply to BOTH
+  // target rules, not just rule 2 below. An "open-ended" eligibility query
+  // ("what am I eligible for?") means LIST EVERYTHING — it must carry NO
+  // single-situation target, or the reply's KB payload goes focused (other
+  // situations demoted to reasoning-only) and the discovery cards scope to one
+  // situation, while the citizen has several. The classifier can still attach a
+  // stale/primary lifeEvent to an open-ended turn (observed: type open-ended,
+  // lifeEvent new-baby), so rule 1's classifierTargetSlug is NOT a safe target
+  // here — force it null for open-ended.
+  let askTargetSlug: string | null = classification.type === "open-ended" ? null : classifierTargetSlug
   if (!askTargetSlug && classification.type !== "open-ended") {
     const topForeground = services.find(s => s._source === "foreground" || s._source === "both")
     askTargetSlug = topForeground?._situations?.find(s => activeSituations.includes(s)) || null
   }
   const targetRow = askTargetSlug ? allSituationRows.find(r => r.lifeEvent === askTargetSlug) || null : null
+  // Guardrail visibility (MULTICONTEXT_ELIGIBILITY): what the listing will be
+  // scoped to. For an eligibility/open-ended turn this MUST be null with all
+  // active situations listable — cards + narrative then span every situation.
+  console.log("[DIAG] listing-target:", JSON.stringify({ type: classification.type, askTargetSlug, activeSituations }))
 
   // Decide the single most-decisive missing slot for THIS turn, scoped to
   // the target situation only (rule 3: one question at a time, never batch,
