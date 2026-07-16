@@ -1,11 +1,12 @@
 "use client"
 
 import Link from "next/link"
-import { usePathname } from "next/navigation"
-import { MessageSquare, LayoutDashboard, ListChecks, User, Globe, Clock, SquarePen } from "lucide-react"
+import { useRouter, usePathname } from "next/navigation"
+import { MessageSquare, LayoutDashboard, ListChecks, User, Globe, Clock, SquarePen, Trash2 } from "lucide-react"
 import { useState } from "react"
 import { useLang } from "@/contexts/LanguageContext"
 import { useCitizen } from "@/contexts/CitizenContext"
+import { useConversations } from "@/contexts/ConversationsContext"
 import { t } from "@/lib/i18n"
 import { cn } from "@/lib/utils"
 
@@ -89,8 +90,10 @@ const PREVIEW_CONVOS_MAP: Record<string, { id: string; title: string; time: stri
 
 export default function Sidebar() {
   const pathname = usePathname()
+  const router = useRouter()
   const { lang, toggle } = useLang()
   const { citizen, isLoading } = useCitizen()
+  const { conversations, activeConversationId, selectConversation, startNewConversation, removeConversation } = useConversations()
   const tr = t(lang)
   const [toast, setToast] = useState<string | null>(null)
 
@@ -141,17 +144,25 @@ export default function Sidebar() {
               <div className="font-semibold text-[15px] text-white">{tr.appName}</div>
               <div className="text-xs text-white/50 mt-0.5">{tr.appSubtitle}</div>
             </div>
-            {/* New conversation button — hard reload for preview (resets React state) */}
+            {/* New conversation button — hard reload for preview (resets React state);
+                real usage clears the active conversation server-side (Task History-C2)
+                so the next turn lazily creates a fresh one instead of continuing the old. */}
             {isPreview ? (
               <a href={pathname} title="New conversation"
                 className="w-8 h-8 rounded-lg bg-white/10 hover:bg-white/20 flex items-center justify-center transition-colors flex-shrink-0">
                 <SquarePen size={15} className="text-white/70" />
               </a>
             ) : (
-              <Link href="/chat" title="New conversation"
-                className="w-8 h-8 rounded-lg bg-white/10 hover:bg-white/20 flex items-center justify-center transition-colors flex-shrink-0">
+              <button
+                title="New conversation"
+                onClick={() => {
+                  startNewConversation()
+                  if (pathname !== "/chat") router.push("/chat")
+                }}
+                className="w-8 h-8 rounded-lg bg-white/10 hover:bg-white/20 flex items-center justify-center transition-colors flex-shrink-0"
+              >
                 <SquarePen size={15} className="text-white/70" />
-              </Link>
+              </button>
             )}
           </div>
         </div>
@@ -209,6 +220,67 @@ export default function Sidebar() {
                   )}
                 </button>
               ))}
+            </div>
+          )}
+
+          {/* Task History-C2: real conversation history (functional-first,
+              minimal styling — reuses the preview block's classes; a visual
+              pass comes later via Claude Design). Continue-style: clicking a
+              conversation loads it AND makes it active server-side, so the
+              next message appends to it instead of starting a new one. */}
+          {!isPreview && citizen && (
+            <div className="pt-4">
+              <p className="text-[10px] font-bold text-white/40 uppercase tracking-wider px-3 mb-2">
+                Conversations
+              </p>
+              {conversations.length === 0 ? (
+                <p className="text-xs text-white/40 px-3">No past conversations yet</p>
+              ) : (
+                conversations.map(conv => {
+                  const isActive = conv.id === activeConversationId
+                  return (
+                    <div
+                      key={conv.id}
+                      className={cn(
+                        "group w-full flex items-center gap-2 px-3 py-2.5 rounded-lg transition-colors border-l-2",
+                        isActive
+                          ? "bg-yellow-400/10 border-yellow-400"
+                          : "border-transparent hover:bg-white/8 opacity-65 hover:opacity-90"
+                      )}
+                    >
+                      <button
+                        onClick={() => {
+                          selectConversation(conv.id)
+                          if (pathname !== "/chat") router.push("/chat")
+                        }}
+                        className="flex-1 min-w-0 text-left"
+                      >
+                        <p className={`text-xs font-medium truncate ${isActive ? "text-yellow-300" : "text-white"}`}>
+                          {conv.title}
+                        </p>
+                        <p className="text-[10px] text-white/40 mt-0.5 flex items-center gap-1">
+                          <Clock size={8} className="flex-shrink-0" />
+                          {new Date(conv.updatedAt).toLocaleDateString()}
+                        </p>
+                      </button>
+                      {isActive && (
+                        <div className="w-1.5 h-1.5 rounded-full bg-yellow-400 flex-shrink-0" />
+                      )}
+                      <button
+                        title="Delete conversation"
+                        onClick={() => {
+                          if (window.confirm("Delete this conversation? This can't be undone.")) {
+                            removeConversation(conv.id)
+                          }
+                        }}
+                        className="flex-shrink-0 opacity-0 group-hover:opacity-100 text-white/40 hover:text-white transition-opacity"
+                      >
+                        <Trash2 size={12} />
+                      </button>
+                    </div>
+                  )
+                })
+              )}
             </div>
           )}
         </div>

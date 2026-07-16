@@ -5,6 +5,7 @@ import { useRouter, useSearchParams } from "next/navigation"
 import { Send, Loader2, Sparkles } from "lucide-react"
 import { useLang } from "@/contexts/LanguageContext"
 import { useCitizen } from "@/contexts/CitizenContext"
+import { useConversations } from "@/contexts/ConversationsContext"
 import { t } from "@/lib/i18n"
 import ChatMessage, { Message } from "@/components/chat/ChatMessage"
 import MessageTemplates, { ConversationState } from "@/components/chat/MessageTemplates"
@@ -49,6 +50,12 @@ function detectConversationState(messages: Message[], hasActiveSituations: boole
   const started = messages.filter(m => m.role === "user").length > 0
   const lastAgent = [...messages].reverse().find(m => m.role === "assistant" && m.content)
   if (!lastAgent || !started) return "empty"       // onboarding only
+  // Reply-shape structural signals take precedence over the intent
+  // classification: one classification.type (e.g. depth-knowledge) can produce
+  // either an explanation OR an action-step sequence, so the reply's own marker
+  // decides. PLAN_STEPS beats DOC_INFO because a step sequence often cites
+  // documents (DOC_INFO) inside the steps — the sequence is the dominant shape.
+  if (lastAgent.content.includes("PLAN_STEPS:")) return "plan-shown"
   // DOC_INFO: is a literal structural marker the reply embeds for the "Learn
   // more" button — a reliable signal, unlike guessing from prose wording.
   if (lastAgent.content.includes("DOC_INFO:")) return "document-question"
@@ -99,6 +106,7 @@ function ChatContent() {
   const searchParams = useSearchParams()
   const { lang } = useLang()
   const { citizen, sessionId, refresh, isLoading: citizenLoading } = useCitizen()
+  const { pendingMessages, clearPendingMessages, refreshConversations, syncActiveConversationId } = useConversations()
   const tr = t(lang)
 
   const [messages, setMessages] = useState<Message[]>([])
@@ -145,11 +153,13 @@ function ChatContent() {
     }
   }, [])
 
-  // Build welcome message based on context
-  useEffect(() => {
-    if (citizenLoading) return // wait for auth check before deciding onboarding vs regular
-    if (conversationStartedRef.current) return // don't reset mid-conversation
-    if (justCompletedOnboardingRef.current) return // onboarding handles its own post-completion message
+  // Task History-C2: extracted from the effect below so "New conversation"
+  // (ConversationsContext.startNewConversation) can rebuild the exact same
+  // contextual welcome — empathy opener, entitlement count, etc. — on demand,
+  // not just on the initial mount. The effect keeps its own auto-fire guards
+  // (citizenLoading/conversationStartedRef/justCompletedOnboardingRef); this
+  // function is just "build and set the welcome message right now."
+  function resetToWelcome() {
     const preload = searchParams.get("context")
 
     if (preload) {
@@ -241,7 +251,39 @@ function ChatContent() {
     }
 
     setMessages([{ id: generateId(), role: "assistant", content: tr.chat.welcome }])
+  }
+
+  useEffect(() => {
+    if (citizenLoading) return // wait for auth check before deciding onboarding vs regular
+    if (conversationStartedRef.current) return // don't reset mid-conversation
+    if (justCompletedOnboardingRef.current) return // onboarding handles its own post-completion message
+    resetToWelcome()
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [citizen?.profile.lifeEvent, lang, citizenLoading])
+
+  // Task History-C2 — sidebar integration. ConversationsContext signals a
+  // load two ways: a non-empty array (a past conversation was selected —
+  // replace the current view with it) or an empty array (New conversation /
+  // delete-the-active-one — reset to the welcome state). Either way this
+  // marks the conversation as "started" FIRST so the welcome-reset effect
+  // above can't race and wipe what was just loaded (same guard the first
+  // real user message already sets).
+  useEffect(() => {
+    if (pendingMessages === null) return
+    if (pendingMessages.length === 0) {
+      conversationStartedRef.current = false
+      resetToWelcome()
+    } else {
+      conversationStartedRef.current = true
+      setMessages(pendingMessages.map(m => ({
+        id: m.id,
+        role: m.role as "user" | "assistant",
+        content: m.content,
+      })))
+    }
+    clearPendingMessages()
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [pendingMessages])
 
   // Proactive greeting for returning citizens — no API call, message appears instantly
   useEffect(() => {
@@ -791,6 +833,19 @@ function ChatContent() {
       // instead of re-guessing from the reply text with keyword matching.
       const uiState     = res.headers.get("X-UI-State") || undefined
       const hasServices = res.headers.get("X-Has-Services") === "1"
+      // Task TITLE_OFF_HOTPATH: the server no longer does the title-upgrade
+      // LLM call inline (it added ~2.6s to every reply that crossed the
+      // threshold) — it just tells us via headers whether THIS turn crossed
+      // it, and which conversation. Fired below, after the reply renders.
+      const conversationIdForTitle = res.headers.get("X-Conversation-Id")
+      const shouldUpgradeTitle     = res.headers.get("X-Should-Upgrade-Title") === "1"
+      // Task History-C2: keep ConversationsContext's activeConversationId in
+      // sync with whatever the server actually used this turn — not just
+      // what selectConversation set. Covers the gap where a conversation is
+      // lazily created by a normal send (after "New conversation," or a
+      // citizen's very first message ever) — without this, deleting that
+      // conversation later wouldn't be recognized as deleting the ACTIVE one.
+      if (conversationIdForTitle) syncActiveConversationId(conversationIdForTitle)
 
       const reader = res.body!.getReader()
       const decoder = new TextDecoder()
@@ -803,6 +858,20 @@ function ChatContent() {
         setMessages(prev =>
           prev.map(m => m.id === assistantId ? { ...m, content: fullText, uiState, hasServices } : m)
         )
+      }
+
+      // The citizen already has their answer — the title-upgrade endpoint is
+      // self-contained (its own request, own lifecycle) so it's fine not to
+      // await it here; that's a browser-tab concern, not the serverless
+      // dangling-promise trap (that's specifically about a SERVER function
+      // being torn down mid-promise — this is a separate, independent
+      // request that runs to completion on the server regardless of
+      // whether this tab is still around to see the response).
+      if (shouldUpgradeTitle && conversationIdForTitle && citizen?.citizenId) {
+        fetch(`/api/conversation/${conversationIdForTitle}/title`, {
+          method: "POST",
+          headers: { "x-citizen-id": citizen.citizenId },
+        }).catch(() => {})
       }
 
       // Show "Open plan" button whenever the server says services were retrieved.
@@ -824,6 +893,10 @@ function ChatContent() {
       // immediately — needed for the "Open plan" button to see the correct lifeEvent.
       const citizenId = localStorage.getItem("ca_citizen_id")
       if (citizenId) refresh().catch(() => {})
+      // Task History-C2: the write-through (commit 1) just bumped this
+      // conversation's updatedAt — refresh the sidebar's list so it moves to
+      // the top. Best-effort, same as refresh() above.
+      refreshConversations().catch(() => {})
     }
   }
 

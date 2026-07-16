@@ -1,13 +1,14 @@
 import { NextResponse } from "next/server"
 import { streamChat, summariseConversation } from "@/lib/ai"
-import { buildSystemPrompt } from "@/lib/context-builder"
+import { buildSystemPrompt, stripInvalidApplyNowTags } from "@/lib/context-builder"
 import { situationLabel } from "@/lib/situation-labels"
 import { services as fullKB } from "@/lib/kb"
 import { retrieveServices } from "@/lib/semantic-search"
 import { getActiveSituations, addSituation, removeSituation } from "@/lib/situations"
 import { ensureSituationRows, addSituationRow, removeSituationRow, primaryRow, slugsOfRows, updateSituationSlots, updatePrimaryEntitlements, SituationRow } from "@/lib/situation-store"
 import { looksHypothetical, extractRemoveSituation } from "@/lib/extract-intent"
-import { getSession, incrementTurn, shouldSummarise, getRecentMessages, checkRateLimit } from "@/lib/session"
+import { getSession, saveSession, incrementTurn, shouldSummarise, getRecentMessages, checkRateLimit } from "@/lib/session"
+import { createConversation, appendTurn, shouldUpgradeTitle } from "@/lib/conversation-store"
 import { logResponse } from "@/lib/audit"
 import { extractCitedServiceIds } from "@/lib/validator"
 import { normalizeEmployment } from "@/types/context"
@@ -30,11 +31,23 @@ const LIFE_EVENT_LABELS: Record<string, { en: string; es: string }> = {
 // Tags every reply with WHY it looks the way it does, so the client can pick
 // relevant follow-up suggestions from the actual server-side classification
 // instead of re-guessing from the reply text (fragile keyword sniffing).
-function chatHeaders(uiState: string, hasServices: boolean): Record<string, string> {
+// Task History-C2: conversationId is threaded through here so EVERY response
+// path emits X-Conversation-Id — not just the main streaming path. The
+// situation-add/remove and out-of-scope replies return early (before the
+// main path's header block), and without this the client never learns which
+// conversation the turn used. That left ConversationsContext's
+// activeConversationId at null for those turns, so deleting the just-used
+// conversation wasn't recognized as deleting the ACTIVE one (SB5).
+function chatHeaders(
+  uiState: string,
+  hasServices: boolean,
+  conversationId?: string | null,
+): Record<string, string> {
   return {
     "Content-Type": "text/plain; charset=utf-8",
     "X-UI-State": uiState,
     "X-Has-Services": hasServices ? "1" : "0",
+    ...(conversationId ? { "X-Conversation-Id": conversationId } : {}),
   }
 }
 
@@ -52,7 +65,11 @@ export async function POST(req: Request) {
   }
 
   await incrementTurn(sessionId)
-  const turnCount = (await getSession(sessionId))?.turnCount ?? 1
+  // Task History-C1: read once, reused below for both turnCount and the
+  // active conversationId — avoids a second Redis round-trip for the same
+  // session object.
+  const currentSession = await getSession(sessionId)
+  const turnCount = currentSession?.turnCount ?? 1
 
   // ── Build context — prefer DB record over client-sent contextData ────
   // Reading from DB ensures we have the latest lifeEvent/employment even if
@@ -133,6 +150,68 @@ export async function POST(req: Request) {
   const isEs               = (ctx.profile.language || language) === "es"
 
   const isRealCitizen = !!(citizenId && citizenId !== "anonymous")
+
+  // Task History-C1 / WRITETHROUGH_CONSOLIDATE: durable history is additive.
+  // Read the session's active conversation id if it already has one, but do
+  // NOT create a Conversation row here. Creation is deferred to finalizeTurn
+  // (below) — the single point where a turn is actually persisted — so a turn
+  // that never reaches a persisted reply (an error, or any short-circuit)
+  // can't leave a titled zero-message "ghost" row in the sidebar. Anonymous
+  // sessions have no Citizen row to satisfy the Conversation.citizenId FK, so
+  // this stays null for them, same gate every durable write here uses.
+  let conversationId: string | null = isRealCitizen ? (currentSession?.conversationId ?? null) : null
+
+  // ── Single write-through + conversation-header choke point ─────────────
+  // Task WRITETHROUGH_CONSOLIDATE: EVERY successful response path routes its
+  // return through finalizeTurn, so per-turn persistence (appendTurn) and the
+  // X-Conversation-Id / X-Should-Upgrade-Title headers happen in exactly ONE
+  // place instead of being copy-pasted per path. This kills the multi-path
+  // bug class (the 5th instance): previously the write-through + header emit
+  // lived only on the main streamed path, so the three early returns
+  // (situation-added/removed, out-of-scope) silently dropped their turns from
+  // history. A NEW response path now inherits both just by calling
+  // finalizeTurn instead of building its own Response.
+  //
+  // `body` lets the main path pass its pre-built ReadableStream (whose finally
+  // owns logResponse + latency) unchanged; canned early-return replies omit it
+  // and stream the reply text as the body directly. `replyText` is always the
+  // text to persist, regardless of how the body is shaped. Write-through is
+  // awaited before the Response is returned (never a dangling promise — the
+  // serverless-teardown trap H7 calls out), and wrapped so a persistence
+  // failure never throws into the reply path (history is additive).
+  async function finalizeTurn(
+    replyText: string,
+    uiState: string,
+    hasServices: boolean,
+    body?: BodyInit,
+  ): Promise<Response> {
+    let shouldTellClientToUpgradeTitle = false
+    if (isRealCitizen) {
+      try {
+        // Lazy create: only once we have a reply to write — never eagerly, so
+        // no zero-message ghost can exist in the list.
+        if (!conversationId) {
+          const conversation = await createConversation(citizenId, userMessage)
+          conversationId = conversation.id
+          await saveSession(sessionId, { ...(currentSession ?? { messages: [], turnCount }), conversationId })
+        }
+        const { messageCount } = await appendTurn(conversationId, userMessage, replyText)
+        shouldTellClientToUpgradeTitle = shouldUpgradeTitle(messageCount)
+      } catch (e) {
+        console.error("Conversation write-through failed (history is additive, reply continues):", e)
+      }
+    }
+    const isStream = body instanceof ReadableStream
+    return new Response(body ?? replyText, {
+      headers: {
+        ...chatHeaders(uiState, hasServices, conversationId),
+        // Transfer-Encoding only matters for the streamed body; canned string
+        // replies don't set it (unchanged from before consolidation).
+        ...(isStream ? { "Transfer-Encoding": "chunked" } : {}),
+        "X-Should-Upgrade-Title": shouldTellClientToUpgradeTitle ? "1" : "0",
+      },
+    })
+  }
 
   // Hoisted above the classifier call (Phase 2a/2b) — classifyQuery needs the
   // actual situation names, not just the collapsed hasLifeEvent boolean; see
@@ -247,7 +326,7 @@ export async function POST(req: Request) {
     const msg = isEs
       ? `Listo, quité ${removedLabel}.${remainingLabels.length ? ` Todavía tenés ${remainingLabels.join(" y ")}.` : ""}`
       : `Removed ${removedLabel}.${remainingLabels.length ? ` You still have ${remainingLabels.join(" and ")}.` : ""}`
-    return new Response(msg, { headers: chatHeaders("situation-removed", true) })
+    return await finalizeTurn(msg, "situation-removed", true)
   }
 
   // Deterministic backstop: the classifier's hypothetical carve-out is
@@ -288,7 +367,7 @@ export async function POST(req: Request) {
       const msg = isEs
         ? `Agregado: ${addedLabel?.es || "tu nueva situación"} — ahora tenés ${allLabels.join(" y ")}.`
         : `Added ${addedLabel?.en || "your new situation"} — you now have ${allLabels.join(" and ")}.`
-      return new Response(msg, { headers: chatHeaders("situation-added", true) })
+      return await finalizeTurn(msg, "situation-added", true)
     }
   }
 
@@ -356,8 +435,18 @@ export async function POST(req: Request) {
   // target (a generic/unmapped turn) — per Decision 1, ask NOTHING rather
   // than pester about some unrelated situation's slot; do not fall back to
   // asking on the primary or any other situation just because one exists.
+  //
+  // Task 2b query-adaptive listing (Bug A): rule 2 is skipped entirely for
+  // "open-ended" queries ("what am I eligible for?"). Confirmed live: a
+  // generic phrase's embedding can still coincidentally clear the semantic
+  // floor against some KB entry (lib/semantic-search.ts's FOREGROUND_TYPES
+  // runs a foreground search for "open-ended" too), spuriously reproducing
+  // the PRIOR turn's single-situation target even when THIS turn carries no
+  // real topical signal. "open-ended" already means "show everything" by
+  // its own query-type definition — a single-situation topForeground pick
+  // directly contradicts that, so it must never set a target here.
   let askTargetSlug: string | null = classifierTargetSlug
-  if (!askTargetSlug) {
+  if (!askTargetSlug && classification.type !== "open-ended") {
     const topForeground = services.find(s => s._source === "foreground" || s._source === "both")
     askTargetSlug = topForeground?._situations?.find(s => activeSituations.includes(s)) || null
   }
@@ -403,7 +492,7 @@ export async function POST(req: Request) {
     const msg = isEs
       ? "Solo puedo ayudarte con trámites y beneficios del gobierno de El Salvador. ¿Hay algo relacionado con eso en lo que pueda ayudarte?"
       : "I can only help with El Salvador government services and benefits. Is there something related I can help you with?"
-    return new Response(msg, { headers: chatHeaders("out-of-scope", false) })
+    return await finalizeTurn(msg, "out-of-scope", false)
   }
 
   // ── System prompt ──────────────────────────────────────────────────
@@ -458,6 +547,12 @@ export async function POST(req: Request) {
 
   try {
     let generated = await generateFull(systemPrompt)
+    // Task APPLY_NOW_FIX: strip any APPLY_NOW tag whose URL doesn't match the
+    // service's real applyUrl (most often the model substituting infoUrl for
+    // a null applyUrl) BEFORE grounding runs — so a bad tag neither reaches
+    // the judge (no more false grounding-fail from this cause) nor the citizen.
+    generated.text = stripInvalidApplyNowTags(generated.text, services, language as "en" | "es")
+    generated.chunks = [generated.text]
     let groundingOutcome: "grounded" | "regenerated" | "fell-back" = "grounded"
     let lastResult: Awaited<ReturnType<typeof checkGrounding>> = { grounded: true }
     // Task M1 — measurement only. Captures each attempt's draft BEFORE it's
@@ -477,6 +572,8 @@ export async function POST(req: Request) {
         console.warn("Grounding failed (attempt 1):", lastResult.stage, lastResult.problems)
         const regenPrompt = `${systemPrompt}\n\nIMPORTANT: your previous draft made these unsupported or incorrect claims: ${JSON.stringify(lastResult.problems)}. Rewrite your reply using ONLY the facts in the KNOWLEDGE BASE section above. For every entry with review="needs_review" or a low conf, you MUST include an explicit hedge phrase directly next to its specific figures — e.g. "this varies by source — confirm with [agency]" — not just avoid stating a number. Do not repeat these mistakes.`
         const regenerated = await generateFull(regenPrompt)
+        regenerated.text = stripInvalidApplyNowTags(regenerated.text, services, language as "en" | "es")
+        regenerated.chunks = [regenerated.text]
         const regenResult = await checkGrounding(regenerated.text, services, fullKB, citizenCtxForGrounding, language)
         attempts.push({ attempt: 2, draft: regenerated.text, stage: regenResult.stage, reasons: regenResult.problems, passed: regenResult.grounded })
 
@@ -486,7 +583,7 @@ export async function POST(req: Request) {
         } else {
           console.warn("Grounding failed (attempt 2 — regeneration):", regenResult.stage, regenResult.problems)
           const criticalSlotAsk = slotToAsk?.critical ? slotToAsk.ask : null
-          generated = { text: buildFallbackReply(services, language as "en" | "es", criticalSlotAsk), chunks: [] }
+          generated = { text: buildFallbackReply(services, language as "en" | "es", criticalSlotAsk, askTargetSlug), chunks: [] }
           generated.chunks = [generated.text]
           groundingOutcome = "fell-back"
           lastResult = regenResult
@@ -509,6 +606,20 @@ export async function POST(req: Request) {
       })
     }
 
+    // Build the streamed body first (its finally owns the audit log + latency,
+    // unchanged), then hand it to finalizeTurn — the single choke point that
+    // does the awaited write-through and emits the conversation headers. The
+    // write-through runs inside finalizeTurn BEFORE the Response is returned
+    // (never a dangling promise living in the stream's start() callback — the
+    // serverless-teardown trap H7 calls out), and is wrapped so a persistence
+    // failure never throws into the reply path (history is additive).
+    //
+    // Task TITLE_OFF_HOTPATH: the title-upgrade LLM call no longer runs on this
+    // hot path — finalizeTurn just computes whether the message-count threshold
+    // was crossed and tells the client via X-Should-Upgrade-Title; the client
+    // fires its own self-contained POST /api/conversation/[id]/title AFTER
+    // rendering the reply (a separate invocation, not a promise racing this
+    // function's teardown).
     const encoder = new TextEncoder()
 
     const readable = new ReadableStream({
@@ -531,15 +642,10 @@ export async function POST(req: Request) {
       }
     })
 
-    return new Response(readable, {
-      headers: {
-        // hasServices reflects situation-worthy material (same set used for
-        // entitlements), not raw foreground hits — a one-off topical match
-        // with no established situation has nothing for "Open plan" to open.
-        ...chatHeaders(classification.type, entitlementServices.length > 0),
-        "Transfer-Encoding": "chunked",
-      },
-    })
+    // hasServices reflects situation-worthy material (same set used for
+    // entitlements), not raw foreground hits — a one-off topical match with no
+    // established situation has nothing for "Open plan" to open.
+    return await finalizeTurn(fullResponse, classification.type, entitlementServices.length > 0, readable)
   } catch (err) {
     console.error("Chat error:", err)
     return NextResponse.json({ error: "Agent unavailable" }, { status: 500 })

@@ -75,6 +75,8 @@ function AgentMarkdown({ text, onKnowMore, lang }: { text: string; onKnowMore: (
     const line = lines[i]
     // Skip horizontal rules from LLM output (--- renders as text otherwise)
     if (/^---+$/.test(line.trim())) { i++; continue }
+    // Strip the PLAN_STEPS: UI signal (chip-state marker, not user-visible)
+    if (/^PLAN_STEPS:\s*$/.test(line.trim())) { i++; continue }
     if (/^[\*\-]\s+/.test(line)) {
       const items: string[] = []
       while (i < lines.length && /^[\*\-]\s+/.test(lines[i])) { items.push(lines[i].replace(/^[\*\-]\s+/, "")); i++ }
