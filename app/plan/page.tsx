@@ -611,7 +611,7 @@ export default function PlanPage() {
                                   <MessageSquare size={14} />
                                   {lang === "es" ? "Qué decir al llegar" : "What to say"}
                                 </p>
-                                <p className="text-[13px] text-gray-700 leading-relaxed">&ldquo;{step.whatToSayWhenYouArrive}&rdquo;</p>
+                                <p className="text-[13px] text-gray-700 leading-relaxed break-words [overflow-wrap:anywhere]">&ldquo;{step.whatToSayWhenYouArrive}&rdquo;</p>
                               </div>
                             )}
 
@@ -622,7 +622,7 @@ export default function PlanPage() {
                                   <AlertCircle size={14} />
                                   {lang === "es" ? "Si algo sale mal" : "If something goes wrong"}
                                 </p>
-                                <p className="text-[13px] text-ca-warn leading-relaxed">{step.whatToDoIfProblems}</p>
+                                <p className="text-[13px] text-ca-warn leading-relaxed break-words [overflow-wrap:anywhere]">{step.whatToDoIfProblems}</p>
                               </div>
                             )}
 

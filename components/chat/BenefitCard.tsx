@@ -31,6 +31,19 @@ function domainOf(url?: string): string {
 
 const FREE_RE = /^\s*(free|gratis)\s*$/i
 
+// A cost pill must only ever hold a SHORT token — a full breakdown string
+// ("Varies by use: ~$3–5 domestic…, $20 abroad…") would grow the pill
+// unbounded, eat the row, and collapse the title to one word per line
+// (issue-6 fix, bug 1). An amount counts as "simple" (safe to show in the
+// pill) only if it's Free, or a short single figure with no sentence-like
+// punctuation. Anything else — or anything flagged costUncertain — shows a
+// short "Varies" token in the pill, with the full text in a "Cost:" body line.
+function isSimpleAmount(amount: string, costUncertain?: boolean): boolean {
+  if (costUncertain) return false
+  if (FREE_RE.test(amount)) return true
+  return amount.length <= 16 && !/[;(:]|—|–/.test(amount)
+}
+
 export default function BenefitCard({ service, lang, onKnowMore }: {
   service: Service
   lang: "en" | "es"
@@ -42,6 +55,10 @@ export default function BenefitCard({ service, lang, onKnowMore }: {
   const caveat  = es ? service.eligibility?.noteEs : service.eligibility?.note
   const amount  = service.amount
   const isFree  = amount ? FREE_RE.test(amount) : false
+  const simpleAmount = amount ? isSimpleAmount(amount, service.costUncertain) : false
+  // Complex/variable cost: pill shows a short "Varies" token, full text drops
+  // to a body line so nothing overflows.
+  const costBody = amount && !simpleAmount ? amount : null
   const unverified = isUnverifiedLocal({ reviewStatus: service.reviewStatus, confidence: service.confidence })
   const domain  = domainOf(service.sourceUrl)
 
@@ -53,18 +70,27 @@ export default function BenefitCard({ service, lang, onKnowMore }: {
 
   return (
     <div className={`rounded-[11px] p-3.5 border ${unverified ? "bg-[#FDFBF3] border-ca-warn-border" : "bg-white border-ca-surface-border"}`}>
-      {/* Header: title + cost pill */}
+      {/* Header: title + cost pill. min-w-0 + break-words on the title lets it
+          wrap normally across 1–2 lines; the pill is capped + never holds a
+          long value, so it can't collapse the title to one word per line. */}
       <div className="flex items-start justify-between gap-2">
-        <p className="font-bold text-[14.5px] text-gray-900 min-w-0">{name}</p>
+        <p className="font-bold text-[14.5px] text-gray-900 min-w-0 break-words">{name}</p>
         {amount && (
           isFree
             ? <span className="text-[11.5px] font-bold px-2.5 py-0.5 bg-ca-success-light text-ca-success rounded-full flex-shrink-0 whitespace-nowrap">{es ? "Gratis" : "Free"}</span>
-            : <span className="text-[11.5px] font-bold px-2.5 py-0.5 bg-ca-track text-[#475569] rounded-full flex-shrink-0 whitespace-nowrap">{amount}</span>
+            : <span className="text-[11.5px] font-bold px-2.5 py-0.5 bg-ca-track text-[#475569] rounded-full flex-shrink-0 whitespace-nowrap max-w-[45%] truncate">{simpleAmount ? amount : (es ? "Varía" : "Varies")}</span>
         )}
       </div>
 
+      {/* Full cost breakdown (only when the pill shows the short "Varies" token). */}
+      {costBody && (
+        <p className="text-[12px] text-ca-text-secondary mt-1 leading-relaxed break-words">
+          <span className="font-semibold">{es ? "Costo: " : "Cost: "}</span>{costBody}
+        </p>
+      )}
+
       {/* Agency + deadline */}
-      <p className="text-xs text-ca-text-secondary mt-0.5">
+      <p className="text-xs text-ca-text-secondary mt-0.5 break-words">
         {service.agency}
         {deadlineText && (
           <span className={urgent ? "text-ca-warn font-semibold" : ""}>
@@ -76,7 +102,7 @@ export default function BenefitCard({ service, lang, onKnowMore }: {
       {/* Eligibility caveat (from the KB entry's note — the hedge that used to
           live in prose). */}
       {caveat && (
-        <p className="text-[12.5px] text-gray-700 mt-2 leading-relaxed">{caveat}</p>
+        <p className="text-[12.5px] text-gray-700 mt-2 leading-relaxed break-words">{caveat}</p>
       )}
 
       {/* Documents — "learn more" chips, preserving the follow-up behavior. */}
@@ -88,7 +114,7 @@ export default function BenefitCard({ service, lang, onKnowMore }: {
               <button
                 key={i}
                 onClick={() => onKnowMore(doc)}
-                className="inline-flex items-center gap-1 text-[12px] text-ca-text-secondary hover:text-brand transition-colors bg-white hover:bg-brand-light px-2 py-0.5 rounded-full border border-ca-surface-input hover:border-brand"
+                className="inline-flex items-center gap-1 text-[12px] text-ca-text-secondary hover:text-brand transition-colors bg-white hover:bg-brand-light px-2 py-0.5 rounded-full border border-ca-surface-input hover:border-brand max-w-full text-left break-words"
                 title={es ? `Saber más sobre ${doc}` : `Learn more about ${doc}`}
               >
                 <Info size={9} />
