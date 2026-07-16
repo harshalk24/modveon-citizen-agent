@@ -1,6 +1,7 @@
 import { Service } from "@/lib/kb"
 import { getLLM } from "@/lib/llm"
-import { buildKBFacts } from "@/lib/context-builder"
+import { buildKBFacts, groupServicesBySituation, resolveTargetSchemes, SourceTaggedService } from "@/lib/context-builder"
+import { situationLabel } from "@/lib/situation-labels"
 
 export interface GroundingResult {
   grounded: boolean
@@ -376,6 +377,29 @@ Return ONLY this JSON: {"verdict": "SUPPORTED" or "UNSUPPORTED", "problems": ["<
   return runJudgeCall(prompt)
 }
 
+// Task GROUNDING_PARALLEL: caps how many judge LLM calls are in flight at
+// once. A single turn now fires up to ~12 independent checks (2 gates + one
+// per retrieved service) instead of one at a time — plain unbounded
+// Promise.all risks tripping the account's rate limit under real multi-
+// citizen load, confirmed empirically THIS session (this tier's 200K TPM
+// limit was already tripped by far more modest concurrency during the
+// fallback-rate measurement work). Capped concurrency still captures nearly
+// all of the latency win (12 checks in ceil(12/6)=2 rounds vs 12 serial
+// rounds) while bounding the simultaneous burst per turn.
+const JUDGE_CONCURRENCY_LIMIT = 6
+async function runConcurrencyLimited<T>(tasks: Array<() => Promise<T>>, limit: number): Promise<T[]> {
+  const results: T[] = new Array(tasks.length)
+  let next = 0
+  async function runWorker() {
+    while (next < tasks.length) {
+      const i = next++
+      results[i] = await tasks[i]()
+    }
+  }
+  await Promise.all(Array.from({ length: Math.min(limit, tasks.length) }, runWorker))
+  return results
+}
+
 // ── Stage 3 (LLM backstop) ───────────────────────────────────────────────
 // Catches distortions the deterministic stages miss: claims not backed by
 // the retrieved facts, or a reply that contradicts the citizen's own context
@@ -386,24 +410,39 @@ export async function checkFaithfulness(
   ctx: CitizenContextForGrounding,
   language: "en" | "es"
 ): Promise<{ ok: boolean; problems: string[] }> {
-  const contradiction = await checkContradiction(reply, ctx)
-  if (!contradiction.ok) return contradiction
+  // Task GROUNDING_PARALLEL: the two leading gates and every per-service
+  // check are independent — each reads only its own inputs (reply + its own
+  // slice of context/facts), no shared state or ordering dependency between
+  // them. Folded into ONE concurrency-limited batch instead of two serial
+  // gate-awaits followed by a serial per-service loop. Measured root cause:
+  // ~34.5s of a ~40s total reply was this running 10 services + 2 gates
+  // serially at ~3s/call; this drops it to roughly (checks / limit) rounds.
+  //
+  // Semantic note (accepted, per the task doc): the old code SHORT-CIRCUITED
+  // on the first failing gate (contradiction, then fabricatedAgency, then
+  // per-service, stopping at the first failure). Running concurrently means
+  // a failing turn now returns ALL failing reasons at once instead of just
+  // the first — the PASS/FAIL verdict is byte-for-byte identical either
+  // way; only the completeness of the problems list on a failure changes
+  // (arguably better for diagnosis). The short-circuit was a cost
+  // optimization for the serial world, moot once every check always runs.
+  type Check = () => Promise<{ ok: boolean; problems: string[] }>
+  const checks: Check[] = [
+    () => checkContradiction(reply, ctx),
+    () => checkFabricatedAgency(reply, retrieved),
+    // Fix R1 principle preserved: each per-service fact still comes from the
+    // SAME buildKBFacts generation uses — just called with one service at a
+    // time instead of the whole array, so "the judge sees exactly what
+    // generation saw" for THAT service remains true by construction.
+    ...retrieved.map((svc): Check => async () => {
+      const [fact] = buildKBFacts([svc], language)
+      const factWithMeta = { ...fact, unverified: isUnverified(svc) }
+      return checkOneServiceSupport(reply, factWithMeta)
+    }),
+  ]
 
-  const fabricatedAgency = await checkFabricatedAgency(reply, retrieved)
-  if (!fabricatedAgency.ok) return fabricatedAgency
-
-  // Fix R1 principle preserved: each per-service fact still comes from the
-  // SAME buildKBFacts generation uses — just called with one service at a
-  // time instead of the whole array, so "the judge sees exactly what
-  // generation saw" for THAT service remains true by construction.
-  const problems: string[] = []
-  for (let i = 0; i < retrieved.length; i++) {
-    const [fact] = buildKBFacts([retrieved[i]], language)
-    const factWithMeta = { ...fact, unverified: isUnverified(retrieved[i]) }
-    const result = await checkOneServiceSupport(reply, factWithMeta)
-    if (!result.ok) problems.push(...result.problems)
-  }
-
+  const results = await runConcurrencyLimited(checks, JUDGE_CONCURRENCY_LIMIT)
+  const problems = results.flatMap(r => (r.ok ? [] : r.problems))
   if (problems.length > 0) return { ok: false, problems }
   return { ok: true, problems: [] }
 }
@@ -433,14 +472,22 @@ export async function check(
 // ── Fallback — built directly from retrieved (= inherently grounded) data.
 // Never attempts to salvage text from either failed LLM draft.
 export function buildFallbackReply(
-  retrieved: Service[],
+  retrieved: SourceTaggedService[],
   language: "en" | "es",
   // Task S1: when a CRITICAL slot is still missing, the natural LLM draft can
   // end up asserting the tier-dependent fact it isn't supposed to assert yet
   // (that's often WHY grounding failed here) — so the safe fallback must lead
   // with the proxy question itself rather than a flat "couldn't confirm" dump,
   // to honor rule 4 (ask before asserting) even on the fail-safe path.
-  criticalSlotAsk?: { en: string; es: string } | null
+  criticalSlotAsk?: { en: string; es: string } | null,
+  // Task 2b structural grouping: same query-relevant target commit 2 computes
+  // (route.ts's askTargetSlug) — threaded through so this deterministic path
+  // groups by situation exactly like buildNestedKBPayload does for the LLM
+  // path. Before this, a citizen whose draft failed grounding twice (common —
+  // this is what actually rendered in the reported bug) still saw the old
+  // flat, mis-ordered dump: the fix lived only in the prompt-assembly side,
+  // never in this fallback formatter.
+  targetSituation: string | null = null
 ): string {
   const isEs = language === "es"
 
@@ -450,18 +497,31 @@ export function buildFallbackReply(
       : "I don't have verified information to answer precisely right now. Tell me more about your situation so I can help."
   }
 
-  const blocks = retrieved.map(s => {
+  const buildBlock = (s: Service) => {
     const name = isEs ? s.nameEs : s.name
     const docs = (isEs ? s.documentsEs : s.documents).join(", ")
     const unverified = isUnverified(s)
 
+    // Several KB "amount"/"deadline" strings already bake in their own
+    // "confirm with X"/"confirm current cost" hedge (e.g. the ISSS newborn
+    // benefit, the FSV loan rate) — appending the wrapper's hedge on top
+    // produced a visible double hedge ("...confirm with ISSS. — confirm
+    // with ISSS."). Skip the wrapper hedge when the source string already
+    // carries one.
+    // Deliberately NOT a bare /confirm/i test — that also matches
+    // "unconfirmed" (e.g. "base fee unconfirmed"), which names no one to
+    // confirm WITH and still needs the wrapper's hedge appended. Only an
+    // actionable "confirm with X"/"confirm current Y" clause already
+    // pointing the reader somewhere counts as self-hedged.
+    const alreadyHedged = (text: string) => /confirm(a|á)?\s+(with|con|current)/i.test(text)
+
     const amountLine = s.amount
-      ? (unverified
+      ? (unverified && !alreadyHedged(s.amount)
           ? (isEs ? `Monto: según la información disponible, ${s.amount} — confirmá con ${s.agency}.` : `Amount: based on available info, ${s.amount} — confirm with ${s.agency}.`)
           : (isEs ? `Monto: ${s.amount}` : `Amount: ${s.amount}`))
       : null
     const deadlineLine = s.deadline
-      ? (unverified
+      ? (unverified && !alreadyHedged(s.deadline)
           ? (isEs ? `Plazo: según la información disponible, ${s.deadline} — confirmá con ${s.agency}.` : `Deadline: based on available info, ${s.deadline} — confirm with ${s.agency}.`)
           : (isEs ? `Plazo: ${s.deadline}` : `Deadline: ${s.deadline}`))
       : null
@@ -472,7 +532,7 @@ export function buildFallbackReply(
       deadlineLine,
       isEs ? `Documentos: ${docs}` : `Documents: ${docs}`,
     ].filter((line): line is string => !!line).join("\n")
-  })
+  }
 
   const intro = criticalSlotAsk
     ? (isEs
@@ -482,5 +542,63 @@ export function buildFallbackReply(
         ? "No pude confirmar todos los detalles con total certeza, así que te comparto solo lo verificado:"
         : "I couldn't confirm every detail with full certainty, so here's only what's verified:")
 
-  return [intro, ...blocks].join("\n\n---\n\n")
+  // G4 (single-situation citizen): unchanged — read as today, no headings,
+  // no empty grouping scaffolding. Only worth grouping when the retrieved
+  // set actually spans more than one active situation.
+  const distinctSituations = new Set(retrieved.flatMap(s => s._situations || []))
+  if (distinctSituations.size <= 1) {
+    return [intro, ...retrieved.map(buildBlock)].join("\n\n---\n\n")
+  }
+
+  const grouped = groupServicesBySituation(retrieved, targetSituation)
+  const sections: string[] = []
+  // The target situation's directAnswer entries and its own backdrop entries
+  // are the SAME situation — merge them under one heading (G1: "leads with
+  // business registration + NIT... under a business heading") instead of
+  // rendering directAnswer as an unlabeled leading block disconnected from
+  // its own situation's group further down. resolveTargetSchemes is the same
+  // helper lib/context-builder.ts's buildFocusedKBPayload uses for the LLM
+  // path's directAnswer — Task 2b query-adaptive listing's consistency
+  // contract ("same schemes listed on a focused turn, LLM may add reasoning
+  // prose the fallback can't") holds by construction, not by two hand-synced
+  // computations.
+  const targetGroupSlug = targetSituation && grouped.situations[targetSituation] ? targetSituation : null
+  const combinedTarget = targetSituation ? resolveTargetSchemes(grouped, targetSituation) : []
+
+  if (targetSituation) {
+    // A focused turn (real target situation) shows ONLY that situation's
+    // schemes here — this fallback formatter has no reasoning capability, so
+    // unlike the LLM path it needs no brief "other situations" context at
+    // all; it simply can't produce the cross-situation reasoning prose that
+    // would justify including them.
+    if (combinedTarget.length > 0) {
+      const heading = targetGroupSlug ? `**${situationLabel(targetGroupSlug, language)}:**` : null
+      sections.push(heading ? [heading, ...combinedTarget.map(buildBlock)].join("\n\n") : combinedTarget.map(buildBlock).join("\n\n---\n\n"))
+    }
+  } else {
+    // No target (e.g. a general "what do I qualify for" turn) — no single
+    // situation is "the answer," so show every active situation, grouped.
+    // Same merge reasoning as the target branch: a directAnswer entry that
+    // ALSO belongs to one of these situation groups is that situation, not a
+    // separate unlabeled fragment — claim it into its own heading rather
+    // than rendering it disconnected above the groups. Only entries with no
+    // situation tag at all (e.g. FSV on a home-loan query) stay as the
+    // leading, unheaded "the answer" block.
+    const claimedIds = new Set<string>()
+    const situationSections: string[] = []
+    for (const [slug, svcs] of Object.entries(grouped.situations)) {
+      const ownForeground = grouped.directAnswer.filter(s => !claimedIds.has(s.id) && s._situations?.includes(slug))
+      ownForeground.forEach(s => claimedIds.add(s.id))
+      const heading = `**${situationLabel(slug, language)}:**`
+      const combined = [...ownForeground, ...svcs]
+      situationSections.push([heading, ...combined.map(buildBlock)].join("\n\n"))
+    }
+    const leftoverDirectAnswer = grouped.directAnswer.filter(s => !claimedIds.has(s.id))
+    if (leftoverDirectAnswer.length > 0) {
+      sections.push(leftoverDirectAnswer.map(buildBlock).join("\n\n---\n\n"))
+    }
+    sections.push(...situationSections)
+  }
+
+  return [intro, ...sections].join("\n\n---\n\n")
 }
