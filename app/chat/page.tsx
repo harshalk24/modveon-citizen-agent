@@ -31,7 +31,7 @@ const UI_STATE_TO_CONVERSATION_STATE: Record<string, ConversationState> = {
   "situation-removed":   "results-shown",
   "out-of-scope":        "empty",              // nudge back to describing a situation
   "no-context-open":     "empty",              // hasn't described a situation yet
-  "meta":                "empty",              // often invites describing the situation
+  "meta":                "meta",               // dedicated follow-ups; falls back to onboarding if no situation yet
   "service-lookup":      "results-shown",
   "open-ended":          "results-shown",
   "diaspora-navigation": "results-shown",
@@ -62,6 +62,7 @@ function detectConversationState(messages: Message[], hasActiveSituations: boole
   if (lastAgent.uiState && UI_STATE_TO_CONVERSATION_STATE[lastAgent.uiState]) {
     const mapped = UI_STATE_TO_CONVERSATION_STATE[lastAgent.uiState]
     if (mapped === "empty" && hasActiveSituations) return "results-shown"
+    if (mapped === "meta"  && !hasActiveSituations) return "empty"   // meta asked before any situation — nudge onboarding, not an empty benefits list
     return mapped
   }
   // No uiState tag (e.g. a message persisted before this change shipped) →
@@ -71,6 +72,14 @@ function detectConversationState(messages: Message[], hasActiveSituations: boole
 
 function generateId() {
   return `msg_${Date.now()}_${Math.random().toString(36).slice(2)}`
+}
+
+// Non-service replies (meta / out-of-scope / no-context-open) shouldn't carry a
+// plan CTA even if the server retrieved services internally. Missing uiState =>
+// treat as service (backward-compat with pre-tag messages).
+const NON_SERVICE_UI_STATES = new Set(["meta", "out-of-scope", "no-context-open"])
+function isServiceReplyType(uiState?: string) {
+  return !uiState || !NON_SERVICE_UI_STATES.has(uiState)
 }
 
 // mirrors isUnverified() in lib/grounding.ts — keep in sync. Not imported
@@ -874,8 +883,10 @@ function ChatContent() {
         }).catch(() => {})
       }
 
-      // Show "Open plan" button whenever the server says services were retrieved.
-      if (hasServices) {
+      // Show "Open plan" button whenever the server says services were retrieved —
+      // but not on a non-service reply (meta/out-of-scope/no-context-open) that
+      // merely touched the KB internally; a plan CTA there is a non sequitur.
+      if (hasServices && isServiceReplyType(uiState)) {
         setMessages(prev =>
           prev.map(m => m.id === assistantId ? {
             ...m,

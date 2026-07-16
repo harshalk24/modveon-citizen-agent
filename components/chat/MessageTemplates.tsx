@@ -2,7 +2,7 @@
 
 import { useEffect, useState } from "react"
 
-export type ConversationState = "empty" | "results-shown" | "plan-shown" | "document-question"
+export type ConversationState = "empty" | "results-shown" | "plan-shown" | "document-question" | "meta"
 
 const TEMPLATES = {
   en: {
@@ -11,6 +11,12 @@ const TEMPLATES = {
       "I lost my job",
       "I want to register my business",
       "I need a poder from the US",
+    ],
+    "meta": [
+      "See my benefits",
+      "Show my plan",
+      "What else can I apply for?",
+      "What can you do?",
     ],
     "results-shown": [
       "What documents do I need?",
@@ -37,6 +43,12 @@ const TEMPLATES = {
       "Me quedé sin trabajo",
       "Quiero registrar mi negocio",
       "Necesito un poder desde EEUU",
+    ],
+    "meta": [
+      "Ver mis beneficios",
+      "Mostrá mi plan",
+      "¿Qué más puedo solicitar?",
+      "¿Qué podés hacer?",
     ],
     "results-shown": [
       "¿Qué documentos necesito?",
