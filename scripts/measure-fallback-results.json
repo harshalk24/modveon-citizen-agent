@@ -1,0 +1,2043 @@
+[
+  {
+    "query": "how much does the birth certificate cost?",
+    "category": "single-specific",
+    "persona": "newBaby",
+    "situations": [
+      "new-baby"
+    ],
+    "runIndex": 0,
+    "outcome": "passed-first-try",
+    "retried": false,
+    "firstDraftRejectReasons": [],
+    "rejectionReasons": []
+  },
+  {
+    "query": "how much does the birth certificate cost?",
+    "category": "single-specific",
+    "persona": "newBaby",
+    "situations": [
+      "new-baby"
+    ],
+    "runIndex": 1,
+    "outcome": "passed-first-try",
+    "retried": false,
+    "firstDraftRejectReasons": [],
+    "rejectionReasons": []
+  },
+  {
+    "query": "how much does the birth certificate cost?",
+    "category": "single-specific",
+    "persona": "newBaby",
+    "situations": [
+      "new-baby"
+    ],
+    "runIndex": 2,
+    "outcome": "passed-first-try",
+    "retried": false,
+    "firstDraftRejectReasons": [],
+    "rejectionReasons": []
+  },
+  {
+    "query": "how much does the birth certificate cost?",
+    "category": "single-specific",
+    "persona": "newBaby",
+    "situations": [
+      "new-baby"
+    ],
+    "runIndex": 3,
+    "outcome": "passed-first-try",
+    "retried": false,
+    "firstDraftRejectReasons": [],
+    "rejectionReasons": []
+  },
+  {
+    "query": "how much does the birth certificate cost?",
+    "category": "single-specific",
+    "persona": "newBaby",
+    "situations": [
+      "new-baby"
+    ],
+    "runIndex": 4,
+    "outcome": "passed-first-try",
+    "retried": false,
+    "firstDraftRejectReasons": [],
+    "rejectionReasons": []
+  },
+  {
+    "query": "what benefits are there for my baby?",
+    "category": "single-specific",
+    "persona": "newBaby",
+    "situations": [
+      "new-baby"
+    ],
+    "runIndex": 0,
+    "outcome": "passed-first-try",
+    "retried": false,
+    "firstDraftRejectReasons": [],
+    "rejectionReasons": []
+  },
+  {
+    "query": "what benefits are there for my baby?",
+    "category": "single-specific",
+    "persona": "newBaby",
+    "situations": [
+      "new-baby"
+    ],
+    "runIndex": 1,
+    "outcome": "passed-on-retry",
+    "retried": true,
+    "firstDraftRejectReasons": [
+      "The reply states that the user can enroll their baby as a dependent since they are formally employed and contributing to ISSS, but it does not clarify that this enrollment requires the user to currently hold active ISSS coverage through formal employment."
+    ],
+    "rejectionReasons": [
+      "The reply states that the user can enroll their baby as a dependent since they are formally employed and contributing to ISSS, but it does not clarify that this enrollment requires the user to currently hold active ISSS coverage through formal employment."
+    ]
+  },
+  {
+    "query": "what benefits are there for my baby?",
+    "category": "single-specific",
+    "persona": "newBaby",
+    "situations": [
+      "new-baby"
+    ],
+    "runIndex": 2,
+    "outcome": "passed-first-try",
+    "retried": false,
+    "firstDraftRejectReasons": [],
+    "rejectionReasons": []
+  },
+  {
+    "query": "what benefits are there for my baby?",
+    "category": "single-specific",
+    "persona": "newBaby",
+    "situations": [
+      "new-baby"
+    ],
+    "runIndex": 3,
+    "outcome": "passed-first-try",
+    "retried": false,
+    "firstDraftRejectReasons": [],
+    "rejectionReasons": []
+  },
+  {
+    "query": "what benefits are there for my baby?",
+    "category": "single-specific",
+    "persona": "newBaby",
+    "situations": [
+      "new-baby"
+    ],
+    "runIndex": 4,
+    "outcome": "passed-first-try",
+    "retried": false,
+    "firstDraftRejectReasons": [],
+    "rejectionReasons": []
+  },
+  {
+    "query": "how do I add my baby to ISSS?",
+    "category": "single-specific",
+    "persona": "newBaby",
+    "situations": [
+      "new-baby"
+    ],
+    "runIndex": 0,
+    "outcome": "passed-first-try",
+    "retried": false,
+    "firstDraftRejectReasons": [],
+    "rejectionReasons": []
+  },
+  {
+    "query": "how do I add my baby to ISSS?",
+    "category": "single-specific",
+    "persona": "newBaby",
+    "situations": [
+      "new-baby"
+    ],
+    "runIndex": 1,
+    "outcome": "passed-first-try",
+    "retried": false,
+    "firstDraftRejectReasons": [],
+    "rejectionReasons": []
+  },
+  {
+    "query": "how do I add my baby to ISSS?",
+    "category": "single-specific",
+    "persona": "newBaby",
+    "situations": [
+      "new-baby"
+    ],
+    "runIndex": 2,
+    "outcome": "passed-first-try",
+    "retried": false,
+    "firstDraftRejectReasons": [],
+    "rejectionReasons": []
+  },
+  {
+    "query": "how do I add my baby to ISSS?",
+    "category": "single-specific",
+    "persona": "newBaby",
+    "situations": [
+      "new-baby"
+    ],
+    "runIndex": 3,
+    "outcome": "passed-first-try",
+    "retried": false,
+    "firstDraftRejectReasons": [],
+    "rejectionReasons": []
+  },
+  {
+    "query": "how do I add my baby to ISSS?",
+    "category": "single-specific",
+    "persona": "newBaby",
+    "situations": [
+      "new-baby"
+    ],
+    "runIndex": 4,
+    "outcome": "passed-first-try",
+    "retried": false,
+    "firstDraftRejectReasons": [],
+    "rejectionReasons": []
+  },
+  {
+    "query": "when do I need to register my baby's birth?",
+    "category": "single-specific",
+    "persona": "newBaby",
+    "situations": [
+      "new-baby"
+    ],
+    "runIndex": 0,
+    "outcome": "passed-first-try",
+    "retried": false,
+    "firstDraftRejectReasons": [],
+    "rejectionReasons": []
+  },
+  {
+    "query": "when do I need to register my baby's birth?",
+    "category": "single-specific",
+    "persona": "newBaby",
+    "situations": [
+      "new-baby"
+    ],
+    "runIndex": 1,
+    "outcome": "passed-first-try",
+    "retried": false,
+    "firstDraftRejectReasons": [],
+    "rejectionReasons": []
+  },
+  {
+    "query": "when do I need to register my baby's birth?",
+    "category": "single-specific",
+    "persona": "newBaby",
+    "situations": [
+      "new-baby"
+    ],
+    "runIndex": 2,
+    "outcome": "passed-first-try",
+    "retried": false,
+    "firstDraftRejectReasons": [],
+    "rejectionReasons": []
+  },
+  {
+    "query": "when do I need to register my baby's birth?",
+    "category": "single-specific",
+    "persona": "newBaby",
+    "situations": [
+      "new-baby"
+    ],
+    "runIndex": 3,
+    "outcome": "passed-first-try",
+    "retried": false,
+    "firstDraftRejectReasons": [],
+    "rejectionReasons": []
+  },
+  {
+    "query": "when do I need to register my baby's birth?",
+    "category": "single-specific",
+    "persona": "newBaby",
+    "situations": [
+      "new-baby"
+    ],
+    "runIndex": 4,
+    "outcome": "passed-first-try",
+    "retried": false,
+    "firstDraftRejectReasons": [],
+    "rejectionReasons": []
+  },
+  {
+    "query": "how do I register my business?",
+    "category": "single-specific",
+    "persona": "business",
+    "situations": [
+      "start-business"
+    ],
+    "runIndex": 0,
+    "outcome": "passed-first-try",
+    "retried": false,
+    "firstDraftRejectReasons": [],
+    "rejectionReasons": []
+  },
+  {
+    "query": "how do I register my business?",
+    "category": "single-specific",
+    "persona": "business",
+    "situations": [
+      "start-business"
+    ],
+    "runIndex": 1,
+    "outcome": "fell-back",
+    "retried": true,
+    "firstDraftRejectReasons": [
+      "The fee is stated as 'unconfirmed and may vary,' which does not align with the fact that it is approximately $17.14 balance-deposit fee.",
+      "The document list includes 'CNR registration certificate', which is not a required document for obtaining the Tax ID (NIT). The correct documents are only 'DUI' and 'CNR registration certificate' is not mentioned in the fact."
+    ],
+    "rejectionReasons": [
+      "The fee is stated as 'unconfirmed and may vary,' which does not align with the fact that it is approximately $17.14 balance-deposit fee.",
+      "The document list includes 'CNR registration certificate', which is not a required document for obtaining the Tax ID (NIT). The correct documents are only 'DUI' and 'CNR registration certificate' is not mentioned in the fact.",
+      "The claim that the business registration fee is \"this varies by source — confirm with CNR\" is unsupported as the fact states a specific amount of ~$17.14 without any mention of variability."
+    ]
+  },
+  {
+    "query": "how do I register my business?",
+    "category": "single-specific",
+    "persona": "business",
+    "situations": [
+      "start-business"
+    ],
+    "runIndex": 2,
+    "outcome": "passed-on-retry",
+    "retried": true,
+    "firstDraftRejectReasons": [
+      "CNR registration certificate is not a required document for obtaining the Tax ID (NIT). The only required documents are DUI and CNR registration certificate."
+    ],
+    "rejectionReasons": [
+      "CNR registration certificate is not a required document for obtaining the Tax ID (NIT). The only required documents are DUI and CNR registration certificate."
+    ]
+  },
+  {
+    "query": "how do I register my business?",
+    "category": "single-specific",
+    "persona": "business",
+    "situations": [
+      "start-business"
+    ],
+    "runIndex": 3,
+    "outcome": "passed-first-try",
+    "retried": false,
+    "firstDraftRejectReasons": [],
+    "rejectionReasons": []
+  },
+  {
+    "query": "how do I register my business?",
+    "category": "single-specific",
+    "persona": "business",
+    "situations": [
+      "start-business"
+    ],
+    "runIndex": 4,
+    "outcome": "passed-on-retry",
+    "retried": true,
+    "firstDraftRejectReasons": [
+      "The reply does not mention the balance-deposit fee of ~$17.14 for the business registration (Matrícula de Empresa) — CNR."
+    ],
+    "rejectionReasons": [
+      "The reply does not mention the balance-deposit fee of ~$17.14 for the business registration (Matrícula de Empresa) — CNR."
+    ]
+  },
+  {
+    "query": "is there a grant to start a business?",
+    "category": "single-specific",
+    "persona": "business",
+    "situations": [
+      "start-business"
+    ],
+    "runIndex": 0,
+    "outcome": "fell-back",
+    "retried": true,
+    "firstDraftRejectReasons": [
+      "The reply states that the business registration is essential for formal operations, but it does not clarify that a Matrícula de Empresa is only required if the citizen's business assets are $12,000 or more. Below that threshold, they only need a NIT and municipal registration."
+    ],
+    "rejectionReasons": [
+      "The reply states that the business registration is essential for formal operations, but it does not clarify that a Matrícula de Empresa is only required if the citizen's business assets are $12,000 or more. Below that threshold, they only need a NIT and municipal registration.",
+      "The claim states that the fee for Business registration (Matrícula de Empresa) — CNR is \"this varies by source — confirm with CNR,\" which is not supported by the fact. The fact states the fee is approximately $17.14 without any mention of variability or the need to confirm with CNR."
+    ]
+  },
+  {
+    "query": "is there a grant to start a business?",
+    "category": "single-specific",
+    "persona": "business",
+    "situations": [
+      "start-business"
+    ],
+    "runIndex": 1,
+    "outcome": "passed-first-try",
+    "retried": false,
+    "firstDraftRejectReasons": [],
+    "rejectionReasons": []
+  },
+  {
+    "query": "is there a grant to start a business?",
+    "category": "single-specific",
+    "persona": "business",
+    "situations": [
+      "start-business"
+    ],
+    "runIndex": 2,
+    "outcome": "passed-first-try",
+    "retried": false,
+    "firstDraftRejectReasons": [],
+    "rejectionReasons": []
+  },
+  {
+    "query": "is there a grant to start a business?",
+    "category": "single-specific",
+    "persona": "business",
+    "situations": [
+      "start-business"
+    ],
+    "runIndex": 3,
+    "outcome": "passed-first-try",
+    "retried": false,
+    "firstDraftRejectReasons": [],
+    "rejectionReasons": []
+  },
+  {
+    "query": "is there a grant to start a business?",
+    "category": "single-specific",
+    "persona": "business",
+    "situations": [
+      "start-business"
+    ],
+    "runIndex": 4,
+    "outcome": "fell-back",
+    "retried": true,
+    "firstDraftRejectReasons": [
+      "You need to register your business with CNR if your assets are above a certain threshold."
+    ],
+    "rejectionReasons": [
+      "You need to register your business with CNR if your assets are above a certain threshold.",
+      "The fee is stated as 'this varies by source — confirm with CNR', which is not supported as the fact states a specific amount of ~$17.14 without any hedging language."
+    ]
+  },
+  {
+    "query": "do I need a license for my shop?",
+    "category": "single-specific",
+    "persona": "business",
+    "situations": [
+      "start-business"
+    ],
+    "runIndex": 0,
+    "outcome": "fell-back",
+    "retried": true,
+    "firstDraftRejectReasons": [
+      "Documents: [CNR registration certificate] DOC_INFO:cnr_registration_certificate"
+    ],
+    "rejectionReasons": [
+      "Documents: [CNR registration certificate] DOC_INFO:cnr_registration_certificate",
+      "States \"$12000\" for \"Business registration (Matrícula de Empresa) — CNR\" without hedging, but this figure is unverified (needs_review)",
+      "\"Business registration (Matrícula de Empresa) — CNR\" is unverified (needs_review) but the reply states a specific figure without hedging"
+    ]
+  },
+  {
+    "query": "do I need a license for my shop?",
+    "category": "single-specific",
+    "persona": "business",
+    "situations": [
+      "start-business"
+    ],
+    "runIndex": 1,
+    "outcome": "passed-on-retry",
+    "retried": true,
+    "firstDraftRejectReasons": [
+      "States \"$12000\" for \"Business registration (Matrícula de Empresa) — CNR\" without hedging, but this figure is unverified (needs_review)",
+      "\"Business registration (Matrícula de Empresa) — CNR\" is unverified (needs_review) but the reply states a specific figure without hedging"
+    ],
+    "rejectionReasons": [
+      "States \"$12000\" for \"Business registration (Matrícula de Empresa) — CNR\" without hedging, but this figure is unverified (needs_review)",
+      "\"Business registration (Matrícula de Empresa) — CNR\" is unverified (needs_review) but the reply states a specific figure without hedging"
+    ]
+  },
+  {
+    "query": "do I need a license for my shop?",
+    "category": "single-specific",
+    "persona": "business",
+    "situations": [
+      "start-business"
+    ],
+    "runIndex": 2,
+    "outcome": "fell-back",
+    "retried": true,
+    "firstDraftRejectReasons": [
+      "States \"$12000\" for \"Business registration (Matrícula de Empresa) — CNR\" without hedging, but this figure is unverified (needs_review)",
+      "\"Business registration (Matrícula de Empresa) — CNR\" is unverified (needs_review) but the reply states a specific figure without hedging"
+    ],
+    "rejectionReasons": [
+      "States \"$12000\" for \"Business registration (Matrícula de Empresa) — CNR\" without hedging, but this figure is unverified (needs_review)",
+      "\"Business registration (Matrícula de Empresa) — CNR\" is unverified (needs_review) but the reply states a specific figure without hedging",
+      "The reply states that the requirement for business registration (Matrícula de Empresa) varies by source and suggests confirming with CNR, which is unsupported. The fact states that a Matrícula de Empresa is only required if the business assets are $12,000 or more, and does not mention variability."
+    ]
+  },
+  {
+    "query": "do I need a license for my shop?",
+    "category": "single-specific",
+    "persona": "business",
+    "situations": [
+      "start-business"
+    ],
+    "runIndex": 3,
+    "outcome": "fell-back",
+    "retried": true,
+    "firstDraftRejectReasons": [
+      "\"Municipal operating licence\" is unverified (confidence undefined) but the reply states a specific figure without hedging",
+      "\"Municipal operating licence\" has no structured cost field (\"amount\") to back any cost claim — the reply states a cost without hedging"
+    ],
+    "rejectionReasons": [
+      "\"Municipal operating licence\" is unverified (confidence undefined) but the reply states a specific figure without hedging",
+      "\"Municipal operating licence\" has no structured cost field (\"amount\") to back any cost claim — the reply states a cost without hedging",
+      "States \"$12000\" for \"Business registration (Matrícula de Empresa) — CNR\" without hedging, but this figure is unverified (needs_review)",
+      "\"Business registration (Matrícula de Empresa) — CNR\" is unverified (needs_review) but the reply states a specific figure without hedging"
+    ]
+  },
+  {
+    "query": "do I need a license for my shop?",
+    "category": "single-specific",
+    "persona": "business",
+    "situations": [
+      "start-business"
+    ],
+    "runIndex": 4,
+    "outcome": "fell-back",
+    "retried": true,
+    "firstDraftRejectReasons": [
+      "States \"$12000\" for \"Business registration (Matrícula de Empresa) — CNR\" without hedging, but this figure is unverified (needs_review)",
+      "\"Business registration (Matrícula de Empresa) — CNR\" is unverified (needs_review) but the reply states a specific figure without hedging"
+    ],
+    "rejectionReasons": [
+      "States \"$12000\" for \"Business registration (Matrícula de Empresa) — CNR\" without hedging, but this figure is unverified (needs_review)",
+      "\"Business registration (Matrícula de Empresa) — CNR\" is unverified (needs_review) but the reply states a specific figure without hedging",
+      "The reply states that the documents required for the Municipal operating licence include the [CNR certificate], which is not supported by the fact provided. The correct documents are DUI, CNR certificate, NIT certificate, and Business address proof.",
+      "The reply states that you may need the business registration if your business assets are $12,000 or more, but it does not clarify that a Matrícula de Empresa is only required if the business assets are $12,000 or more. Below that threshold, a Matrícula should not be obtained, and only a NIT and municipal registration are needed."
+    ]
+  },
+  {
+    "query": "how much does it cost to register a business?",
+    "category": "single-specific",
+    "persona": "business",
+    "situations": [
+      "start-business"
+    ],
+    "runIndex": 0,
+    "outcome": "passed-first-try",
+    "retried": false,
+    "firstDraftRejectReasons": [],
+    "rejectionReasons": []
+  },
+  {
+    "query": "how much does it cost to register a business?",
+    "category": "single-specific",
+    "persona": "business",
+    "situations": [
+      "start-business"
+    ],
+    "runIndex": 1,
+    "outcome": "passed-first-try",
+    "retried": false,
+    "firstDraftRejectReasons": [],
+    "rejectionReasons": []
+  },
+  {
+    "query": "how much does it cost to register a business?",
+    "category": "single-specific",
+    "persona": "business",
+    "situations": [
+      "start-business"
+    ],
+    "runIndex": 2,
+    "outcome": "passed-first-try",
+    "retried": false,
+    "firstDraftRejectReasons": [],
+    "rejectionReasons": []
+  },
+  {
+    "query": "how much does it cost to register a business?",
+    "category": "single-specific",
+    "persona": "business",
+    "situations": [
+      "start-business"
+    ],
+    "runIndex": 3,
+    "outcome": "passed-first-try",
+    "retried": false,
+    "firstDraftRejectReasons": [],
+    "rejectionReasons": []
+  },
+  {
+    "query": "how much does it cost to register a business?",
+    "category": "single-specific",
+    "persona": "business",
+    "situations": [
+      "start-business"
+    ],
+    "runIndex": 4,
+    "outcome": "passed-first-try",
+    "retried": false,
+    "firstDraftRejectReasons": [],
+    "rejectionReasons": []
+  },
+  {
+    "query": "how do I get a power of attorney from the US?",
+    "category": "single-specific",
+    "persona": "diaspora",
+    "situations": [
+      "diaspora"
+    ],
+    "runIndex": 0,
+    "outcome": "passed-first-try",
+    "retried": false,
+    "firstDraftRejectReasons": [],
+    "rejectionReasons": []
+  },
+  {
+    "query": "how do I get a power of attorney from the US?",
+    "category": "single-specific",
+    "persona": "diaspora",
+    "situations": [
+      "diaspora"
+    ],
+    "runIndex": 1,
+    "outcome": "passed-first-try",
+    "retried": false,
+    "firstDraftRejectReasons": [],
+    "rejectionReasons": []
+  },
+  {
+    "query": "how do I get a power of attorney from the US?",
+    "category": "single-specific",
+    "persona": "diaspora",
+    "situations": [
+      "diaspora"
+    ],
+    "runIndex": 2,
+    "outcome": "passed-first-try",
+    "retried": false,
+    "firstDraftRejectReasons": [],
+    "rejectionReasons": []
+  },
+  {
+    "query": "how do I get a power of attorney from the US?",
+    "category": "single-specific",
+    "persona": "diaspora",
+    "situations": [
+      "diaspora"
+    ],
+    "runIndex": 3,
+    "outcome": "passed-first-try",
+    "retried": false,
+    "firstDraftRejectReasons": [],
+    "rejectionReasons": []
+  },
+  {
+    "query": "how do I get a power of attorney from the US?",
+    "category": "single-specific",
+    "persona": "diaspora",
+    "situations": [
+      "diaspora"
+    ],
+    "runIndex": 4,
+    "outcome": "passed-first-try",
+    "retried": false,
+    "firstDraftRejectReasons": [],
+    "rejectionReasons": []
+  },
+  {
+    "query": "how do I authenticate a document?",
+    "category": "single-specific",
+    "persona": "diaspora",
+    "situations": [
+      "diaspora"
+    ],
+    "runIndex": 0,
+    "outcome": "passed-first-try",
+    "retried": false,
+    "firstDraftRejectReasons": [],
+    "rejectionReasons": []
+  },
+  {
+    "query": "how do I authenticate a document?",
+    "category": "single-specific",
+    "persona": "diaspora",
+    "situations": [
+      "diaspora"
+    ],
+    "runIndex": 1,
+    "outcome": "passed-first-try",
+    "retried": false,
+    "firstDraftRejectReasons": [],
+    "rejectionReasons": []
+  },
+  {
+    "query": "how do I authenticate a document?",
+    "category": "single-specific",
+    "persona": "diaspora",
+    "situations": [
+      "diaspora"
+    ],
+    "runIndex": 2,
+    "outcome": "passed-first-try",
+    "retried": false,
+    "firstDraftRejectReasons": [],
+    "rejectionReasons": []
+  },
+  {
+    "query": "how do I authenticate a document?",
+    "category": "single-specific",
+    "persona": "diaspora",
+    "situations": [
+      "diaspora"
+    ],
+    "runIndex": 3,
+    "outcome": "passed-on-retry",
+    "retried": true,
+    "firstDraftRejectReasons": [
+      "Ministry of Foreign Affairs — not a retrieved agency for this turn"
+    ],
+    "rejectionReasons": [
+      "Ministry of Foreign Affairs — not a retrieved agency for this turn"
+    ]
+  },
+  {
+    "query": "how do I authenticate a document?",
+    "category": "single-specific",
+    "persona": "diaspora",
+    "situations": [
+      "diaspora"
+    ],
+    "runIndex": 4,
+    "outcome": "passed-on-retry",
+    "retried": true,
+    "firstDraftRejectReasons": [
+      "Ministry of Foreign Affairs — not a retrieved agency for this turn"
+    ],
+    "rejectionReasons": [
+      "Ministry of Foreign Affairs — not a retrieved agency for this turn"
+    ]
+  },
+  {
+    "query": "can a US notary handle my poder notarial?",
+    "category": "single-specific",
+    "persona": "diaspora",
+    "situations": [
+      "diaspora"
+    ],
+    "runIndex": 0,
+    "outcome": "passed-first-try",
+    "retried": false,
+    "firstDraftRejectReasons": [],
+    "rejectionReasons": []
+  },
+  {
+    "query": "can a US notary handle my poder notarial?",
+    "category": "single-specific",
+    "persona": "diaspora",
+    "situations": [
+      "diaspora"
+    ],
+    "runIndex": 1,
+    "outcome": "passed-first-try",
+    "retried": false,
+    "firstDraftRejectReasons": [],
+    "rejectionReasons": []
+  },
+  {
+    "query": "can a US notary handle my poder notarial?",
+    "category": "single-specific",
+    "persona": "diaspora",
+    "situations": [
+      "diaspora"
+    ],
+    "runIndex": 2,
+    "outcome": "passed-first-try",
+    "retried": false,
+    "firstDraftRejectReasons": [],
+    "rejectionReasons": []
+  },
+  {
+    "query": "can a US notary handle my poder notarial?",
+    "category": "single-specific",
+    "persona": "diaspora",
+    "situations": [
+      "diaspora"
+    ],
+    "runIndex": 3,
+    "outcome": "passed-first-try",
+    "retried": false,
+    "firstDraftRejectReasons": [],
+    "rejectionReasons": []
+  },
+  {
+    "query": "can a US notary handle my poder notarial?",
+    "category": "single-specific",
+    "persona": "diaspora",
+    "situations": [
+      "diaspora"
+    ],
+    "runIndex": 4,
+    "outcome": "passed-first-try",
+    "retried": false,
+    "firstDraftRejectReasons": [],
+    "rejectionReasons": []
+  },
+  {
+    "query": "do I get any support if I lost my job?",
+    "category": "single-specific",
+    "persona": "jobLoss",
+    "situations": [
+      "job-loss"
+    ],
+    "runIndex": 0,
+    "outcome": "fell-back",
+    "retried": true,
+    "firstDraftRejectReasons": [
+      "Documents listed for ISSS unemployment benefit include 'your ID', which is not mentioned in the retrieved fact."
+    ],
+    "rejectionReasons": [
+      "Documents listed for ISSS unemployment benefit include 'your ID', which is not mentioned in the retrieved fact.",
+      "Hours: Monday–Friday, 7:30am–3:30pm (should be 8:00am–4:00pm)"
+    ]
+  },
+  {
+    "query": "do I get any support if I lost my job?",
+    "category": "single-specific",
+    "persona": "jobLoss",
+    "situations": [
+      "job-loss"
+    ],
+    "runIndex": 1,
+    "outcome": "passed-first-try",
+    "retried": false,
+    "firstDraftRejectReasons": [],
+    "rejectionReasons": []
+  },
+  {
+    "query": "do I get any support if I lost my job?",
+    "category": "single-specific",
+    "persona": "jobLoss",
+    "situations": [
+      "job-loss"
+    ],
+    "runIndex": 2,
+    "outcome": "fell-back",
+    "retried": true,
+    "firstDraftRejectReasons": [
+      "The eligibility claim states that the ISSS unemployment benefit is a continuation of ISSS health coverage, which is incorrect. The correct eligibility is that it is for people who were formal contributors and recently lost their job, depending on prior formal contributions, not current employment."
+    ],
+    "rejectionReasons": [
+      "The eligibility claim states that the ISSS unemployment benefit is a continuation of ISSS health coverage, which is incorrect. The correct eligibility is that it is for people who were formal contributors and recently lost their job, depending on prior formal contributions, not current employment.",
+      "\"ISSS unemployment benefit\" is unverified (needs_review) but the reply states a specific figure without hedging"
+    ]
+  },
+  {
+    "query": "do I get any support if I lost my job?",
+    "category": "single-specific",
+    "persona": "jobLoss",
+    "situations": [
+      "job-loss"
+    ],
+    "runIndex": 3,
+    "outcome": "passed-first-try",
+    "retried": false,
+    "firstDraftRejectReasons": [],
+    "rejectionReasons": []
+  },
+  {
+    "query": "do I get any support if I lost my job?",
+    "category": "single-specific",
+    "persona": "jobLoss",
+    "situations": [
+      "job-loss"
+    ],
+    "runIndex": 4,
+    "outcome": "fell-back",
+    "retried": true,
+    "firstDraftRejectReasons": [
+      "The eligibility description states 'This is continuation of ISSS health coverage for people who were formal contributors and recently lost their job,' which is incorrect. The correct eligibility is that it depends on prior formal contributions, not current employment."
+    ],
+    "rejectionReasons": [
+      "The eligibility description states 'This is continuation of ISSS health coverage for people who were formal contributors and recently lost their job,' which is incorrect. The correct eligibility is that it depends on prior formal contributions, not current employment.",
+      "\"ISSS unemployment benefit\" is unverified (needs_review) but the reply states a specific figure without hedging"
+    ]
+  },
+  {
+    "query": "is there free job training available?",
+    "category": "single-specific",
+    "persona": "jobLoss",
+    "situations": [
+      "job-loss"
+    ],
+    "runIndex": 0,
+    "outcome": "passed-first-try",
+    "retried": false,
+    "firstDraftRejectReasons": [],
+    "rejectionReasons": []
+  },
+  {
+    "query": "is there free job training available?",
+    "category": "single-specific",
+    "persona": "jobLoss",
+    "situations": [
+      "job-loss"
+    ],
+    "runIndex": 1,
+    "outcome": "passed-first-try",
+    "retried": false,
+    "firstDraftRejectReasons": [],
+    "rejectionReasons": []
+  },
+  {
+    "query": "is there free job training available?",
+    "category": "single-specific",
+    "persona": "jobLoss",
+    "situations": [
+      "job-loss"
+    ],
+    "runIndex": 2,
+    "outcome": "passed-first-try",
+    "retried": false,
+    "firstDraftRejectReasons": [],
+    "rejectionReasons": []
+  },
+  {
+    "query": "is there free job training available?",
+    "category": "single-specific",
+    "persona": "jobLoss",
+    "situations": [
+      "job-loss"
+    ],
+    "runIndex": 3,
+    "outcome": "passed-first-try",
+    "retried": false,
+    "firstDraftRejectReasons": [],
+    "rejectionReasons": []
+  },
+  {
+    "query": "is there free job training available?",
+    "category": "single-specific",
+    "persona": "jobLoss",
+    "situations": [
+      "job-loss"
+    ],
+    "runIndex": 4,
+    "outcome": "passed-first-try",
+    "retried": false,
+    "firstDraftRejectReasons": [],
+    "rejectionReasons": []
+  },
+  {
+    "query": "how do I get the unemployment support?",
+    "category": "single-specific",
+    "persona": "jobLoss",
+    "situations": [
+      "job-loss"
+    ],
+    "runIndex": 0,
+    "outcome": "passed-first-try",
+    "retried": false,
+    "firstDraftRejectReasons": [],
+    "rejectionReasons": []
+  },
+  {
+    "query": "how do I get the unemployment support?",
+    "category": "single-specific",
+    "persona": "jobLoss",
+    "situations": [
+      "job-loss"
+    ],
+    "runIndex": 1,
+    "outcome": "passed-first-try",
+    "retried": false,
+    "firstDraftRejectReasons": [],
+    "rejectionReasons": []
+  },
+  {
+    "query": "how do I get the unemployment support?",
+    "category": "single-specific",
+    "persona": "jobLoss",
+    "situations": [
+      "job-loss"
+    ],
+    "runIndex": 2,
+    "outcome": "passed-on-retry",
+    "retried": true,
+    "firstDraftRejectReasons": [
+      "\"ISSS unemployment benefit\" is unverified (needs_review) but the reply states a specific figure without hedging"
+    ],
+    "rejectionReasons": [
+      "\"ISSS unemployment benefit\" is unverified (needs_review) but the reply states a specific figure without hedging"
+    ]
+  },
+  {
+    "query": "how do I get the unemployment support?",
+    "category": "single-specific",
+    "persona": "jobLoss",
+    "situations": [
+      "job-loss"
+    ],
+    "runIndex": 3,
+    "outcome": "passed-on-retry",
+    "retried": true,
+    "firstDraftRejectReasons": [
+      "\"ISSS unemployment benefit\" is unverified (needs_review) but the reply states a specific figure without hedging"
+    ],
+    "rejectionReasons": [
+      "\"ISSS unemployment benefit\" is unverified (needs_review) but the reply states a specific figure without hedging"
+    ]
+  },
+  {
+    "query": "how do I get the unemployment support?",
+    "category": "single-specific",
+    "persona": "jobLoss",
+    "situations": [
+      "job-loss"
+    ],
+    "runIndex": 4,
+    "outcome": "passed-on-retry",
+    "retried": true,
+    "firstDraftRejectReasons": [
+      "\"ISSS unemployment benefit\" is unverified (needs_review) but the reply states a specific figure without hedging"
+    ],
+    "rejectionReasons": [
+      "\"ISSS unemployment benefit\" is unverified (needs_review) but the reply states a specific figure without hedging"
+    ]
+  },
+  {
+    "query": "what documents do I need?",
+    "category": "single-followup",
+    "persona": "newBaby",
+    "situations": [
+      "new-baby"
+    ],
+    "runIndex": 0,
+    "outcome": "passed-first-try",
+    "retried": false,
+    "firstDraftRejectReasons": [],
+    "rejectionReasons": []
+  },
+  {
+    "query": "what documents do I need?",
+    "category": "single-followup",
+    "persona": "newBaby",
+    "situations": [
+      "new-baby"
+    ],
+    "runIndex": 1,
+    "outcome": "passed-first-try",
+    "retried": false,
+    "firstDraftRejectReasons": [],
+    "rejectionReasons": []
+  },
+  {
+    "query": "what documents do I need?",
+    "category": "single-followup",
+    "persona": "newBaby",
+    "situations": [
+      "new-baby"
+    ],
+    "runIndex": 2,
+    "outcome": "passed-first-try",
+    "retried": false,
+    "firstDraftRejectReasons": [],
+    "rejectionReasons": []
+  },
+  {
+    "query": "what documents do I need?",
+    "category": "single-followup",
+    "persona": "newBaby",
+    "situations": [
+      "new-baby"
+    ],
+    "runIndex": 3,
+    "outcome": "passed-first-try",
+    "retried": false,
+    "firstDraftRejectReasons": [],
+    "rejectionReasons": []
+  },
+  {
+    "query": "what documents do I need?",
+    "category": "single-followup",
+    "persona": "newBaby",
+    "situations": [
+      "new-baby"
+    ],
+    "runIndex": 4,
+    "outcome": "passed-first-try",
+    "retried": false,
+    "firstDraftRejectReasons": [],
+    "rejectionReasons": []
+  },
+  {
+    "query": "how long does it take?",
+    "category": "single-followup",
+    "persona": "business",
+    "situations": [
+      "start-business"
+    ],
+    "runIndex": 0,
+    "outcome": "passed-first-try",
+    "retried": false,
+    "firstDraftRejectReasons": [],
+    "rejectionReasons": []
+  },
+  {
+    "query": "how long does it take?",
+    "category": "single-followup",
+    "persona": "business",
+    "situations": [
+      "start-business"
+    ],
+    "runIndex": 1,
+    "outcome": "passed-first-try",
+    "retried": false,
+    "firstDraftRejectReasons": [],
+    "rejectionReasons": []
+  },
+  {
+    "query": "how long does it take?",
+    "category": "single-followup",
+    "persona": "business",
+    "situations": [
+      "start-business"
+    ],
+    "runIndex": 2,
+    "outcome": "passed-first-try",
+    "retried": false,
+    "firstDraftRejectReasons": [],
+    "rejectionReasons": []
+  },
+  {
+    "query": "how long does it take?",
+    "category": "single-followup",
+    "persona": "business",
+    "situations": [
+      "start-business"
+    ],
+    "runIndex": 3,
+    "outcome": "passed-on-retry",
+    "retried": true,
+    "firstDraftRejectReasons": [
+      "The reply does not mention the approximate balance-deposit fee of ~$17.14 for the business registration (Matrícula de Empresa) — CNR."
+    ],
+    "rejectionReasons": [
+      "The reply does not mention the approximate balance-deposit fee of ~$17.14 for the business registration (Matrícula de Empresa) — CNR."
+    ]
+  },
+  {
+    "query": "how long does it take?",
+    "category": "single-followup",
+    "persona": "business",
+    "situations": [
+      "start-business"
+    ],
+    "runIndex": 4,
+    "outcome": "passed-first-try",
+    "retried": false,
+    "firstDraftRejectReasons": [],
+    "rejectionReasons": []
+  },
+  {
+    "query": "how much does it cost?",
+    "category": "single-followup",
+    "persona": "diaspora",
+    "situations": [
+      "diaspora"
+    ],
+    "runIndex": 0,
+    "outcome": "passed-first-try",
+    "retried": false,
+    "firstDraftRejectReasons": [],
+    "rejectionReasons": []
+  },
+  {
+    "query": "how much does it cost?",
+    "category": "single-followup",
+    "persona": "diaspora",
+    "situations": [
+      "diaspora"
+    ],
+    "runIndex": 1,
+    "outcome": "passed-first-try",
+    "retried": false,
+    "firstDraftRejectReasons": [],
+    "rejectionReasons": []
+  },
+  {
+    "query": "how much does it cost?",
+    "category": "single-followup",
+    "persona": "diaspora",
+    "situations": [
+      "diaspora"
+    ],
+    "runIndex": 2,
+    "outcome": "passed-first-try",
+    "retried": false,
+    "firstDraftRejectReasons": [],
+    "rejectionReasons": []
+  },
+  {
+    "query": "how much does it cost?",
+    "category": "single-followup",
+    "persona": "diaspora",
+    "situations": [
+      "diaspora"
+    ],
+    "runIndex": 3,
+    "outcome": "passed-first-try",
+    "retried": false,
+    "firstDraftRejectReasons": [],
+    "rejectionReasons": []
+  },
+  {
+    "query": "how much does it cost?",
+    "category": "single-followup",
+    "persona": "diaspora",
+    "situations": [
+      "diaspora"
+    ],
+    "runIndex": 4,
+    "outcome": "passed-first-try",
+    "retried": false,
+    "firstDraftRejectReasons": [],
+    "rejectionReasons": []
+  },
+  {
+    "query": "what documents do I need?",
+    "category": "single-followup",
+    "persona": "jobLoss",
+    "situations": [
+      "job-loss"
+    ],
+    "runIndex": 0,
+    "outcome": "passed-first-try",
+    "retried": false,
+    "firstDraftRejectReasons": [],
+    "rejectionReasons": []
+  },
+  {
+    "query": "what documents do I need?",
+    "category": "single-followup",
+    "persona": "jobLoss",
+    "situations": [
+      "job-loss"
+    ],
+    "runIndex": 1,
+    "outcome": "passed-first-try",
+    "retried": false,
+    "firstDraftRejectReasons": [],
+    "rejectionReasons": []
+  },
+  {
+    "query": "what documents do I need?",
+    "category": "single-followup",
+    "persona": "jobLoss",
+    "situations": [
+      "job-loss"
+    ],
+    "runIndex": 2,
+    "outcome": "passed-first-try",
+    "retried": false,
+    "firstDraftRejectReasons": [],
+    "rejectionReasons": []
+  },
+  {
+    "query": "what documents do I need?",
+    "category": "single-followup",
+    "persona": "jobLoss",
+    "situations": [
+      "job-loss"
+    ],
+    "runIndex": 3,
+    "outcome": "passed-first-try",
+    "retried": false,
+    "firstDraftRejectReasons": [],
+    "rejectionReasons": []
+  },
+  {
+    "query": "what documents do I need?",
+    "category": "single-followup",
+    "persona": "jobLoss",
+    "situations": [
+      "job-loss"
+    ],
+    "runIndex": 4,
+    "outcome": "passed-first-try",
+    "retried": false,
+    "firstDraftRejectReasons": [],
+    "rejectionReasons": []
+  },
+  {
+    "query": "what am I eligible for?",
+    "category": "single-general",
+    "persona": "newBaby",
+    "situations": [
+      "new-baby"
+    ],
+    "runIndex": 0,
+    "outcome": "passed-on-retry",
+    "retried": true,
+    "firstDraftRejectReasons": [
+      "The reply states that the partner can apply for paternity leave if they are employed and contributing to ISSS, but it does not clarify that the employer must submit the application on the father's behalf and that the baby's birth certificate must be provided within the first week."
+    ],
+    "rejectionReasons": [
+      "The reply states that the partner can apply for paternity leave if they are employed and contributing to ISSS, but it does not clarify that the employer must submit the application on the father's behalf and that the baby's birth certificate must be provided within the first week."
+    ]
+  },
+  {
+    "query": "what am I eligible for?",
+    "category": "single-general",
+    "persona": "newBaby",
+    "situations": [
+      "new-baby"
+    ],
+    "runIndex": 1,
+    "outcome": "passed-first-try",
+    "retried": false,
+    "firstDraftRejectReasons": [],
+    "rejectionReasons": []
+  },
+  {
+    "query": "what am I eligible for?",
+    "category": "single-general",
+    "persona": "newBaby",
+    "situations": [
+      "new-baby"
+    ],
+    "runIndex": 2,
+    "outcome": "passed-on-retry",
+    "retried": true,
+    "firstDraftRejectReasons": [
+      "The eligibility claim states 'If your partner is employed and contributing to ISSS, they may qualify for paternity leave.' This is incorrect; the eligibility specifically states that 'Paternity leave is for fathers currently employed and contributing to ISSS.'"
+    ],
+    "rejectionReasons": [
+      "The eligibility claim states 'If your partner is employed and contributing to ISSS, they may qualify for paternity leave.' This is incorrect; the eligibility specifically states that 'Paternity leave is for fathers currently employed and contributing to ISSS.'"
+    ]
+  },
+  {
+    "query": "what am I eligible for?",
+    "category": "single-general",
+    "persona": "newBaby",
+    "situations": [
+      "new-baby"
+    ],
+    "runIndex": 3,
+    "outcome": "fell-back",
+    "retried": true,
+    "firstDraftRejectReasons": [
+      "The reply states that the partner may qualify for paternity leave if they are formally employed and contributing to ISSS, but it does not clarify that the employer must submit the application on the father's behalf and that the baby's birth certificate must be provided within the first week."
+    ],
+    "rejectionReasons": [
+      "The reply states that the partner may qualify for paternity leave if they are formally employed and contributing to ISSS, but it does not clarify that the employer must submit the application on the father's behalf and that the baby's birth certificate must be provided within the first week.",
+      "The eligibility claim states that the partner may qualify for paternity leave if they are currently employed and contributing to ISSS, but it does not clarify that the employer must submit the application on the father's behalf, which is a critical part of the process."
+    ]
+  },
+  {
+    "query": "what am I eligible for?",
+    "category": "single-general",
+    "persona": "newBaby",
+    "situations": [
+      "new-baby"
+    ],
+    "runIndex": 4,
+    "outcome": "passed-on-retry",
+    "retried": true,
+    "firstDraftRejectReasons": [
+      "The maternity leave duration is stated as 'up to 16 weeks after birth', but it should specify '16 weeks (112 days) of leave, at least 10 weeks after birth'."
+    ],
+    "rejectionReasons": [
+      "The maternity leave duration is stated as 'up to 16 weeks after birth', but it should specify '16 weeks (112 days) of leave, at least 10 weeks after birth'."
+    ]
+  },
+  {
+    "query": "what am I eligible for?",
+    "category": "single-general",
+    "persona": "business",
+    "situations": [
+      "start-business"
+    ],
+    "runIndex": 0,
+    "outcome": "fell-back",
+    "retried": true,
+    "firstDraftRejectReasons": [
+      "You need to register your business if your assets are $12,000 or more."
+    ],
+    "rejectionReasons": [
+      "You need to register your business if your assets are $12,000 or more.",
+      "The claim that the fee for Business registration (Matrícula de Empresa) — CNR varies by source is unsupported; the fact states it is approximately $17.14 balance-deposit fee without mention of variability."
+    ]
+  },
+  {
+    "query": "what am I eligible for?",
+    "category": "single-general",
+    "persona": "business",
+    "situations": [
+      "start-business"
+    ],
+    "runIndex": 1,
+    "outcome": "fell-back",
+    "retried": true,
+    "firstDraftRejectReasons": [
+      "States \"$12000\" for \"Business registration (Matrícula de Empresa) — CNR\" without hedging, but this figure is unverified (needs_review)",
+      "\"Business registration (Matrícula de Empresa) — CNR\" is unverified (needs_review) but the reply states a specific figure without hedging"
+    ],
+    "rejectionReasons": [
+      "States \"$12000\" for \"Business registration (Matrícula de Empresa) — CNR\" without hedging, but this figure is unverified (needs_review)",
+      "\"Business registration (Matrícula de Empresa) — CNR\" is unverified (needs_review) but the reply states a specific figure without hedging",
+      "The claim that the balance-deposit fee varies by source and should be confirmed with CNR is incorrect; the fee is stated as approximately $17.14 without any indication that it varies."
+    ]
+  },
+  {
+    "query": "what am I eligible for?",
+    "category": "single-general",
+    "persona": "business",
+    "situations": [
+      "start-business"
+    ],
+    "runIndex": 2,
+    "outcome": "passed-first-try",
+    "retried": false,
+    "firstDraftRejectReasons": [],
+    "rejectionReasons": []
+  },
+  {
+    "query": "what am I eligible for?",
+    "category": "single-general",
+    "persona": "business",
+    "situations": [
+      "start-business"
+    ],
+    "runIndex": 3,
+    "outcome": "passed-first-try",
+    "retried": false,
+    "firstDraftRejectReasons": [],
+    "rejectionReasons": []
+  },
+  {
+    "query": "what am I eligible for?",
+    "category": "single-general",
+    "persona": "business",
+    "situations": [
+      "start-business"
+    ],
+    "runIndex": 4,
+    "outcome": "fell-back",
+    "retried": true,
+    "firstDraftRejectReasons": [
+      "States \"$12000\" for \"Business registration (Matrícula de Empresa) — CNR\" without hedging, but this figure is unverified (needs_review)",
+      "\"Business registration (Matrícula de Empresa) — CNR\" is unverified (needs_review) but the reply states a specific figure without hedging"
+    ],
+    "rejectionReasons": [
+      "States \"$12000\" for \"Business registration (Matrícula de Empresa) — CNR\" without hedging, but this figure is unverified (needs_review)",
+      "\"Business registration (Matrícula de Empresa) — CNR\" is unverified (needs_review) but the reply states a specific figure without hedging",
+      "The claim that the CNR registration fee varies by source and should be confirmed with CNR is unsupported; the fact states a specific amount of ~ $17.14 without mention of variability."
+    ]
+  },
+  {
+    "query": "what am I eligible for?",
+    "category": "single-general",
+    "persona": "jobLoss",
+    "situations": [
+      "job-loss"
+    ],
+    "runIndex": 0,
+    "outcome": "passed-first-try",
+    "retried": false,
+    "firstDraftRejectReasons": [],
+    "rejectionReasons": []
+  },
+  {
+    "query": "what am I eligible for?",
+    "category": "single-general",
+    "persona": "jobLoss",
+    "situations": [
+      "job-loss"
+    ],
+    "runIndex": 1,
+    "outcome": "passed-on-retry",
+    "retried": true,
+    "firstDraftRejectReasons": [
+      "The reply states that the ISSS unemployment benefit provides continuation of ISSS health coverage, but the fact specifies that it is for people who were formal contributors and recently lost their job, which is not clearly stated in the reply."
+    ],
+    "rejectionReasons": [
+      "The reply states that the ISSS unemployment benefit provides continuation of ISSS health coverage, but the fact specifies that it is for people who were formal contributors and recently lost their job, which is not clearly stated in the reply."
+    ]
+  },
+  {
+    "query": "what am I eligible for?",
+    "category": "single-general",
+    "persona": "jobLoss",
+    "situations": [
+      "job-loss"
+    ],
+    "runIndex": 2,
+    "outcome": "fell-back",
+    "retried": true,
+    "firstDraftRejectReasons": [
+      "The eligibility claim states that the ISSS unemployment benefit is a continuation of ISSS health coverage, which is incorrect. The benefit is for people who were formal contributors and recently lost their job, not specifically a continuation of health coverage."
+    ],
+    "rejectionReasons": [
+      "The eligibility claim states that the ISSS unemployment benefit is a continuation of ISSS health coverage, which is incorrect. The benefit is for people who were formal contributors and recently lost their job, not specifically a continuation of health coverage.",
+      "\"ISSS unemployment benefit\" is unverified (needs_review) but the reply states a specific figure without hedging"
+    ]
+  },
+  {
+    "query": "what am I eligible for?",
+    "category": "single-general",
+    "persona": "jobLoss",
+    "situations": [
+      "job-loss"
+    ],
+    "runIndex": 3,
+    "outcome": "passed-on-retry",
+    "retried": true,
+    "firstDraftRejectReasons": [
+      "The eligibility claim states 'This is continuation of ISSS health coverage for people who were formal contributors and recently lost their job,' which is incorrect. The correct eligibility is that it depends on prior formal contributions, not current employment."
+    ],
+    "rejectionReasons": [
+      "The eligibility claim states 'This is continuation of ISSS health coverage for people who were formal contributors and recently lost their job,' which is incorrect. The correct eligibility is that it depends on prior formal contributions, not current employment."
+    ]
+  },
+  {
+    "query": "what am I eligible for?",
+    "category": "single-general",
+    "persona": "jobLoss",
+    "situations": [
+      "job-loss"
+    ],
+    "runIndex": 4,
+    "outcome": "fell-back",
+    "retried": true,
+    "firstDraftRejectReasons": [
+      "The eligibility claim states that the ISSS unemployment benefit is a continuation of ISSS health coverage, which is incorrect. The benefit is for people who were formal contributors and recently lost their job, not a continuation of health coverage."
+    ],
+    "rejectionReasons": [
+      "The eligibility claim states that the ISSS unemployment benefit is a continuation of ISSS health coverage, which is incorrect. The benefit is for people who were formal contributors and recently lost their job, not a continuation of health coverage.",
+      "\"ISSS unemployment benefit\" is unverified (needs_review) but the reply states a specific figure without hedging"
+    ]
+  },
+  {
+    "query": "what benefits are there for my baby?",
+    "category": "multi-specific",
+    "persona": "babyJobLoss",
+    "situations": [
+      "new-baby",
+      "job-loss"
+    ],
+    "runIndex": 0,
+    "outcome": "passed-first-try",
+    "retried": false,
+    "firstDraftRejectReasons": [],
+    "rejectionReasons": []
+  },
+  {
+    "query": "what benefits are there for my baby?",
+    "category": "multi-specific",
+    "persona": "babyJobLoss",
+    "situations": [
+      "new-baby",
+      "job-loss"
+    ],
+    "runIndex": 1,
+    "outcome": "passed-first-try",
+    "retried": false,
+    "firstDraftRejectReasons": [],
+    "rejectionReasons": []
+  },
+  {
+    "query": "what benefits are there for my baby?",
+    "category": "multi-specific",
+    "persona": "babyJobLoss",
+    "situations": [
+      "new-baby",
+      "job-loss"
+    ],
+    "runIndex": 2,
+    "outcome": "passed-first-try",
+    "retried": false,
+    "firstDraftRejectReasons": [],
+    "rejectionReasons": []
+  },
+  {
+    "query": "what benefits are there for my baby?",
+    "category": "multi-specific",
+    "persona": "babyJobLoss",
+    "situations": [
+      "new-baby",
+      "job-loss"
+    ],
+    "runIndex": 3,
+    "outcome": "passed-first-try",
+    "retried": false,
+    "firstDraftRejectReasons": [],
+    "rejectionReasons": []
+  },
+  {
+    "query": "what benefits are there for my baby?",
+    "category": "multi-specific",
+    "persona": "babyJobLoss",
+    "situations": [
+      "new-baby",
+      "job-loss"
+    ],
+    "runIndex": 4,
+    "outcome": "passed-first-try",
+    "retried": false,
+    "firstDraftRejectReasons": [],
+    "rejectionReasons": []
+  },
+  {
+    "query": "how do I register my business?",
+    "category": "multi-specific",
+    "persona": "bizJobLoss",
+    "situations": [
+      "start-business",
+      "job-loss"
+    ],
+    "runIndex": 0,
+    "outcome": "passed-first-try",
+    "retried": false,
+    "firstDraftRejectReasons": [],
+    "rejectionReasons": []
+  },
+  {
+    "query": "how do I register my business?",
+    "category": "multi-specific",
+    "persona": "bizJobLoss",
+    "situations": [
+      "start-business",
+      "job-loss"
+    ],
+    "runIndex": 1,
+    "outcome": "passed-first-try",
+    "retried": false,
+    "firstDraftRejectReasons": [],
+    "rejectionReasons": []
+  },
+  {
+    "query": "how do I register my business?",
+    "category": "multi-specific",
+    "persona": "bizJobLoss",
+    "situations": [
+      "start-business",
+      "job-loss"
+    ],
+    "runIndex": 2,
+    "outcome": "passed-first-try",
+    "retried": false,
+    "firstDraftRejectReasons": [],
+    "rejectionReasons": []
+  },
+  {
+    "query": "how do I register my business?",
+    "category": "multi-specific",
+    "persona": "bizJobLoss",
+    "situations": [
+      "start-business",
+      "job-loss"
+    ],
+    "runIndex": 3,
+    "outcome": "passed-on-retry",
+    "retried": true,
+    "firstDraftRejectReasons": [
+      "The requirement for business registration depends on whether you have a storefront or employees, which is not supported by the fact. The fact states that a Matrícula de Empresa is only required if the business assets are $12,000 or more."
+    ],
+    "rejectionReasons": [
+      "The requirement for business registration depends on whether you have a storefront or employees, which is not supported by the fact. The fact states that a Matrícula de Empresa is only required if the business assets are $12,000 or more."
+    ]
+  },
+  {
+    "query": "how do I register my business?",
+    "category": "multi-specific",
+    "persona": "bizJobLoss",
+    "situations": [
+      "start-business",
+      "job-loss"
+    ],
+    "runIndex": 4,
+    "outcome": "passed-first-try",
+    "retried": false,
+    "firstDraftRejectReasons": [],
+    "rejectionReasons": []
+  },
+  {
+    "query": "is there free job training available?",
+    "category": "multi-specific",
+    "persona": "babyJobLoss",
+    "situations": [
+      "new-baby",
+      "job-loss"
+    ],
+    "runIndex": 0,
+    "outcome": "passed-first-try",
+    "retried": false,
+    "firstDraftRejectReasons": [],
+    "rejectionReasons": []
+  },
+  {
+    "query": "is there free job training available?",
+    "category": "multi-specific",
+    "persona": "babyJobLoss",
+    "situations": [
+      "new-baby",
+      "job-loss"
+    ],
+    "runIndex": 1,
+    "outcome": "passed-first-try",
+    "retried": false,
+    "firstDraftRejectReasons": [],
+    "rejectionReasons": []
+  },
+  {
+    "query": "is there free job training available?",
+    "category": "multi-specific",
+    "persona": "babyJobLoss",
+    "situations": [
+      "new-baby",
+      "job-loss"
+    ],
+    "runIndex": 2,
+    "outcome": "passed-first-try",
+    "retried": false,
+    "firstDraftRejectReasons": [],
+    "rejectionReasons": []
+  },
+  {
+    "query": "is there free job training available?",
+    "category": "multi-specific",
+    "persona": "babyJobLoss",
+    "situations": [
+      "new-baby",
+      "job-loss"
+    ],
+    "runIndex": 3,
+    "outcome": "passed-first-try",
+    "retried": false,
+    "firstDraftRejectReasons": [],
+    "rejectionReasons": []
+  },
+  {
+    "query": "is there free job training available?",
+    "category": "multi-specific",
+    "persona": "babyJobLoss",
+    "situations": [
+      "new-baby",
+      "job-loss"
+    ],
+    "runIndex": 4,
+    "outcome": "passed-first-try",
+    "retried": false,
+    "firstDraftRejectReasons": [],
+    "rejectionReasons": []
+  },
+  {
+    "query": "is there a grant to start a business?",
+    "category": "multi-specific",
+    "persona": "bizJobLoss",
+    "situations": [
+      "start-business",
+      "job-loss"
+    ],
+    "runIndex": 0,
+    "outcome": "passed-first-try",
+    "retried": false,
+    "firstDraftRejectReasons": [],
+    "rejectionReasons": []
+  },
+  {
+    "query": "is there a grant to start a business?",
+    "category": "multi-specific",
+    "persona": "bizJobLoss",
+    "situations": [
+      "start-business",
+      "job-loss"
+    ],
+    "runIndex": 1,
+    "outcome": "passed-first-try",
+    "retried": false,
+    "firstDraftRejectReasons": [],
+    "rejectionReasons": []
+  },
+  {
+    "query": "is there a grant to start a business?",
+    "category": "multi-specific",
+    "persona": "bizJobLoss",
+    "situations": [
+      "start-business",
+      "job-loss"
+    ],
+    "runIndex": 2,
+    "outcome": "passed-first-try",
+    "retried": false,
+    "firstDraftRejectReasons": [],
+    "rejectionReasons": []
+  },
+  {
+    "query": "is there a grant to start a business?",
+    "category": "multi-specific",
+    "persona": "bizJobLoss",
+    "situations": [
+      "start-business",
+      "job-loss"
+    ],
+    "runIndex": 3,
+    "outcome": "passed-first-try",
+    "retried": false,
+    "firstDraftRejectReasons": [],
+    "rejectionReasons": []
+  },
+  {
+    "query": "is there a grant to start a business?",
+    "category": "multi-specific",
+    "persona": "bizJobLoss",
+    "situations": [
+      "start-business",
+      "job-loss"
+    ],
+    "runIndex": 4,
+    "outcome": "passed-first-try",
+    "retried": false,
+    "firstDraftRejectReasons": [],
+    "rejectionReasons": []
+  },
+  {
+    "query": "what am I eligible for?",
+    "category": "multi-general",
+    "persona": "babyJobLoss",
+    "situations": [
+      "new-baby",
+      "job-loss"
+    ],
+    "runIndex": 0,
+    "outcome": "passed-first-try",
+    "retried": false,
+    "firstDraftRejectReasons": [],
+    "rejectionReasons": []
+  },
+  {
+    "query": "what am I eligible for?",
+    "category": "multi-general",
+    "persona": "babyJobLoss",
+    "situations": [
+      "new-baby",
+      "job-loss"
+    ],
+    "runIndex": 1,
+    "outcome": "passed-first-try",
+    "retried": false,
+    "firstDraftRejectReasons": [],
+    "rejectionReasons": []
+  },
+  {
+    "query": "what am I eligible for?",
+    "category": "multi-general",
+    "persona": "babyJobLoss",
+    "situations": [
+      "new-baby",
+      "job-loss"
+    ],
+    "runIndex": 2,
+    "outcome": "passed-first-try",
+    "retried": false,
+    "firstDraftRejectReasons": [],
+    "rejectionReasons": []
+  },
+  {
+    "query": "what am I eligible for?",
+    "category": "multi-general",
+    "persona": "babyJobLoss",
+    "situations": [
+      "new-baby",
+      "job-loss"
+    ],
+    "runIndex": 3,
+    "outcome": "fell-back",
+    "retried": true,
+    "firstDraftRejectReasons": [
+      "The reply states that the ISSS unemployment benefit provides continuation of ISSS health coverage, but it does not clarify that this benefit is specifically for people who were formal contributors and recently lost their job, which is a key eligibility requirement."
+    ],
+    "rejectionReasons": [
+      "The reply states that the ISSS unemployment benefit provides continuation of ISSS health coverage, but it does not clarify that this benefit is specifically for people who were formal contributors and recently lost their job, which is a key eligibility requirement.",
+      "The claim that the ISSS retirement benefit is available for those who have contributed to ISSS and are seeking retirement is misleading, as it implies eligibility without confirming the requirement to have reached retirement age and meet contribution requirements."
+    ]
+  },
+  {
+    "query": "what am I eligible for?",
+    "category": "multi-general",
+    "persona": "babyJobLoss",
+    "situations": [
+      "new-baby",
+      "job-loss"
+    ],
+    "runIndex": 4,
+    "outcome": "passed-first-try",
+    "retried": false,
+    "firstDraftRejectReasons": [],
+    "rejectionReasons": []
+  },
+  {
+    "query": "what am I eligible for?",
+    "category": "multi-general",
+    "persona": "bizJobLoss",
+    "situations": [
+      "start-business",
+      "job-loss"
+    ],
+    "runIndex": 0,
+    "outcome": "passed-first-try",
+    "retried": false,
+    "firstDraftRejectReasons": [],
+    "rejectionReasons": []
+  },
+  {
+    "query": "what am I eligible for?",
+    "category": "multi-general",
+    "persona": "bizJobLoss",
+    "situations": [
+      "start-business",
+      "job-loss"
+    ],
+    "runIndex": 1,
+    "outcome": "passed-on-retry",
+    "retried": true,
+    "firstDraftRejectReasons": [
+      "The reply states 'Documents: [your ID] DOC_INFO:DUI', which is not a required document for ISSS unemployment benefit. The required documents are DUI, termination letter, last 3 pay stubs, and bank account statement."
+    ],
+    "rejectionReasons": [
+      "The reply states 'Documents: [your ID] DOC_INFO:DUI', which is not a required document for ISSS unemployment benefit. The required documents are DUI, termination letter, last 3 pay stubs, and bank account statement."
+    ]
+  },
+  {
+    "query": "what am I eligible for?",
+    "category": "multi-general",
+    "persona": "bizJobLoss",
+    "situations": [
+      "start-business",
+      "job-loss"
+    ],
+    "runIndex": 2,
+    "outcome": "passed-first-try",
+    "retried": false,
+    "firstDraftRejectReasons": [],
+    "rejectionReasons": []
+  },
+  {
+    "query": "what am I eligible for?",
+    "category": "multi-general",
+    "persona": "bizJobLoss",
+    "situations": [
+      "start-business",
+      "job-loss"
+    ],
+    "runIndex": 3,
+    "outcome": "passed-first-try",
+    "retried": false,
+    "firstDraftRejectReasons": [],
+    "rejectionReasons": []
+  },
+  {
+    "query": "what am I eligible for?",
+    "category": "multi-general",
+    "persona": "bizJobLoss",
+    "situations": [
+      "start-business",
+      "job-loss"
+    ],
+    "runIndex": 4,
+    "outcome": "passed-first-try",
+    "retried": false,
+    "firstDraftRejectReasons": [],
+    "rejectionReasons": []
+  },
+  {
+    "query": "what am I eligible for?",
+    "category": "multi-general",
+    "persona": "babyBiz",
+    "situations": [
+      "new-baby",
+      "start-business"
+    ],
+    "runIndex": 0,
+    "outcome": "fell-back",
+    "retried": true,
+    "firstDraftRejectReasons": [
+      "The claim states that a NIT can be obtained entirely online, but it does not mention that this must be done before the CNR appointment, which is a critical detail from the fact."
+    ],
+    "rejectionReasons": [
+      "The claim states that a NIT can be obtained entirely online, but it does not mention that this must be done before the CNR appointment, which is a critical detail from the fact.",
+      "The fee is stated as 'this varies by source — confirm with CNR', which is not supported by the fact that specifies a fixed amount of ~ $17.14 balance-deposit fee."
+    ]
+  },
+  {
+    "query": "what am I eligible for?",
+    "category": "multi-general",
+    "persona": "babyBiz",
+    "situations": [
+      "new-baby",
+      "start-business"
+    ],
+    "runIndex": 1,
+    "outcome": "passed-first-try",
+    "retried": false,
+    "firstDraftRejectReasons": [],
+    "rejectionReasons": []
+  },
+  {
+    "query": "what am I eligible for?",
+    "category": "multi-general",
+    "persona": "babyBiz",
+    "situations": [
+      "new-baby",
+      "start-business"
+    ],
+    "runIndex": 2,
+    "outcome": "fell-back",
+    "retried": true,
+    "firstDraftRejectReasons": [
+      "The reply states that a CNR registration certificate is required to obtain a Tax ID (NIT), but the fact does not support this claim."
+    ],
+    "rejectionReasons": [
+      "The reply states that a CNR registration certificate is required to obtain a Tax ID (NIT), but the fact does not support this claim.",
+      "The fee is stated as 'this varies by source — confirm with CNR', which is not supported by the fact that specifies the fee as '~$17.14 balance-deposit fee (individual-merchant base fee unconfirmed)'. The phrase 'this varies by source' introduces uncertainty that is not present in the fact.",
+      "The document list includes 'CNR registration certificate', which is not a required document for obtaining the Tax ID (NIT). The only required documents are 'DUI' and 'CNR registration certificate' is not mentioned in the fact."
+    ]
+  },
+  {
+    "query": "what am I eligible for?",
+    "category": "multi-general",
+    "persona": "babyBiz",
+    "situations": [
+      "new-baby",
+      "start-business"
+    ],
+    "runIndex": 3,
+    "outcome": "passed-first-try",
+    "retried": false,
+    "firstDraftRejectReasons": [],
+    "rejectionReasons": []
+  },
+  {
+    "query": "what am I eligible for?",
+    "category": "multi-general",
+    "persona": "babyBiz",
+    "situations": [
+      "new-baby",
+      "start-business"
+    ],
+    "runIndex": 4,
+    "outcome": "fell-back",
+    "retried": true,
+    "firstDraftRejectReasons": [
+      "The requirement for business registration (Matrícula de Empresa) is incorrectly stated as depending on whether you have a storefront or employees. The correct requirement is that a Matrícula de Empresa is only needed if the business assets are $12,000 or more."
+    ],
+    "rejectionReasons": [
+      "The requirement for business registration (Matrícula de Empresa) is incorrectly stated as depending on whether you have a storefront or employees. The correct requirement is that a Matrícula de Empresa is only needed if the business assets are $12,000 or more.",
+      "The claim that the balance-deposit fee varies by source is unsupported; the fact states it is approximately $17.14 without mention of variability."
+    ]
+  }
+]
