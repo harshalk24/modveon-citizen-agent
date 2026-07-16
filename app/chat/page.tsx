@@ -75,6 +75,14 @@ function generateId() {
   return `msg_${Date.now()}_${Math.random().toString(36).slice(2)}`
 }
 
+// Task DISCOVERY_CARDS: reply types that render as an intro bubble + a column
+// of structured BenefitCards (built from the gender-gated union), instead of a
+// prose benefit listing. Matches the task's "which replies get cards" set;
+// the justAddedSituation discovery path is tagged "service-lookup" server-side
+// so it's covered here. depth-knowledge / plan-clarification / meta /
+// out-of-scope stay prose (not in this set).
+const DISCOVERY_UI_STATES = new Set(["service-lookup", "open-ended", "no-context-open"])
+
 // Task VERIFY_COPY — two-phase "verifying" copy. Neutral rotating lines shown
 // immediately on send (true regardless of query type); swapped to the service
 // "official sources" line only once the parallel classify pre-flight confirms a
@@ -862,6 +870,11 @@ function ChatContent() {
     setVerifyingIsService(false)
     setNeutralIdx(0)
     verifyTurnRef.current = assistantId
+    // Task DISCOVERY_CARDS: hoisted so the finally can attach benefit cards
+    // for a discovery reply using the POST-refresh citizen (covers the
+    // just-added-situation turn, whose new situation isn't in the client's
+    // citizen state until the finally's refresh completes).
+    let replyUiState: string | undefined
     fetch("/api/classify", {
       method: "POST",
       headers: { "Content-Type": "application/json" },
@@ -899,6 +912,7 @@ function ChatContent() {
       // and whether services were retrieved (X-Has-Services) — read those
       // instead of re-guessing from the reply text with keyword matching.
       const uiState     = res.headers.get("X-UI-State") || undefined
+      replyUiState = uiState
       const hasServices = res.headers.get("X-Has-Services") === "1"
       // Task TITLE_OFF_HOTPATH: the server no longer does the title-upgrade
       // LLM call inline (it added ~2.6s to every reply that crossed the
@@ -961,7 +975,24 @@ function ChatContent() {
       // Refresh citizen context so lifeEvent/employment detected this turn are visible
       // immediately — needed for the "Open plan" button to see the correct lifeEvent.
       const citizenId = localStorage.getItem("ca_citizen_id")
-      if (citizenId) refresh().catch(() => {})
+      if (citizenId) {
+        refresh().then(fresh => {
+          // Task DISCOVERY_CARDS: on a discovery reply, attach the benefit
+          // cards from the POST-refresh gender-gated union (same set used
+          // everywhere else). Post-refresh so a just-added situation's
+          // benefits are included this very turn. Empty union → no cards
+          // (e.g. no-context-open with no situations yet) renders nothing.
+          if (fresh && replyUiState && DISCOVERY_UI_STATES.has(replyUiState)) {
+            const cards = unionServicesForSituations({
+              country: fresh.profile.country || "SV",
+              situations: getActiveSituations(fresh.profile),
+              employment: fresh.profile.employment || "unknown",
+              gender: fresh.profile.gender,
+            })
+            setMessages(prev => prev.map(m => m.id === assistantId ? { ...m, benefitCards: cards } : m))
+          }
+        }).catch(() => {})
+      }
       // Task History-C2: the write-through (commit 1) just bumped this
       // conversation's updatedAt — refresh the sidebar's list so it moves to
       // the top. Best-effort, same as refresh() above.

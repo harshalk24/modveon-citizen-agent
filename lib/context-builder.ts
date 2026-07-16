@@ -604,17 +604,33 @@ export function buildSystemPrompt(
     ? (language === "es" ? `RELEVANCIA DE LA BASE DE CONOCIMIENTO: ${retrievalNoteParts.join(" ")}` : `KNOWLEDGE BASE RELEVANCE: ${retrievalNoteParts.join(" ")}`)
     : ""
 
-  // Task SITUATION_ADD_DISCOVERY: a mid-chat situation-add falls through to
-  // this discovery path (instead of a bare ack early-return). Prepended to
-  // the top of the prompt for salience so the reply opens by acknowledging
-  // the NEW situation alongside existing ones, then leads with its benefits.
-  const justAddedNote = justAddedSituation
+  // Task DISCOVERY_CARDS: on a discovery turn (service reply types, or a
+  // mid-chat situation-add) with services to show, the INTERFACE renders each
+  // benefit as a structured card from data — so the model must NOT re-list
+  // them in prose. This overrides the template's "list directAnswer / service
+  // blocks" rules for these turns only; it writes a short intro + cross-cutting
+  // reasoning instead. Prepended (high salience) so it wins over those rules.
+  const isDiscoveryTurn = hasSourceTags && (
+    queryType === "service-lookup" || queryType === "open-ended" ||
+    queryType === "no-context-open" || justAddedSituation !== null
+  )
+  const discoveryCardsNote = isDiscoveryTurn
     ? (language === "es"
-        ? `EL CIUDADANO ACABA de contarte sobre una nueva situación este turno: **${situationLabel(justAddedSituation, "es")}**, además de su(s) situación(es) existente(s). Abrí con un reconocimiento breve y cálido de la nueva situación (una línea), y luego mostrale para qué califica ahora en TODAS sus situaciones activas, EMPEZANDO por los beneficios de la nueva. No lo presentes como una confirmación seca de "agregado" — es un momento de descubrimiento.\n\n`
-        : `THE CITIZEN JUST told you about a new situation this turn: **${situationLabel(justAddedSituation, "en")}**, in addition to their existing situation(s). Open with a brief, warm one-line acknowledgment of the new situation, then show what they now qualify for across ALL their active situations, LEADING with the benefits for the new one. Do not present this as a bare "added" confirmation — it's a discovery moment.\n\n`)
+        ? `PRESENTACIÓN — TARJETAS DE BENEFICIOS (ESTE TURNO ANULA LAS REGLAS DE LISTADO DE ABAJO): La interfaz muestra cada beneficio como su propia tarjeta visual (nombre, institución, costo, documentos, nota de elegibilidad y enlace para solicitar), directamente desde datos estructurados. La BASE DE CONOCIMIENTO de abajo te la damos SOLO para razonar este turno — cualquier instrucción de "listar directAnswer" o usar el formato de bloque de servicio NO aplica a esta respuesta. Concretamente, tu respuesta NO debe contener: ninguna línea que empiece con el nombre de un beneficio en negrita, ninguna línea "Documentos:", ninguna cifra de costo, ninguna etiqueta APPLY_NOW ni DOC_INFO, ni separadores "---". Escribí SOLO: (1) una línea de introducción breve y cálida, y (2) orientación transversal breve en prosa — cuál hacer primero y por qué, urgencia de plazos, y encuadre de elegibilidad personalizado (ej. "como no estás empleada formalmente, el subsidio por maternidad puede depender de cotizaciones previas — confirmá con el ISSS"). Podés NOMBRAR un beneficio dentro de una oración de razonamiento, pero si te encontrás escribiendo un beneficio como ítem de lista, pará — la tarjeta ya lo muestra.\n\n`
+        : `PRESENTATION — BENEFIT CARDS (THIS TURN OVERRIDES THE LISTING RULES BELOW): The interface renders each benefit as its own visual card (name, agency, cost, documents, eligibility note, apply link), directly from structured data. The KNOWLEDGE BASE below is given to you for REASONING ONLY this turn — any instruction to "list directAnswer" or use the service-block format does NOT apply to this reply. Concretely, your reply must contain: NO line starting with a bold benefit name, NO "Documents:" line, NO cost figure, NO APPLY_NOW or DOC_INFO tag, and NO "---" separators. Write ONLY: (1) a short, warm intro line, and (2) brief cross-cutting guidance in prose — which to do first and why, any deadline urgency, and personalized eligibility framing (e.g. "since you're not formally employed, the maternity subsidy may depend on prior contributions — confirm with ISSS"). You may NAME a benefit inside a sentence of reasoning, but if you catch yourself writing a benefit as a list item, stop — the card already shows it.\n\n`)
     : ""
 
-  return justAddedNote + template
+  // Task SITUATION_ADD_DISCOVERY (card-aware): acknowledge the just-added
+  // situation warmly and lead the guidance with it. The benefits themselves
+  // render as cards (discoveryCardsNote above), so this no longer asks the
+  // model to "list" them — just to orient around the new situation.
+  const justAddedNote = justAddedSituation
+    ? (language === "es"
+        ? `EL CIUDADANO ACABA de contarte sobre una nueva situación este turno: **${situationLabel(justAddedSituation, "es")}**, además de su(s) situación(es) existente(s). Abrí con un reconocimiento breve y cálido de la nueva situación, y orientá tu guía EMPEZANDO por ella. No lo presentes como una confirmación seca de "agregado" — es un momento de descubrimiento.\n\n`
+        : `THE CITIZEN JUST told you about a new situation this turn: **${situationLabel(justAddedSituation, "en")}**, in addition to their existing situation(s). Open with a brief, warm one-line acknowledgment of the new situation, and lead your guidance with it. Do not present this as a bare "added" confirmation — it's a discovery moment.\n\n`)
+    : ""
+
+  return justAddedNote + discoveryCardsNote + template
     .replace("{citizenContext}", compactCtx)
     .replace("{knowledgeBase}", JSON.stringify(kbPayload))
     .replace("{conversationSummary}", ctx.conversationSummary || (language === "es" ? "Primera sesión." : "First session."))

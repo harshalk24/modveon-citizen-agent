@@ -5,6 +5,8 @@ import { Flag, Download, Info, CheckCircle2, AlertCircle, ArrowUpRight } from "l
 import { useLang } from "@/contexts/LanguageContext"
 import { t } from "@/lib/i18n"
 import { services as kbServices } from "@/lib/kb"
+import type { Service } from "@/lib/kb"
+import ServiceCard         from "./BenefitCard"
 import AgentActivityCard    from "./AgentActivityCard"
 import FormPreviewCard      from "./FormPreviewCard"
 import DocRetrievedCard     from "./DocRetrievedCard"
@@ -29,6 +31,11 @@ export interface Message {
   submitted?: boolean
   resolved?:  boolean
   actionButtons?: { label: string; action: string; variant?: "outline" | "green" }[]
+  // Task DISCOVERY_CARDS: structured benefit cards to render below the intro
+  // bubble on a discovery reply (service reply types). Built client-side from
+  // the gender-gated unionServicesForSituations snapshot — NOT parsed from the
+  // reply prose. Absent on non-discovery replies (they render prose as before).
+  benefitCards?: Service[]
 }
 
 interface Props {
@@ -478,6 +485,15 @@ export default function ChatMessage({ message, citizenId, onAction, onSendMessag
             </button>
           )}
         </div>
+        {/* Task DISCOVERY_CARDS: structured benefit cards below the intro
+            bubble — the discovery listing, rendered from data instead of prose. */}
+        {isAgent && message.benefitCards && message.benefitCards.length > 0 && (
+          <div className="space-y-2.5">
+            {message.benefitCards.map(s => (
+              <ServiceCard key={s.id} service={s} lang={lang === "es" ? "es" : "en"} onKnowMore={handleKnowMore} />
+            ))}
+          </div>
+        )}
         {isAgent && message.actionButtons?.length ? (
           <div className="flex flex-wrap gap-2 px-1">
             {message.actionButtons.map((btn, i) => (
