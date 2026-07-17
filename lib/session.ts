@@ -46,9 +46,32 @@ const redis = (redisUrl && redisToken)
   ? new Redis({ url: redisUrl, token: redisToken, automaticDeserialization: false })
   : null
 
-// Dev-only fallback stores — untouched by the Redis path.
+// In-memory fallback stores — used in dev (no Redis env) AND as the graceful
+// fallback when a configured Redis is unreachable (see redisSafe below).
 const store = new Map<string, SessionData>()
 const rateLimitStore = new Map<string, { count: number; resetAt: number }>()
+
+// Fail-soft guard: a configured-but-broken Redis (dead/paused Upstash instance,
+// rotated token, wrong URL) must NOT take down the chat endpoint. These stores
+// are the first calls in POST /api/chat, BEFORE its try/catch — an unhandled
+// throw here returns an empty-body 500 for the whole conversation. So every
+// Redis call is wrapped: on error we log once and fall back to in-memory
+// (rate-limit/session become best-effort per-instance, which is acceptable —
+// a degraded limiter beats a dead assistant). Removing the Redis env vars is
+// still the real fix; this just makes the outage non-fatal.
+let redisWarned = false
+async function redisSafe<T>(op: string, fn: () => Promise<T>, fallback: T): Promise<T> {
+  if (!redis) return fallback
+  try {
+    return await fn()
+  } catch (e) {
+    if (!redisWarned) {
+      redisWarned = true
+      console.error(`[session] Redis ${op} failed — falling back to in-memory. Check REDIS_URL/REDIS_TOKEN (or remove them to use in-memory).`, e instanceof Error ? e.message : e)
+    }
+    return fallback
+  }
+}
 
 function sessionKey(sessionId: string) {
   return `session:${sessionId}`
@@ -56,8 +79,12 @@ function sessionKey(sessionId: string) {
 
 export async function getSession(sessionId: string): Promise<SessionData | null> {
   if (redis) {
-    const raw = await redis.get<string>(sessionKey(sessionId))
-    return raw ? JSON.parse(raw) : null
+    const hit = await redisSafe("getSession", async () => {
+      const raw = await redis!.get<string>(sessionKey(sessionId))
+      return { ok: true as const, value: raw ? JSON.parse(raw) as SessionData : null }
+    }, null)
+    if (hit) return hit.value
+    // Redis errored → fall through to in-memory.
   }
   return store.get(sessionId) ?? null
 }
@@ -67,8 +94,12 @@ export async function saveSession(sessionId: string, data: SessionData) {
     // Native Redis expiry — replaces the old setTimeout-based cleanup, which
     // never survived a serverless instance recycling (the timer died with
     // the instance, so nothing actually expired in production).
-    await redis.set(sessionKey(sessionId), JSON.stringify(data), { ex: SESSION_TTL_SECONDS })
-    return
+    const ok = await redisSafe("saveSession", async () => {
+      await redis!.set(sessionKey(sessionId), JSON.stringify(data), { ex: SESSION_TTL_SECONDS })
+      return true
+    }, false)
+    if (ok) return
+    // Redis errored → also write in-memory so the session survives this instance.
   }
   store.set(sessionId, data)
 }
@@ -96,10 +127,14 @@ export async function checkRateLimit(sessionId: string): Promise<boolean> {
   if (redis) {
     // INCR + EXPIRE replicates the existing fixed-window logic (30/min) but
     // shared across every instance, instead of 30/min PER instance.
-    const key = `ratelimit:${sessionId}`
-    const count = await redis.incr(key)
-    if (count === 1) await redis.expire(key, RATE_LIMIT_WINDOW_SECONDS)
-    return count <= RATE_LIMIT_MAX
+    const result = await redisSafe("checkRateLimit", async () => {
+      const key = `ratelimit:${sessionId}`
+      const count = await redis!.incr(key)
+      if (count === 1) await redis!.expire(key, RATE_LIMIT_WINDOW_SECONDS)
+      return { ok: true as const, allowed: count <= RATE_LIMIT_MAX }
+    }, null)
+    if (result) return result.allowed
+    // Redis errored → fall through to the in-memory limiter below (best-effort).
   }
 
   const now = Date.now()
