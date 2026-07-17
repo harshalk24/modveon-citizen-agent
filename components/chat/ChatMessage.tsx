@@ -323,6 +323,21 @@ function BenefitCard({ content, applyUrl, downloadUrl, onKnowMore, lang, onApply
   const unverified = kbMatch ? isUnverifiedLocal({ reviewStatus: kbMatch.reviewStatus, confidence: kbMatch.confidence }) : undefined
   const domain = domainOf(applyUrl)
 
+  // The block starts with a "**name** · agency · amount [⚠️ deadline]" header
+  // line. Name renders in the header below and amount in the cost pill, so
+  // strip that line from the BODY to avoid printing the name twice; surface the
+  // agency (+ any deadline) as a muted subline, matching the discovery card.
+  const lines = content.split("\n")
+  const hasHeaderLine = nm ? lines[0]?.includes(`**${nm[1]}**`) : false
+  let subline = ""
+  if (hasHeaderLine) {
+    const afterName = lines[0].replace(/\*\*[^*]+\*\*/, "").replace(/^\s*·?\s*/, "")
+    const agency = afterName.split("·")[0]?.trim() || ""
+    const deadlineM = afterName.match(/⚠️\s*(.+)$/)
+    subline = deadlineM ? `${agency} · ⚠️ ${deadlineM[1].trim()}` : agency
+  }
+  const bodyText = hasHeaderLine ? lines.slice(1).join("\n").trim() : content
+
   const applyNode = isRNPN && onApplyNow ? (
     <button onClick={() => onApplyNow("sv-rnpn-birth-registration")}
       className="inline-flex items-center gap-1 text-[13px] font-semibold text-brand hover:text-brand-dark transition-colors flex-shrink-0 whitespace-nowrap">
@@ -349,8 +364,10 @@ function BenefitCard({ content, applyUrl, downloadUrl, onKnowMore, lang, onApply
         ) : null}
       </div>
 
+      {subline && <p className="text-xs text-ca-text-secondary mt-0.5 break-words">{subline}</p>}
+
       <div className="text-[13px] text-gray-700 mt-1">
-        <AgentMarkdown text={content} onKnowMore={onKnowMore} lang={lang} />
+        <AgentMarkdown text={bodyText} onKnowMore={onKnowMore} lang={lang} />
       </div>
 
       {/* Trust chip + Apply — the mock's primary footer row */}
@@ -388,7 +405,21 @@ function renderContent(content: string, lang: string, onKnowMore: (d: string) =>
     const part = parts[i]
     if (!part) continue
     const am = part.match(/^APPLY_NOW:(https?:\/\/[^\s]+?)(?:\s+DOWNLOAD:(https?:\/\/[^\s]+))?$/)
-    if (am) { result.push(<BenefitCard key={i} content={buf} applyUrl={am[1]} downloadUrl={am[2]} onKnowMore={onKnowMore} lang={lang} onApplyNow={onApplyNow} />); buf = "" }
+    if (am) {
+      // Separate any leading prose (the intro / cross-cutting reply) from the
+      // actual service block so it renders as its own bubble ABOVE the card,
+      // not absorbed INTO the card box (which made BenefitCard grab the intro's
+      // first bold — e.g. "3 benefits" — as the card title). The service block
+      // is the last paragraph before APPLY_NOW; everything before the final
+      // blank line is prose.
+      const trimmed = buf.replace(/\s+$/, "")
+      const splitAt = trimmed.lastIndexOf("\n\n")
+      const prose = splitAt >= 0 ? trimmed.slice(0, splitAt).trim() : ""
+      const card  = splitAt >= 0 ? trimmed.slice(splitAt + 2).trim() : trimmed
+      if (prose) result.push(<AgentMarkdown key={`p${i}`} text={prose} onKnowMore={onKnowMore} onSendMessage={onSendMessage} lang={lang} />)
+      result.push(<BenefitCard key={i} content={card} applyUrl={am[1]} downloadUrl={am[2]} onKnowMore={onKnowMore} lang={lang} onApplyNow={onApplyNow} />)
+      buf = ""
+    }
     else buf += part
   }
   if (buf.trim()) result.push(<AgentMarkdown key="trailing" text={buf} onKnowMore={onKnowMore} onSendMessage={onSendMessage} lang={lang} />)
