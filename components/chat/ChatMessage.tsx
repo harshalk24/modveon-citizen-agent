@@ -76,16 +76,16 @@ function renderInline(text: string, onKnowMore: (d: string) => void, lang: strin
     if (part.startsWith("**") && part.endsWith("**"))
       return <strong key={i} className="font-semibold text-gray-900">{part.slice(2, -2)}</strong>
     const lm = part.match(/^\[([^\]]+)\]\(([^)]+)\)$/)
-    if (lm) return <a key={i} href={lm[2]} target="_blank" rel="noopener noreferrer" className="text-[#1B3A8C] underline underline-offset-2 hover:text-[#152D70] break-all">{lm[1]}</a>
+    if (lm) return <a key={i} href={lm[2]} target="_blank" rel="noopener noreferrer" className="text-ca-blue underline underline-offset-2 hover:text-ca-blue-hover break-all">{lm[1]}</a>
     const dm = part.match(/^DOC_INFO:([a-zA-Z0-9_-]+)$/)
     if (dm) return (
       <button key={i} onClick={() => onKnowMore(dm[1])}
-        className="inline-flex items-center justify-center w-5 h-5 ml-1 align-middle text-[#1B3A8C] border border-blue-200 rounded-full bg-blue-50 hover:bg-blue-100 transition-colors"
+        className="inline-flex items-center justify-center w-5 h-5 ml-1 align-middle text-ca-blue border border-blue-200 rounded-full bg-blue-50 hover:bg-blue-100 transition-colors"
         title={lang === "es" ? `Saber más sobre ${formatDocName(dm[1])}` : `Learn more about ${formatDocName(dm[1])}`}>
         <Info size={10} />
       </button>
     )
-    if (/^https?:\/\//.test(part)) return <a key={i} href={part} target="_blank" rel="noopener noreferrer" className="text-[#1B3A8C] underline underline-offset-2 break-all">{part}</a>
+    if (/^https?:\/\//.test(part)) return <a key={i} href={part} target="_blank" rel="noopener noreferrer" className="text-ca-blue underline underline-offset-2 break-all">{part}</a>
     return part
   })
 }
@@ -360,7 +360,7 @@ function BenefitCard({ content, applyUrl, downloadUrl, onKnowMore, lang, onApply
             {lang === "es" ? "Gratis" : "Free"}
           </span>
         ) : am ? (
-          <span className="text-[11.5px] font-bold px-2.5 py-0.5 bg-ca-track text-[#475569] rounded-full flex-shrink-0 whitespace-nowrap">{am[0]}</span>
+          <span className="text-[11.5px] font-bold px-2.5 py-0.5 bg-ca-track text-ca-pill-text rounded-full flex-shrink-0 whitespace-nowrap">{am[0]}</span>
         ) : null}
       </div>
 
@@ -532,7 +532,7 @@ export default function ChatMessage({ message, citizenId, onAction, onSendMessag
                 className={`text-[13px] px-3.5 py-2 rounded-full font-medium transition-colors ${
                   btn.variant === "green"
                     ? "bg-ca-yellow-light border border-ca-yellow text-[#7A5B00] font-semibold hover:bg-ca-yellow/20"
-                    : "border border-ca-surface-input text-[#475569] hover:border-ca-yellow bg-white"
+                    : "border border-ca-surface-input text-ca-pill-text hover:border-ca-yellow bg-white"
                 }`}>
                 {btn.label}
               </button>

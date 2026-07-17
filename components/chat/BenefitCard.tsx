@@ -78,7 +78,7 @@ export default function BenefitCard({ service, lang, onKnowMore }: {
         {amount && (
           isFree
             ? <span className="text-[11.5px] font-bold px-2.5 py-0.5 bg-ca-success-light text-ca-success rounded-full flex-shrink-0 whitespace-nowrap">{es ? "Gratis" : "Free"}</span>
-            : <span className="text-[11.5px] font-bold px-2.5 py-0.5 bg-ca-track text-[#475569] rounded-full flex-shrink-0 whitespace-nowrap max-w-[45%] truncate">{simpleAmount ? amount : (es ? "Varía" : "Varies")}</span>
+            : <span className="text-[11.5px] font-bold px-2.5 py-0.5 bg-ca-track text-ca-pill-text rounded-full flex-shrink-0 whitespace-nowrap max-w-[45%] truncate">{simpleAmount ? amount : (es ? "Varía" : "Varies")}</span>
         )}
       </div>
 

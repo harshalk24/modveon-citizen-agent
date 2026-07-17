@@ -1145,15 +1145,15 @@ function ChatContent() {
           {/* Generating plan overlay — centered over the message area */}
           {generatingPlan && (
             <div className="absolute inset-0 z-20 flex items-center justify-center bg-white/70 backdrop-blur-sm">
-              <div className="flex flex-col items-center gap-3 rounded-2xl border border-[#FFC400] bg-white px-8 py-6 shadow-lg">
-                <Sparkles size={28} className="animate-pulse text-[#1B3A8C]" />
-                <p className="text-base font-semibold text-[#1B3A8C]">
+              <div className="flex flex-col items-center gap-3 rounded-2xl border border-ca-yellow bg-white px-8 py-6 shadow-lg">
+                <Sparkles size={28} className="animate-pulse text-ca-blue" />
+                <p className="text-base font-semibold text-ca-blue">
                   {lang === "es" ? "Generando tu plan…" : "Generating your plan…"}
                 </p>
                 <div className="flex gap-1">
-                  <span className="w-2 h-2 bg-[#FFC400] rounded-full animate-bounce [animation-delay:0ms]" />
-                  <span className="w-2 h-2 bg-[#FFC400] rounded-full animate-bounce [animation-delay:150ms]" />
-                  <span className="w-2 h-2 bg-[#FFC400] rounded-full animate-bounce [animation-delay:300ms]" />
+                  <span className="w-2 h-2 bg-ca-yellow rounded-full animate-bounce [animation-delay:0ms]" />
+                  <span className="w-2 h-2 bg-ca-yellow rounded-full animate-bounce [animation-delay:150ms]" />
+                  <span className="w-2 h-2 bg-ca-yellow rounded-full animate-bounce [animation-delay:300ms]" />
                 </div>
               </div>
             </div>
@@ -1204,7 +1204,7 @@ export default function ChatPage() {
   return (
     <Suspense fallback={
       <div className="flex items-center justify-center h-screen">
-        <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-[#FFC400]" />
+        <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-ca-yellow" />
       </div>
     }>
       <ChatContent />
