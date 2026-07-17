@@ -34,6 +34,7 @@ function chatHeaders(
   hasServices: boolean,
   conversationId?: string | null,
   targetSituation?: string | null,
+  language?: "en" | "es",
 ): Record<string, string> {
   return {
     "Content-Type": "text/plain; charset=utf-8",
@@ -46,6 +47,12 @@ function chatHeaders(
     // active situation. Absent (open-ended "what do I qualify for?") → client
     // shows the full union.
     ...(targetSituation ? { "X-Target-Situation": targetSituation } : {}),
+    // Task I18N_PER_CONVERSATION: the conversation's fixed effective language
+    // for this turn — the client syncs it into ConversationsContext so the
+    // toggle-lock + chrome-follows-conversation behavior stay correct even
+    // for a brand-new conversation (whose language wasn't known client-side
+    // until this very response confirms what got persisted).
+    ...(language ? { "X-Conversation-Language": language } : {}),
   }
 }
 
@@ -68,6 +75,39 @@ export async function POST(req: Request) {
   // session object.
   const currentSession = await getSession(sessionId)
   const turnCount = currentSession?.turnCount ?? 1
+
+  const isRealCitizen = !!(citizenId && citizenId !== "anonymous")
+
+  // Task History-C1 / WRITETHROUGH_CONSOLIDATE: durable history is additive.
+  // Read the session's active conversation id if it already has one, but do
+  // NOT create a Conversation row here. Creation is deferred to finalizeTurn
+  // (below) — the single point where a turn is actually persisted — so a turn
+  // that never reaches a persisted reply (an error, or any short-circuit)
+  // can't leave a titled zero-message "ghost" row in the sidebar. Anonymous
+  // sessions have no Citizen row to satisfy the Conversation.citizenId FK, so
+  // this stays null for them, same gate every durable write here uses.
+  //
+  // Hoisted here (ahead of where it used to live, right before finalizeTurn)
+  // because effectiveLanguage below needs to know it first.
+  let conversationId: string | null = isRealCitizen ? (currentSession?.conversationId ?? null) : null
+
+  // Task I18N_PER_CONVERSATION: a conversation's language is fixed at
+  // creation and never changes mid-thread (Option 3) — once a conversation
+  // exists, ITS stored `language` column is the effective language for every
+  // downstream use (isEs, buildSystemPrompt, canned messages), overriding
+  // whatever the client happens to send this turn (the live global toggle).
+  // Only a brand-new conversation (conversationId still null here) uses the
+  // client's live `language` — that value becomes what's persisted on the
+  // row once it's lazily created in finalizeTurn below.
+  let effectiveLanguage: "en" | "es" = language === "en" ? "en" : "es"
+  if (conversationId) {
+    try {
+      const conv = await prisma.conversation.findUnique({ where: { id: conversationId }, select: { language: true } })
+      if (conv?.language === "en" || conv?.language === "es") effectiveLanguage = conv.language
+    } catch (e) {
+      console.error("Conversation language read failed (falling back to client-sent language):", e)
+    }
+  }
 
   // ── Build context — prefer DB record over client-sent contextData ────
   // Reading from DB ensures we have the latest lifeEvent/employment even if
@@ -116,7 +156,7 @@ export async function POST(req: Request) {
             // Phase 2b-C1: derived from Situation rows, not the DB column.
             activeLifeEvents: JSON.stringify(slugsOfRows(situationRows)),
             pendingLifeEvent: dbCtx.pendingLifeEvent || undefined,
-            language:   dbCtx.citizen?.language || contextData?.profile?.language  || language,
+            language:   effectiveLanguage,
             municipality: dbCtx.municipality || contextData?.profile?.municipality || undefined,
             // Task GENDER_ELIGIBILITY: citizen is already fetched via
             // include:{citizen:true} — carry gender into ctx.profile so it
@@ -142,7 +182,7 @@ export async function POST(req: Request) {
       ? { ...contextData, profile: { ...contextData.profile } }
       : {
           citizenId: citizenId || "anonymous",
-          profile: { firstName: "there", country: "SV", employment: "unknown", lifeEvent: "", language },
+          profile: { firstName: "there", country: "SV", employment: "unknown", lifeEvent: "", language: effectiveLanguage },
           entitlements: [], planSteps: [], deadlines: [],
           lastUpdated: new Date().toISOString(),
         }
@@ -150,19 +190,10 @@ export async function POST(req: Request) {
 
   // ── Intent extraction from the latest user message ─────────────────
   const userMessage: string = messages.findLast((m: any) => m.role === "user")?.content ?? ""
-  const isEs               = (ctx.profile.language || language) === "es"
-
-  const isRealCitizen = !!(citizenId && citizenId !== "anonymous")
-
-  // Task History-C1 / WRITETHROUGH_CONSOLIDATE: durable history is additive.
-  // Read the session's active conversation id if it already has one, but do
-  // NOT create a Conversation row here. Creation is deferred to finalizeTurn
-  // (below) — the single point where a turn is actually persisted — so a turn
-  // that never reaches a persisted reply (an error, or any short-circuit)
-  // can't leave a titled zero-message "ghost" row in the sidebar. Anonymous
-  // sessions have no Citizen row to satisfy the Conversation.citizenId FK, so
-  // this stays null for them, same gate every durable write here uses.
-  let conversationId: string | null = isRealCitizen ? (currentSession?.conversationId ?? null) : null
+  // Task I18N_PER_CONVERSATION: driven by effectiveLanguage (the conversation's
+  // fixed language once one exists), not the raw per-request language/
+  // ctx.profile.language — see effectiveLanguage's own comment above.
+  const isEs = effectiveLanguage === "es"
 
   // ── Single write-through + conversation-header choke point ─────────────
   // Task WRITETHROUGH_CONSOLIDATE: EVERY successful response path routes its
@@ -195,7 +226,7 @@ export async function POST(req: Request) {
         // Lazy create: only once we have a reply to write — never eagerly, so
         // no zero-message ghost can exist in the list.
         if (!conversationId) {
-          const conversation = await createConversation(citizenId, userMessage)
+          const conversation = await createConversation(citizenId, userMessage, effectiveLanguage)
           conversationId = conversation.id
           await saveSession(sessionId, { ...(currentSession ?? { messages: [], turnCount }), conversationId })
         }
@@ -208,7 +239,7 @@ export async function POST(req: Request) {
     const isStream = body instanceof ReadableStream
     return new Response(body ?? replyText, {
       headers: {
-        ...chatHeaders(uiState, hasServices, conversationId, targetSituation),
+        ...chatHeaders(uiState, hasServices, conversationId, targetSituation, effectiveLanguage),
         // Transfer-Encoding only matters for the streamed body; canned string
         // replies don't set it (unchanged from before consolidation).
         ...(isStream ? { "Transfer-Encoding": "chunked" } : {}),
@@ -428,7 +459,7 @@ export async function POST(req: Request) {
     slots:      ctx.slots,
     query:      userMessage,
     queryType:  classification.type,
-    lang:       language as "en" | "es",
+    lang:       effectiveLanguage,
   })
   const services = retrieval.services
   console.log("[DIAG] retrieval:", JSON.stringify({ fg: retrieval.foregroundCount, miss: retrieval.isHonestMiss, services: retrieval.services.map(s => ({ id: s.id, src: s._source })) }))
@@ -535,7 +566,7 @@ export async function POST(req: Request) {
   // the slot-filling ASK decision) also orders the KB payload's directAnswer/
   // situations — the same "which situation is this turn about" answer drives
   // both what gets asked and what leads the reply.
-  const systemPrompt = buildSystemPrompt(ctx, services, JSON.stringify(recentMsgs), language, classification.type, slotToAsk, retrieval.isHonestMiss, askTargetSlug, justAddedSituation)
+  const systemPrompt = buildSystemPrompt(ctx, services, JSON.stringify(recentMsgs), effectiveLanguage, classification.type, slotToAsk, retrieval.isHonestMiss, askTargetSlug, justAddedSituation)
 
   // Format for Gemini — strip leading model turns
   const formattedMessages = messages
@@ -543,7 +574,7 @@ export async function POST(req: Request) {
 
   // ── Async summarisation every N turns ──────────────────────────────
   if (shouldSummarise(turnCount) && messages.length > 0 && citizenId && citizenId !== "anonymous") {
-    summariseConversation(messages, language).then(async (summary) => {
+    summariseConversation(messages, effectiveLanguage).then(async (summary) => {
       await prisma.citizenContext.upsert({
         where:  { citizenId },
         create: { citizenId, conversationSummary: summary, updatedAt: new Date() },
@@ -582,7 +613,7 @@ export async function POST(req: Request) {
     // service's real applyUrl (most often the model substituting infoUrl for
     // a null applyUrl) BEFORE grounding runs — so a bad tag neither reaches
     // the judge (no more false grounding-fail from this cause) nor the citizen.
-    generated.text = stripInvalidApplyNowTags(generated.text, services, language as "en" | "es")
+    generated.text = stripInvalidApplyNowTags(generated.text, services, effectiveLanguage)
     generated.chunks = [generated.text]
     let groundingOutcome: "grounded" | "regenerated" | "fell-back" = "grounded"
     let lastResult: Awaited<ReturnType<typeof checkGrounding>> = { grounded: true }
@@ -596,16 +627,16 @@ export async function POST(req: Request) {
     // Nothing concrete to fact-check when no services were retrieved (e.g.
     // pure onboarding conversation) — skip the extra LLM round-trip.
     if (services.length > 0 && classification.type !== "meta") {
-      lastResult = await checkGrounding(generated.text, services, fullKB, citizenCtxForGrounding, language)
+      lastResult = await checkGrounding(generated.text, services, fullKB, citizenCtxForGrounding, effectiveLanguage)
       attempts.push({ attempt: 1, draft: generated.text, stage: lastResult.stage, reasons: lastResult.problems, passed: lastResult.grounded })
 
       if (!lastResult.grounded) {
         console.warn("Grounding failed (attempt 1):", lastResult.stage, lastResult.problems)
         const regenPrompt = `${systemPrompt}\n\nIMPORTANT: your previous draft made these unsupported or incorrect claims: ${JSON.stringify(lastResult.problems)}. Rewrite your reply using ONLY the facts in the KNOWLEDGE BASE section above. For every entry with review="needs_review" or a low conf, you MUST include an explicit hedge phrase directly next to its specific figures — e.g. "this varies by source — confirm with [agency]" — not just avoid stating a number. Do not repeat these mistakes.`
         const regenerated = await generateFull(regenPrompt)
-        regenerated.text = stripInvalidApplyNowTags(regenerated.text, services, language as "en" | "es")
+        regenerated.text = stripInvalidApplyNowTags(regenerated.text, services, effectiveLanguage)
         regenerated.chunks = [regenerated.text]
-        const regenResult = await checkGrounding(regenerated.text, services, fullKB, citizenCtxForGrounding, language)
+        const regenResult = await checkGrounding(regenerated.text, services, fullKB, citizenCtxForGrounding, effectiveLanguage)
         attempts.push({ attempt: 2, draft: regenerated.text, stage: regenResult.stage, reasons: regenResult.problems, passed: regenResult.grounded })
 
         if (regenResult.grounded) {
@@ -614,7 +645,7 @@ export async function POST(req: Request) {
         } else {
           console.warn("Grounding failed (attempt 2 — regeneration):", regenResult.stage, regenResult.problems)
           const criticalSlotAsk = slotToAsk?.critical ? slotToAsk.ask : null
-          generated = { text: buildFallbackReply(services, language as "en" | "es", criticalSlotAsk, askTargetSlug), chunks: [] }
+          generated = { text: buildFallbackReply(services, effectiveLanguage, criticalSlotAsk, askTargetSlug), chunks: [] }
           generated.chunks = [generated.text]
           groundingOutcome = "fell-back"
           lastResult = regenResult

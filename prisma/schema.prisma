@@ -42,6 +42,13 @@ model Conversation {
   // written, so a retried/duplicate client call (or a client that fires the
   // request more than once) is a true no-op instead of a repeated LLM call.
   titleUpgraded Boolean @default(false)
+  // Task I18N_PER_CONVERSATION: fixed at creation (the global UI pref at that
+  // moment) and never changes for the conversation's life — every turn in the
+  // thread renders/generates in THIS language, not whatever the global toggle
+  // is showing right now. Prevents mixed-language history (already-persisted
+  // messages can't be retroactively translated if the toggle flips mid-thread).
+  // Default "es" — the product is Spanish-first; existing rows backfill to it.
+  language  String   @default("es")
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
   citizen   Citizen  @relation(fields: [citizenId], references: [id])

@@ -3,7 +3,7 @@
 import { Suspense, useState, useRef, useEffect, Fragment } from "react"
 import { useRouter, useSearchParams } from "next/navigation"
 import { Send, Loader2, Sparkles } from "lucide-react"
-import { useLang } from "@/contexts/LanguageContext"
+import { useChromeLanguage } from "@/contexts/LanguageContext"
 import { useCitizen } from "@/contexts/CitizenContext"
 import { useConversations } from "@/contexts/ConversationsContext"
 import { t } from "@/lib/i18n"
@@ -133,7 +133,15 @@ function situationButtons(lang: string): { label: string; action: string; varian
 function ChatContent() {
   const router = useRouter()
   const searchParams = useSearchParams()
-  const { lang } = useLang()
+  // Task I18N_PER_CONVERSATION: `lang` here is the CHROME-effective language —
+  // the open conversation's fixed language when there is one (locked, toggle
+  // disabled in Sidebar), else the global toggle. Every usage below (welcome/
+  // onboarding text, placeholders, verifying copy, disclaimer, the
+  // language: lang sent in request bodies) is correct either way: pre-
+  // conversation this equals the raw global pref (no divergence), and once a
+  // conversation is open the toggle can't change anyway, so sending its own
+  // language back to the server is a no-op.
+  const { lang } = useChromeLanguage()
   const { citizen, sessionId, refresh, isLoading: citizenLoading } = useCitizen()
   const { pendingMessages, clearPendingMessages, refreshConversations, syncActiveConversationId } = useConversations()
   const tr = t(lang)
@@ -926,13 +934,19 @@ function ChatContent() {
       // it, and which conversation. Fired below, after the reply renders.
       const conversationIdForTitle = res.headers.get("X-Conversation-Id")
       const shouldUpgradeTitle     = res.headers.get("X-Should-Upgrade-Title") === "1"
+      // Task I18N_PER_CONVERSATION: the conversation's fixed effective
+      // language for this turn — for a brand-new conversation this is the
+      // only place the client learns what got persisted (the row didn't
+      // exist before this response), which is what locks the toggle +
+      // switches chrome to follow it going forward.
+      const conversationLanguage = res.headers.get("X-Conversation-Language")
       // Task History-C2: keep ConversationsContext's activeConversationId in
       // sync with whatever the server actually used this turn — not just
       // what selectConversation set. Covers the gap where a conversation is
       // lazily created by a normal send (after "New conversation," or a
       // citizen's very first message ever) — without this, deleting that
       // conversation later wouldn't be recognized as deleting the ACTIVE one.
-      if (conversationIdForTitle) syncActiveConversationId(conversationIdForTitle)
+      if (conversationIdForTitle) syncActiveConversationId(conversationIdForTitle, conversationLanguage === "en" ? "en" : conversationLanguage === "es" ? "es" : undefined)
 
       const reader = res.body!.getReader()
       const decoder = new TextDecoder()
@@ -1056,7 +1070,7 @@ function ChatContent() {
               </p>
             </div>
             <a href="/preview" className="flex items-center gap-1.5 px-3.5 py-1.5 rounded-full text-xs font-semibold bg-ca-yellow text-ca-ink hover:bg-ca-yellow-hover transition-colors flex-shrink-0">
-              <Sparkles size={12} />Preview
+              <Sparkles size={12} />{tr.common.preview}
             </a>
           </div>
         )}

@@ -360,7 +360,7 @@ export default function PlanPage() {
               </span>
             )}
             <a href="/preview" className="flex items-center gap-1.5 px-3.5 py-1.5 rounded-full text-xs font-semibold bg-ca-yellow text-ca-ink hover:bg-ca-yellow-hover transition-colors">
-              <Sparkles size={12} />Preview
+              <Sparkles size={12} />{tr.common.preview}
             </a>
           </div>
         </div>

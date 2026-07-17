@@ -28,6 +28,10 @@ export interface ConversationSummary {
   id: string
   title: string
   updatedAt: Date
+  // Task I18N_PER_CONVERSATION: fixed at creation, never changes — the
+  // sidebar/client uses this to lock the language toggle + follow this
+  // conversation's language for chrome while it's the active one.
+  language: string
 }
 
 export interface ConversationMessage {
@@ -42,9 +46,13 @@ export interface ConversationMessage {
 // yet. Title is the truncated first message, always present immediately
 // (never empty/pending — the LLM upgrade in maybeUpgradeTitle is a later
 // opportunistic overwrite, not a precondition).
-export async function createConversation(citizenId: string, firstMessage: string): Promise<{ id: string }> {
+//
+// Task I18N_PER_CONVERSATION: language is the effective language AT THIS
+// MOMENT (the client's live global toggle for a brand-new conversation) —
+// fixed on the row for the conversation's whole life from here on.
+export async function createConversation(citizenId: string, firstMessage: string, language: "en" | "es"): Promise<{ id: string }> {
   return prisma.conversation.create({
-    data: { citizenId, title: truncateTitle(firstMessage) },
+    data: { citizenId, title: truncateTitle(firstMessage), language },
     select: { id: true },
   })
 }
@@ -164,25 +172,28 @@ export async function listConversations(citizenId: string): Promise<Conversation
   return prisma.conversation.findMany({
     where: { citizenId },
     orderBy: { updatedAt: "desc" },
-    select: { id: true, title: true, updatedAt: true },
+    select: { id: true, title: true, updatedAt: true, language: true },
   })
 }
 
 // Fetch one conversation's messages in order (Behavior 6) — scoped to
 // citizenId; returns null (not an empty array) when the conversation
 // doesn't exist or isn't owned by this citizen, so callers can 404 instead
-// of showing an empty conversation.
-export async function getConversationMessages(conversationId: string, citizenId: string): Promise<ConversationMessage[] | null> {
+// of showing an empty conversation. Also returns the conversation's fixed
+// language (Task I18N_PER_CONVERSATION) — the client needs it to lock the
+// toggle + set chrome language the moment a past conversation is opened.
+export async function getConversationMessages(conversationId: string, citizenId: string): Promise<{ language: string; messages: ConversationMessage[] } | null> {
   const conversation = await prisma.conversation.findFirst({
     where: { id: conversationId, citizenId },
-    select: { id: true },
+    select: { id: true, language: true },
   })
   if (!conversation) return null
-  return prisma.message.findMany({
+  const messages = await prisma.message.findMany({
     where: { conversationId },
     orderBy: { createdAt: "asc" },
     select: { id: true, role: true, content: true, createdAt: true },
   })
+  return { language: conversation.language, messages }
 }
 
 // Task History-C2 (STEP 0 finding): commit 1 only ever CLEARED the session's

@@ -11,6 +11,8 @@ export interface ConversationSummary {
   id: string
   title: string
   updatedAt: string
+  // Task I18N_PER_CONVERSATION: fixed at creation, never changes.
+  language: string
 }
 
 export interface ConversationMessage {
@@ -23,6 +25,12 @@ export interface ConversationMessage {
 interface ConversationsCtx {
   conversations: ConversationSummary[]
   activeConversationId: string | null
+  // Task I18N_PER_CONVERSATION: the ACTIVE conversation's fixed language, or
+  // null when there isn't one (dashboard/profile/new-empty-chat) — the
+  // language toggle is locked and chrome follows THIS value whenever it's
+  // non-null AND the citizen is actually viewing /chat (checked at the
+  // consuming hook, not here — this context doesn't know the current route).
+  activeConversationLanguage: "en" | "es" | null
   // Set once a conversation's messages have been fetched for the current
   // activeConversationId (non-empty array), or reset to an EMPTY array as
   // the "start fresh" signal from startNewConversation/removeConversation —
@@ -42,12 +50,17 @@ interface ConversationsCtx {
   // normal message (after "New conversation," or on a citizen's very first
   // message ever) never registers as "active" here, so deleting it later
   // wouldn't be recognized as deleting the ACTIVE conversation.
-  syncActiveConversationId: (id: string | null) => void
+  // Task I18N_PER_CONVERSATION: also takes the conversation's effective
+  // language (X-Conversation-Language) so a brand-new conversation's fixed
+  // language is known client-side the moment its first reply comes back —
+  // before that, the client couldn't have known it (the row didn't exist).
+  syncActiveConversationId: (id: string | null, language?: "en" | "es") => void
 }
 
 const ConversationsContext = createContext<ConversationsCtx>({
   conversations: [],
   activeConversationId: null,
+  activeConversationLanguage: null,
   pendingMessages: null,
   clearPendingMessages: () => {},
   refreshConversations: async () => {},
@@ -67,6 +80,7 @@ export function ConversationsProvider({ children }: { children: ReactNode }) {
 
   const [conversations, setConversations] = useState<ConversationSummary[]>([])
   const [activeConversationId, setActiveConversationId] = useState<string | null>(null)
+  const [activeConversationLanguage, setActiveConversationLanguage] = useState<"en" | "es" | null>(null)
   const [pendingMessages, setPendingMessages] = useState<ConversationMessage[] | null>(null)
 
   const refreshConversations = useCallback(async () => {
@@ -103,6 +117,7 @@ export function ConversationsProvider({ children }: { children: ReactNode }) {
       const data = await msgsRes.json()
 
       setActiveConversationId(id)
+      setActiveConversationLanguage(data.language === "en" ? "en" : "es")
       setPendingMessages(data.messages || [])
       // Move it to the top locally, without waiting for a full list refetch.
       setConversations(prev => {
@@ -127,6 +142,7 @@ export function ConversationsProvider({ children }: { children: ReactNode }) {
       // conversation instead of starting fresh; still resets the UI below
     }
     setActiveConversationId(null)
+    setActiveConversationLanguage(null)
     setPendingMessages([]) // the "reset to welcome" sentinel
   }, [sessionId])
 
@@ -152,16 +168,20 @@ export function ConversationsProvider({ children }: { children: ReactNode }) {
         // best-effort
       }
       setActiveConversationId(null)
+      setActiveConversationLanguage(null)
       setPendingMessages([])
     }
   }, [citizenId, sessionId, activeConversationId])
 
   const clearPendingMessages = useCallback(() => setPendingMessages(null), [])
-  const syncActiveConversationId = useCallback((id: string | null) => setActiveConversationId(id), [])
+  const syncActiveConversationId = useCallback((id: string | null, language?: "en" | "es") => {
+    setActiveConversationId(id)
+    if (language) setActiveConversationLanguage(language)
+  }, [])
 
   return (
     <ConversationsContext.Provider value={{
-      conversations, activeConversationId, pendingMessages, clearPendingMessages,
+      conversations, activeConversationId, activeConversationLanguage, pendingMessages, clearPendingMessages,
       refreshConversations, selectConversation, startNewConversation, removeConversation,
       syncActiveConversationId,
     }}>

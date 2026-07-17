@@ -2,9 +2,9 @@
 
 import Link from "next/link"
 import { useRouter, usePathname } from "next/navigation"
-import { MessageSquare, LayoutDashboard, ListChecks, User, Globe, Clock, SquarePen, Trash2 } from "lucide-react"
+import { MessageSquare, LayoutDashboard, ListChecks, User, Globe, Clock, Plus, Trash2 } from "lucide-react"
 import { useState } from "react"
-import { useLang } from "@/contexts/LanguageContext"
+import { useLang, useChromeLanguage } from "@/contexts/LanguageContext"
 import { useCitizen } from "@/contexts/CitizenContext"
 import { useConversations } from "@/contexts/ConversationsContext"
 import { t } from "@/lib/i18n"
@@ -68,9 +68,10 @@ export default function Sidebar() {
   const pathname = usePathname()
   const router = useRouter()
   const { lang, toggle } = useLang()
+  const { lang: chromeLang, locked: langLocked } = useChromeLanguage()
   const { citizen, isLoading } = useCitizen()
   const { conversations, activeConversationId, selectConversation, startNewConversation, removeConversation } = useConversations()
-  const tr = t(lang)
+  const tr = t(chromeLang)
   const [toast, setToast] = useState<string | null>(null)
 
   if (pathname === "/" || pathname.startsWith("/onboarding")) return null
@@ -109,7 +110,7 @@ export default function Sidebar() {
     : contextPills.join(" · ")
 
   const showConvToast = () => {
-    setToast("This conversation is read-only in preview mode")
+    setToast(tr.common.previewReadOnly)
     setTimeout(() => setToast(null), 3000)
   }
 
@@ -119,32 +120,35 @@ export default function Sidebar() {
 
         {/* Header */}
         <div className="px-4 pt-5 pb-3 border-b border-white/10 flex-shrink-0">
-          <div className="flex items-center justify-between">
-            <div>
-              <div className="font-semibold text-[15px] text-white">{tr.appName}</div>
-              <div className="text-xs text-white/50 mt-0.5">{tr.appSubtitle}</div>
-            </div>
-            {/* New conversation button — hard reload for preview (resets React state);
-                real usage clears the active conversation server-side (Task History-C2)
-                so the next turn lazily creates a fresh one instead of continuing the old. */}
-            {isPreview ? (
-              <a href={pathname} title="New conversation"
-                className="w-8 h-8 rounded-lg bg-white/10 hover:bg-white/20 flex items-center justify-center transition-colors flex-shrink-0">
-                <SquarePen size={15} className="text-white/70" />
-              </a>
-            ) : (
-              <button
-                title="New conversation"
-                onClick={() => {
-                  startNewConversation()
-                  if (pathname !== "/chat") router.push("/chat")
-                }}
-                className="w-8 h-8 rounded-lg bg-white/10 hover:bg-white/20 flex items-center justify-center transition-colors flex-shrink-0"
-              >
-                <SquarePen size={15} className="text-white/70" />
-              </button>
-            )}
-          </div>
+          <div className="font-semibold text-[15px] text-white">{tr.appName}</div>
+          <div className="text-xs text-white/50 mt-0.5">{tr.appSubtitle}</div>
+        </div>
+
+        {/* New conversation — Claude-style prominent primary affordance (Task
+            I18N_PER_CONVERSATION Part 4: placement/prominence upgrade of the
+            existing button, not a new feature). Hard reload for preview
+            (resets React state); real usage clears the active conversation
+            server-side (Task History-C2) so the next turn lazily creates a
+            fresh one instead of continuing the old. */}
+        <div className="px-3 pt-3 flex-shrink-0">
+          {isPreview ? (
+            <a href={pathname} title={tr.common.newConversation}
+              className="w-full flex items-center justify-center gap-2 px-3 py-2.5 rounded-lg bg-ca-yellow text-ca-ink font-semibold text-sm hover:bg-ca-yellow-hover transition-colors">
+              <Plus size={16} />
+              {tr.common.newConversation}
+            </a>
+          ) : (
+            <button
+              onClick={() => {
+                startNewConversation()
+                if (pathname !== "/chat") router.push("/chat")
+              }}
+              className="w-full flex items-center justify-center gap-2 px-3 py-2.5 rounded-lg bg-ca-yellow text-ca-ink font-semibold text-sm hover:bg-ca-yellow-hover transition-colors"
+            >
+              <Plus size={16} />
+              {tr.common.newConversation}
+            </button>
+          )}
         </div>
 
         {/* Scrollable middle: nav + conversations */}
@@ -174,7 +178,7 @@ export default function Sidebar() {
           {isPreview && previewConvos.length > 0 && (
             <div className="pt-4">
               <p className="text-[10px] font-bold text-white/40 uppercase tracking-wider px-3 mb-2">
-                Conversations
+                {tr.sidebar.conversations}
               </p>
               {previewConvos.map(conv => (
                 <button
@@ -212,10 +216,10 @@ export default function Sidebar() {
           {!isPreview && citizen && (
             <div className="pt-4">
               <p className="text-[10px] font-bold text-white/40 uppercase tracking-wider px-3 mb-2">
-                Conversations
+                {tr.sidebar.conversations}
               </p>
               {conversations.length === 0 ? (
-                <p className="text-xs text-white/40 px-3">No past conversations yet</p>
+                <p className="text-xs text-white/40 px-3">{tr.sidebar.noConversations}</p>
               ) : (
                 conversations.map(conv => {
                   const isActive = conv.id === activeConversationId
@@ -248,9 +252,9 @@ export default function Sidebar() {
                         <div className="w-1.5 h-1.5 rounded-full bg-yellow-400 flex-shrink-0" />
                       )}
                       <button
-                        title="Delete conversation"
+                        title={tr.sidebar.deleteConversation}
                         onClick={() => {
-                          if (window.confirm("Delete this conversation? This can't be undone.")) {
+                          if (window.confirm(tr.sidebar.deleteConfirm)) {
                             removeConversation(conv.id)
                           }
                         }}
@@ -269,13 +273,31 @@ export default function Sidebar() {
         {/* Bottom: language toggle + profile */}
         <div className="flex-shrink-0 px-3 pb-4 pt-3 border-t border-white/10 space-y-2.5">
           {!isPreview && (
-            <button
-              onClick={toggle}
-              className="flex items-center gap-2 w-full px-3 py-2 rounded-lg text-xs font-medium text-white/70 hover:bg-white/10 hover:text-white transition-colors border border-white/20"
-            >
-              <Globe size={13} />
-              {tr.common.langToggle}
-            </button>
+            <div>
+              {/* Task I18N_PER_CONVERSATION (Part 2, option 2a): disabled +
+                  greyed with a hint while a conversation is open — switching
+                  requires a new chat, since already-persisted messages can't
+                  be retroactively translated. Active everywhere else
+                  (dashboard/profile/empty chat), where it sets the pref for
+                  the NEXT new conversation + this chrome. */}
+              <button
+                onClick={langLocked ? undefined : toggle}
+                disabled={langLocked}
+                aria-disabled={langLocked}
+                className={cn(
+                  "flex items-center gap-2 w-full px-3 py-2 rounded-lg text-xs font-medium transition-colors border",
+                  langLocked
+                    ? "text-white/30 border-white/10 cursor-not-allowed"
+                    : "text-white/70 hover:bg-white/10 hover:text-white border-white/20"
+                )}
+              >
+                <Globe size={13} />
+                {tr.common.langToggle}
+              </button>
+              {langLocked && (
+                <p className="text-[10px] text-white/40 mt-1.5 px-1 leading-snug">{tr.common.langLockedHint}</p>
+              )}
+            </div>
           )}
 
           {/* Avatar-style profile card */}

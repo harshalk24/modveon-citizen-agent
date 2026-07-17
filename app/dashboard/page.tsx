@@ -158,7 +158,7 @@ export default function DashboardPage() {
               </span>
             )}
             <a href="/preview" className="flex items-center gap-1.5 px-3.5 py-1.5 rounded-full text-xs font-semibold bg-ca-yellow text-ca-ink hover:bg-ca-yellow-hover transition-colors">
-              <Sparkles size={12} />Preview
+              <Sparkles size={12} />{tr.common.preview}
             </a>
           </div>
         </div>
@@ -194,6 +194,7 @@ export default function DashboardPage() {
             value={claimedCount}
             total={contextServices.length}
             color="bg-brand"
+            tr={tr}
           />
 
           {/* Plan steps */}
@@ -204,6 +205,7 @@ export default function DashboardPage() {
             value={doneSteps.length}
             total={planSteps.length || 1}
             color="bg-[#3C7D5A]"
+            tr={tr}
           />
 
           {/* Deadlines met */}
@@ -214,6 +216,7 @@ export default function DashboardPage() {
             value={metDeadlines.length}
             total={deadlines.length + planDerivedDeadlines.length}
             color="bg-[#B58233]"
+            tr={tr}
           />
 
           {/* Total value */}
@@ -329,13 +332,14 @@ export default function DashboardPage() {
   )
 }
 
-function ProgressRow({ icon, label, sub, value, total, color }: {
+function ProgressRow({ icon, label, sub, value, total, color, tr }: {
   icon: React.ReactNode
   label: string
   sub: string
   value: number
   total: number
   color: string
+  tr: ReturnType<typeof t>
 }) {
   const pct = safeDivide(value, total)
   return (
@@ -345,7 +349,7 @@ function ProgressRow({ icon, label, sub, value, total, color }: {
           {icon}
           <span className="text-sm font-semibold text-gray-800">{label}</span>
         </div>
-        <span className="text-xs text-ca-text-secondary">{value} of {total}</span>
+        <span className="text-xs text-ca-text-secondary">{tr.dashboard.progress.ofTotal(value, total)}</span>
       </div>
       <div className="h-1.5 bg-ca-track rounded-full overflow-hidden">
         <motion.div

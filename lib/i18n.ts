@@ -10,6 +10,14 @@ export const translations = {
       plan: "My Plan",
       profile: "My Profile",
     },
+    // Task I18N_PER_CONVERSATION (Part 3 audit): Sidebar.tsx conversation-list
+    // chrome — was fully hardcoded English.
+    sidebar: {
+      conversations: "Conversations",
+      noConversations: "No past conversations yet",
+      deleteConversation: "Delete conversation",
+      deleteConfirm: "Delete this conversation? This can't be undone.",
+    },
     chat: {
       placeholder: "Type your question...",
       sendButton: "Send",
@@ -55,6 +63,9 @@ export const translations = {
         nextStep: (s: string) => `Next: ${s}`,
         deadlinesMet: "Deadlines met",
         deadlinesComingUp: (n: number) => `${n} deadline${n > 1 ? "s" : ""} coming up`,
+        // Task I18N_PER_CONVERSATION (Part 3 audit): ProgressRow's "X of Y"
+        // was a hardcoded English separator with no Spanish counterpart.
+        ofTotal: (value: number, total: number) => `${value} of ${total}`,
         totalValue: "Total value available",
         totalValueSub: "Across all benefits if fully claimed",
       },
@@ -196,6 +207,15 @@ export const translations = {
       loading: "Loading...",
       error: "Something went wrong. Please try again.",
       langToggle: "Español",
+      newConversation: "New conversation",
+      // Task I18N_PER_CONVERSATION (Part 2): shown under the disabled toggle
+      // while a conversation is open — explains why it's locked instead of
+      // just looking broken.
+      langLockedHint: "Language is set per conversation — start a new chat to switch",
+      previewReadOnly: "This conversation is read-only in preview mode",
+      // Task I18N_PER_CONVERSATION (Part 3 audit): the "Preview" pill's label
+      // was hardcoded English identically on Chat/Dashboard/Plan/Profile.
+      preview: "Preview",
     },
   },
   es: {
@@ -206,6 +226,12 @@ export const translations = {
       dashboard: "Dashboard",
       plan: "Mi plan",
       profile: "Mi perfil",
+    },
+    sidebar: {
+      conversations: "Conversaciones",
+      noConversations: "Aún no hay conversaciones",
+      deleteConversation: "Eliminar conversación",
+      deleteConfirm: "¿Eliminar esta conversación? No se puede deshacer.",
     },
     chat: {
       placeholder: "Escribí tu pregunta...",
@@ -252,6 +278,7 @@ export const translations = {
         nextStep: (s: string) => `Siguiente: ${s}`,
         deadlinesMet: "Plazos cumplidos",
         deadlinesComingUp: (n: number) => `${n} plazo${n > 1 ? "s" : ""} próximo${n > 1 ? "s" : ""}`,
+        ofTotal: (value: number, total: number) => `${value} de ${total}`,
         totalValue: "Valor total disponible",
         totalValueSub: "Entre todos los beneficios si se reclaman",
       },
@@ -391,6 +418,10 @@ export const translations = {
       loading: "Cargando...",
       error: "Algo salió mal. Intentá de nuevo.",
       langToggle: "English",
+      newConversation: "Nueva conversación",
+      langLockedHint: "El idioma se define por conversación — iniciá un chat nuevo para cambiarlo",
+      previewReadOnly: "Esta conversación es de solo lectura en modo vista previa",
+      preview: "Vista previa",
     },
   },
 } as const

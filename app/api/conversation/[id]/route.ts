@@ -10,9 +10,9 @@ export async function GET(req: Request, { params }: { params: { id: string } }) 
   const citizenId = req.headers.get("x-citizen-id")
   if (!citizenId) return NextResponse.json({ error: "Unauthorized" }, { status: 401 })
 
-  const messages = await getConversationMessages(params.id, citizenId)
-  if (messages === null) return NextResponse.json({ error: "Not found" }, { status: 404 })
-  return NextResponse.json({ messages })
+  const result = await getConversationMessages(params.id, citizenId)
+  if (result === null) return NextResponse.json({ error: "Not found" }, { status: 404 })
+  return NextResponse.json(result)
 }
 
 // Delete affordance (Behavior 5) — hard delete, scoped to citizenId (can
