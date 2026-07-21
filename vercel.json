@@ -8,5 +8,10 @@
       "path": "/api/engine/verify",
       "schedule": "0 6 * * 1"
     }
-  ]
+  ],
+  "git": {
+    "deploymentEnabled": {
+      "phase-2b": false
+    }
+  }
 }
