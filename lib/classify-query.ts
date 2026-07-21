@@ -132,7 +132,7 @@ Return ONLY this JSON with no other text:
     typeof value === "number" && value >= 0 && value <= 1 ? value : 0
 
   try {
-    const text = (await getLLM().complete(prompt, { temperature: 0.0, maxTokens: 200, json: true })).trim()
+    const text = (await getLLM().complete(prompt, { temperature: 0.0, maxTokens: 200, json: true, purpose: "classify" })).trim()
     const parsed = JSON.parse(text.replace(/```json|```/g, "").trim())
     const confidence = asConfidence(parsed.confidence)
     const lifeEventConfidence = asConfidence(parsed.lifeEventConfidence)

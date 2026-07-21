@@ -10,9 +10,12 @@ export async function streamChat(params: {
     content: m.parts,
   }))
 
+  // Task SLM_LOCAL_HARNESS: this is the reply-generation call — the only
+  // streamChat call site in the app, always tagged "generate".
   const stream = getLLM().streamChat(params.systemPrompt, messages, {
     temperature: 0.3,
     maxTokens:   params.maxTokens || 400,
+    purpose:     "generate",
   })
 
   // Wrap each yielded string so existing consumers (`chunk.text()`) keep working unchanged.
@@ -63,7 +66,10 @@ Rules:
 
   let text = ""
   try {
-    text = await getLLM().complete(prompt, { temperature: 0.1, maxTokens: 2000, json: true })
+    // Task SLM_LOCAL_HARNESS: not one of the task doc's 4 named call sites,
+    // but "generate" is the closest of the 4 purpose values (LLM content
+    // generation, not classify/title/ground) — same bucket as the chat reply.
+    text = await getLLM().complete(prompt, { temperature: 0.1, maxTokens: 2000, json: true, purpose: "generate" })
   } catch (err: any) {
     console.error("generatePlan error:", err?.message ?? err)
     throw new Error(`LLM API error: ${err?.message ?? "unknown"}`)
@@ -84,7 +90,9 @@ export async function summariseConversation(messages: any[], language: "en" | "e
     ? `Resumí esta conversación en máximo 3 oraciones cortas. Solo incluí hechos relevantes sobre la situación del ciudadano. No incluyas saludos ni frases genéricas.\nConversación: ${JSON.stringify(messages)}`
     : `Summarize this conversation in at most 3 short sentences. Include only relevant facts about the citizen's situation. No greetings or generic phrases.\nConversation: ${JSON.stringify(messages)}`
 
-  const text = await getLLM().complete(prompt, { temperature: 0.1, maxTokens: 200 })
+  // Task SLM_LOCAL_HARNESS: background/auxiliary text generation — same
+  // "generate" bucket as generatePlan above (no dedicated purpose for it).
+  const text = await getLLM().complete(prompt, { temperature: 0.1, maxTokens: 200, purpose: "generate" })
   return text.trim()
 }
 
@@ -99,6 +107,6 @@ export async function generateConversationTitle(messages: { role: string; conten
     ? `Generá un título corto de 3 a 5 palabras para esta conversación. Sin comillas, sin punto final, sin saludos genéricos.\nConversación: ${JSON.stringify(messages)}`
     : `Generate a short 3-5 word title for this conversation. No quotes, no trailing period, no generic greetings.\nConversation: ${JSON.stringify(messages)}`
 
-  const text = await getLLM().complete(prompt, { temperature: 0.3, maxTokens: 30 })
+  const text = await getLLM().complete(prompt, { temperature: 0.3, maxTokens: 30, purpose: "title" })
   return text.trim().replace(/^["']+|["']+$/g, "").replace(/\.+$/, "")
 }

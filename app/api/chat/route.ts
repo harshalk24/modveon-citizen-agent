@@ -1,5 +1,6 @@
 import { NextResponse } from "next/server"
 import { streamChat, summariseConversation } from "@/lib/ai"
+import { getActiveModelLabel } from "@/lib/llm"
 import { buildSystemPrompt, stripInvalidApplyNowTags } from "@/lib/context-builder"
 import { situationLabel } from "@/lib/situation-labels"
 import { services as fullKB } from "@/lib/kb"
@@ -699,6 +700,10 @@ export async function POST(req: Request) {
             response:    fullResponse,
             kbSourceIds: extractCitedServiceIds(fullResponse),
             latencyMs:   Date.now() - startTime,
+            // Task SLM_LOCAL_HARNESS: the ACTUAL backend that served this
+            // turn's reply generation (accounts for a fallback if Ollama was
+            // routed but errored) — not just the static routing intent.
+            model:       getActiveModelLabel("generate"),
           })
         }
       }

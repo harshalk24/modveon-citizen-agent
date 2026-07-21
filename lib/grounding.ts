@@ -261,7 +261,11 @@ export function checkValues(reply: string, retrieved: Service[]): { ok: boolean;
 // (over-cautious reject) costs a fallback reply, never a wrong one.
 async function runJudgeCall(prompt: string): Promise<{ ok: boolean; problems: string[] }> {
   try {
-    const text = (await getLLM().complete(prompt, { temperature: 0.0, maxTokens: 300, json: true })).trim()
+    // Task SLM_LOCAL_HARNESS: "ground" is HARD-EXCLUDED from SLM routing in
+    // lib/llm.ts (shouldRouteToSlm) regardless of what SLM_ROUTE lists —
+    // faithfulness checking always stays on the capable model. This tag is
+    // what makes that call site identifiable to the router.
+    const text = (await getLLM().complete(prompt, { temperature: 0.0, maxTokens: 300, json: true, purpose: "ground" })).trim()
     const parsed = JSON.parse(text.replace(/```json|```/g, "").trim())
     const problems = Array.isArray(parsed.problems)
       ? parsed.problems.filter((p: unknown): p is string => typeof p === "string" && p.trim().length > 0)
