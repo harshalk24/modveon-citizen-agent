@@ -171,7 +171,9 @@ function getDefaultLabel(): string {
 // SLM_DEV=1 turns this on at all; SLM_ROUTE (default "classify,title") lists
 // which purposes get sent to Ollama. Both unset/off → getDefaultBackend()
 // only, identical to today's behavior, zero Ollama contact.
-const OLLAMA_MODEL = process.env.OLLAMA_MODEL || "gemma3:4b"
+// Default matches the model actually evaluated (Colab) and verified live
+// through this harness — gemma3n:e4b, not the plain dense gemma3:4b.
+const OLLAMA_MODEL = process.env.OLLAMA_MODEL || "gemma3n:e4b"
 
 let _ollamaBackend: OpenAICompatBackend | null = null
 function getOllamaBackend(): OpenAICompatBackend {
